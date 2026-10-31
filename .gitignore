@@ -1,0 +1,56 @@
+# ==========================================
+# Rust / Cargo
+# ==========================================
+**/target/
+**/*.rs.bk
+*.pdb
+rustc-ice-*.txt
+**/mutants.out*/
+
+# ==========================================
+# Node.js / TypeScript / Svelte / Vite
+# ==========================================
+**/node_modules/
+**/dist/
+**/.vite/
+**/.svelte-kit/
+**/coverage/
+
+*.tsbuildinfo
+*.lcov
+*.eslintcache
+*.stylelintcache
+
+.pnpm-store/
+.npm/
+
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# ==========================================
+# JetBrains (RustRover / WebStorm)
+# ==========================================
+**/.idea/
+*.iml
+*.iws
+*.ipr
+
+# ==========================================
+# Environment / Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+
+# ==========================================
+# Logs / Temporary Files
+# ==========================================
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
