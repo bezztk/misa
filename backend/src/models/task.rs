@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Task {
@@ -9,4 +9,11 @@ pub struct Task {
     pub name: String,
     pub description: Option<String>,
     pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTask {
+    pub name: String,
+    pub group_id: Option<i32>,
+    pub description: Option<String>,
 }
