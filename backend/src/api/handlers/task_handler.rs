@@ -4,6 +4,7 @@ use axum::Json;
 use serde::Serialize;
 use sqlx::PgPool;
 use crate::models::task::{CreateTask, Task, TaskDetails, UpdateTask};
+use crate::models::task_metadata::TaskMetadata;
 use crate::repositories::task_repository;
 
 pub async fn get_task(
@@ -95,6 +96,18 @@ pub async fn delete_task(
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(error) => {
             eprintln!("Failed to delete task: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn get_task_metadata(
+    State(pool): State<PgPool>,
+) -> Result<Json<TaskMetadata>, StatusCode> {
+    match task_repository::get_task_metadata(&pool).await {
+        Ok(metadata) => Ok(Json(metadata)),
+        Err(error) => {
+            eprintln!("Failed to retrieve task metadata: {error}");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

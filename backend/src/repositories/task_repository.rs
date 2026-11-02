@@ -1,6 +1,7 @@
 use sqlx::{PgPool};
 use crate::models::item_type::ItemType;
 use crate::models::task::{Task, TaskDetails};
+use crate::models::task_metadata::{TaskGroup, TaskMetadata, TaskStateRow};
 
 pub async fn create_task(
     pool: &PgPool,
@@ -145,4 +146,22 @@ pub async fn delete_task(
         .await?;
 
     Ok(result.rows_affected() > 0)
+}
+
+pub async fn get_task_metadata(
+    pool: &PgPool,
+) -> Result<TaskMetadata, sqlx::Error> {
+    let groups = sqlx::query_as::<_, TaskGroup>(
+        "SELECT id, name FROM task_groups ORDER BY id"
+    )
+        .fetch_all(pool)
+        .await?;
+
+    let states = sqlx::query_as::<_, TaskStateRow>(
+        "SELECT id, name FROM task_states ORDER BY id"
+    )
+        .fetch_all(pool)
+        .await?;
+
+    Ok(TaskMetadata { groups, states })
 }
