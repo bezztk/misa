@@ -1,5 +1,4 @@
-use sqlx::{Connection, PgConnection};
-use crate::database::{get_item_types, get_task_groups, get_task_states};
+use sqlx::{PgPool};
 
 mod database;
 mod models;
@@ -9,26 +8,21 @@ pub mod repositories;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
-    let mut connection = database::connect().await?;
+    let pool = database::connect().await?;
 
     println!("Database connection established!");
 
-    test_crud(&mut connection).await?;
+    test_crud(&pool).await?;
 
-    let types = get_task_states(&mut connection).await?;
-    types.iter().for_each(|t| {
-        println!("{} - {}", t.id, t.name);
-    });
-
-    connection.close().await?;
+    pool.close().await;
 
     Ok(())
 }
 
-async fn test_crud(connection: &mut PgConnection) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_crud(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     // CREATE
     let id = repositories::task_repository::create_task(
-        connection,
+        pool,
         "Rust lernen",
         Some(3),
         Some("Ownership und Borrowing verstehen"),
@@ -38,7 +32,7 @@ async fn test_crud(connection: &mut PgConnection) -> Result<(), Box<dyn std::err
 
     // READ
     let task = repositories::task_repository::get_task(
-        connection,
+        pool,
         id,
     ).await?;
 
@@ -46,7 +40,7 @@ async fn test_crud(connection: &mut PgConnection) -> Result<(), Box<dyn std::err
 
     // UPDATE
     repositories::task_repository::update_task(
-        connection,
+        pool,
         id,
         "Rust Grundlagen abschließen",
         3,
@@ -54,7 +48,7 @@ async fn test_crud(connection: &mut PgConnection) -> Result<(), Box<dyn std::err
 
     // READ
     let task = repositories::task_repository::get_task(
-        connection,
+        pool,
         id,
     ).await?;
 
@@ -62,13 +56,13 @@ async fn test_crud(connection: &mut PgConnection) -> Result<(), Box<dyn std::err
 
     // DELETE
     repositories::task_repository::delete_task(
-        connection,
+        pool,
         id,
     ).await?;
 
     // READ
     let task = repositories::task_repository::get_task(
-        connection,
+        pool,
         id,
     ).await?;
 
