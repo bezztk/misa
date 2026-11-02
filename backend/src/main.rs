@@ -1,10 +1,9 @@
-use sqlx::{PgPool};
 use crate::api::router::create_router;
 
+pub mod api;
 mod database;
 mod models;
 pub mod repositories;
-pub mod api;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,8 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = create_router(pool.clone());
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await?;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
 
     println!("Server started on http://{}", listener.local_addr()?);
 

@@ -22,6 +22,8 @@ pub struct CreateTask {
 pub struct UpdateTask {
     pub name: Option<String>,
     pub state_id: Option<i32>,
+    pub group_id: Option<i32>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
