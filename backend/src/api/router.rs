@@ -9,7 +9,9 @@ pub fn create_router(pool: PgPool) -> Router{
                get(task_handler::get_task)
                 .patch(task_handler::update_task)
                 .delete(task_handler::delete_task))
-        .route("/tasks", post(task_handler::create_task))
+        .route("/tasks", 
+               get(task_handler::get_tasks)
+                .post(task_handler::create_task))
         .with_state(pool)
 }
 

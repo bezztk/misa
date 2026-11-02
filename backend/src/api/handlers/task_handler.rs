@@ -3,17 +3,29 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::Serialize;
 use sqlx::PgPool;
-use crate::models::task::{CreateTask, Task, UpdateTask};
+use crate::models::task::{CreateTask, Task, TaskDetails, UpdateTask};
 use crate::repositories::task_repository;
 
 pub async fn get_task(
     State(pool): State<PgPool>,
     Path(id): Path<i64>
-) -> Result<Json<Task>, StatusCode> {
+) -> Result<Json<TaskDetails>, StatusCode> {
     match task_repository::get_task(&pool, id).await {
         Ok(Some(task)) => Ok(Json(task)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+pub async fn get_tasks(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<TaskDetails>>, StatusCode> {
+    match task_repository::get_tasks(&pool).await {
+        Ok(tasks) => Ok(Json(tasks)),
+        Err(error) => {
+            eprintln!("Failed to retrieve tasks: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 

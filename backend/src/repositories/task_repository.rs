@@ -1,6 +1,6 @@
 use sqlx::{PgPool};
 use crate::models::item_type::ItemType;
-use crate::models::task::Task;
+use crate::models::task::{Task, TaskDetails};
 
 pub async fn create_task(
     pool: &PgPool,
@@ -36,12 +36,52 @@ pub async fn create_task(
 
 pub async fn get_task(
     pool: &PgPool,
-    item_id: i64
-) -> Result<Option<Task>, sqlx::error::Error> {
-    sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE item_id = $1")
-    .bind(item_id)
-    .fetch_optional(pool)
-    .await
+    item_id: i64,
+) -> Result<Option<TaskDetails>, sqlx::Error> {
+    sqlx::query_as::<_, TaskDetails>(
+        "SELECT
+            i.id AS item_id,
+            i.type AS item_type,
+            i.created_at,
+            i.updated_at,
+            i.is_archived,
+            i.version,
+            t.group_id,
+            t.state_id,
+            t.name,
+            t.description,
+            t.completed_at
+         FROM items i
+         JOIN tasks t ON t.item_id = i.id
+         WHERE i.id = $1"
+    )
+        .bind(item_id)
+        .fetch_optional(pool)
+        .await
+}
+
+pub async fn get_tasks(
+    pool: &PgPool,
+) -> Result<Vec<TaskDetails>, sqlx::Error> {
+    sqlx::query_as::<_, TaskDetails>(
+        "SELECT
+            i.id AS item_id,
+            i.type AS item_type,
+            i.created_at,
+            i.updated_at,
+            i.is_archived,
+            i.version,
+            t.group_id,
+            t.state_id,
+            t.name,
+            t.description,
+            t.completed_at
+         FROM items i
+         JOIN tasks t ON t.item_id = i.id
+         ORDER BY i.created_at DESC, i.id DESC"
+    )
+        .fetch_all(pool)
+        .await
 }
 
 pub async fn update_task(
