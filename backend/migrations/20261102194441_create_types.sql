@@ -1,0 +1,5 @@
+-- Add migration script here
+CREATE TABLE types (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
