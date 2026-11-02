@@ -1,11 +1,12 @@
 use axum::{Router, routing::get};
-use axum::response::IntoResponse;
 use sqlx::PgPool;
+use crate::api::handlers::task_handler;
 
 pub fn create_router(pool: PgPool) -> Router{
     Router::new()
-        .with_state(pool)
         .route("/health", get(health))
+        .route("/tasks/{id}", get(task_handler::get_task))
+        .with_state(pool)
 }
 
 async fn health() -> &'static str {

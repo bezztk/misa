@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Task {
     pub item_id: i64,
     pub group_id: Option<i32>,
