@@ -47,24 +47,22 @@ pub async fn get_task(
 pub async fn update_task(
     pool: &PgPool,
     item_id: i64,
-    name: &str,
-    state_id: i32,
-) -> Result<bool, sqlx::error::Error> {
+    name: Option<&str>,
+    state_id: Option<i32>,
+) -> Result<bool, sqlx::Error> {
 
     let mut tx = pool.begin().await?;
 
     let result = sqlx::query(
         "UPDATE tasks
-         SET name = $1,
-             state_id = $2,
+         SET name = COALESCE($1, name),
              completed_at = CASE
-                 WHEN $2 = 3 THEN
-                     CASE
-                         WHEN state_id = 3 THEN completed_at
-                         ELSE NOW()
-                     END
+                 WHEN $2::integer IS NULL OR $2 = state_id
+                     THEN completed_at
+                 WHEN $2 = 3 THEN NOW()
                  ELSE NULL
-             END
+             END,
+             state_id = COALESCE($2, state_id)
          WHERE item_id = $3"
     )
         .bind(name)
@@ -77,7 +75,6 @@ pub async fn update_task(
         return Ok(false);
     }
 
-    // Update Item-Metadata
     sqlx::query(
         "UPDATE items
          SET updated_at = NOW(),

@@ -17,3 +17,9 @@ pub struct CreateTask {
     pub group_id: Option<i32>,
     pub description: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTask {
+    pub name: Option<String>,
+    pub state_id: Option<i32>,
+}

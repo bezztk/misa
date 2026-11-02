@@ -5,7 +5,7 @@ use crate::api::handlers::task_handler;
 pub fn create_router(pool: PgPool) -> Router{
     Router::new()
         .route("/health", get(health))
-        .route("/tasks/{id}", get(task_handler::get_task))
+        .route("/tasks/{id}", get(task_handler::get_task).patch(task_handler::update_task))
         .route("/tasks", post(task_handler::create_task))
         .with_state(pool)
 }
