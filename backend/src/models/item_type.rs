@@ -7,5 +7,5 @@ pub struct ItemTypeRow {
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemType {
-    Task = 1
+    Task = 1,
 }
