@@ -10,7 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DevelopmentRouteImport } from './routes/development'
+import { Route as ContinuumRouteImport } from './routes/continuum'
 import { Route as TasksRouteImport } from './routes/tasks'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +18,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevelopmentRoute = DevelopmentRouteImport.update({
-  id: '/development',
-  path: '/development',
+const ContinuumRoute = ContinuumRouteImport.update({
+  id: '/continuum',
+  path: '/continuum',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TasksRoute = TasksRouteImport.update({
@@ -31,31 +31,31 @@ const TasksRoute = TasksRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/development': typeof DevelopmentRoute
+  '/continuum': typeof ContinuumRoute
   '/tasks': typeof TasksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/development': typeof DevelopmentRoute
+  '/continuum': typeof ContinuumRoute
   '/tasks': typeof TasksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/development': typeof DevelopmentRoute
+  '/continuum': typeof ContinuumRoute
   '/tasks': typeof TasksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/development' | '/tasks'
+  fullPaths: '/' | '/continuum' | '/tasks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/development' | '/tasks'
-  id: '__root__' | '/' | '/development' | '/tasks'
+  to: '/' | '/continuum' | '/tasks'
+  id: '__root__' | '/' | '/continuum' | '/tasks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DevelopmentRoute: typeof DevelopmentRoute
+  ContinuumRoute: typeof ContinuumRoute
   TasksRoute: typeof TasksRoute
 }
 
@@ -68,11 +68,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/development': {
-      id: '/development'
-      path: '/development'
-      fullPath: '/development'
-      preLoaderRoute: typeof DevelopmentRouteImport
+    '/continuum': {
+      id: '/continuum'
+      path: '/continuum'
+      fullPath: '/continuum'
+      preLoaderRoute: typeof ContinuumRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tasks': {
@@ -87,7 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DevelopmentRoute: DevelopmentRoute,
+  ContinuumRoute: ContinuumRoute,
   TasksRoute: TasksRoute,
 }
 export const routeTree = rootRouteImport

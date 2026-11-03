@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Center,
@@ -18,8 +19,11 @@ import {
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import {
+  columnFilteringFeature,
   createColumnHelper,
+  createFilteredRowModel,
   createSortedRowModel,
+  filterFn_equals,
   rowSortingFeature,
   sortFn_basic,
   sortFn_text,
@@ -37,8 +41,11 @@ import {
 import type { CreateTask, Task, UpdateTask } from './types'
 
 const features = tableFeatures({
+  columnFilteringFeature,
   rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
+  filterFns: { equals: filterFn_equals },
   sortFns: { basic: sortFn_basic, text: sortFn_text },
 })
 
@@ -47,6 +54,20 @@ const dateFormatter = new Intl.DateTimeFormat('de-DE')
 const emptyTasks: Task[] = []
 
 type TaskFormState = { mode: 'create' } | { mode: 'edit'; task: Task }
+
+const statusLabels: Record<string, string> = {
+  open: 'Offen',
+  in_progress: 'In Bearbeitung',
+  completed: 'Abgeschlossen',
+  cancelled: 'Abgebrochen',
+}
+
+const statusColors: Record<string, string> = {
+  open: 'gray',
+  in_progress: 'blue',
+  completed: 'green',
+  cancelled: 'red',
+}
 
 interface TaskFormValues {
   name: string
@@ -67,9 +88,11 @@ function optionalString(value: number | null | undefined) {
 function TaskFormModal({
   state,
   onClose,
+  onDelete,
 }: {
   state: TaskFormState
   onClose: () => void
+  onDelete: (task: Task) => void
 }) {
   const task = state.mode === 'edit' ? state.task : null
   const metadata = useTaskMetadata()
@@ -176,7 +199,7 @@ function TaskFormModal({
               <Select
                 clearable
                 disabled={form.values.group_id !== null}
-                label="Entwicklungsbereich"
+                label="Continuum-Bereich"
                 data={(developmentAreas.data ?? []).map((area) => ({
                   value: String(area.id),
                   label: area.name,
@@ -189,7 +212,7 @@ function TaskFormModal({
                 label="Status"
                 data={(metadata.data?.states ?? []).map((taskState) => ({
                   value: String(taskState.id),
-                  label: taskState.name,
+                  label: statusLabels[taskState.name] ?? taskState.name,
                 }))}
                 {...form.getInputProps('state_id')}
               />
@@ -205,18 +228,31 @@ function TaskFormModal({
                 Die Aufgabe konnte nicht gespeichert werden.
               </Alert>
             )}
-            <Group justify="flex-end">
-              <Button
-                disabled={isSaving}
-                type="button"
-                variant="default"
-                onClick={onClose}
-              >
-                Abbrechen
-              </Button>
-              <Button loading={isSaving} type="submit">
-                Speichern
-              </Button>
+            <Group justify={task === null ? 'flex-end' : 'space-between'}>
+              {task !== null && (
+                <Button
+                  color="red"
+                  disabled={isSaving}
+                  type="button"
+                  variant="light"
+                  onClick={() => onDelete(task)}
+                >
+                  Löschen
+                </Button>
+              )}
+              <Group>
+                <Button
+                  disabled={isSaving}
+                  type="button"
+                  variant="default"
+                  onClick={onClose}
+                >
+                  Abbrechen
+                </Button>
+                <Button loading={isSaving} type="submit">
+                  Speichern
+                </Button>
+              </Group>
             </Group>
           </Stack>
         </Box>
@@ -263,32 +299,66 @@ function DeleteTaskModal({ task, onClose }: { task: Task; onClose: () => void })
 
 export function TasksTable() {
   const tasks = useTasks()
+  const metadata = useTaskMetadata()
   const [formState, setFormState] = useState<TaskFormState | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const statusesById = useMemo(
+    () => new Map(metadata.data?.states.map((state) => [state.id, state])),
+    [metadata.data?.states],
+  )
+  const groupsById = useMemo(
+    () => new Map(metadata.data?.groups.map((group) => [group.id, group])),
+    [metadata.data?.groups],
+  )
   const columns = useMemo(
     () =>
       columnHelper.columns([
         columnHelper.accessor('name', {
           header: 'Aufgabe',
+          cell: ({ getValue, row }) => (
+            <Group gap="xs" wrap="nowrap">
+              <Text fw={500}>{getValue()}</Text>
+              {row.original.area_id !== null && (
+                <Badge color="violet" variant="light">
+                  Continuum
+                </Badge>
+              )}
+            </Group>
+          ),
           sortFn: 'text',
         }),
         columnHelper.accessor('description', {
           header: 'Beschreibung',
-          cell: ({ getValue }) => getValue() ?? '–',
+          cell: ({ getValue }) => (
+            <Text lineClamp={1} maw={400} title={getValue() ?? undefined}>
+              {getValue() || '–'}
+            </Text>
+          ),
           enableSorting: false,
         }),
         columnHelper.accessor('state_id', {
-          header: 'Status-ID',
+          header: 'Status',
+          cell: ({ getValue }) => {
+            const status = statusesById.get(getValue())
+
+            return status === undefined ? (
+              <Text>–</Text>
+            ) : (
+              <Badge color={statusColors[status.name] ?? 'gray'} variant="light">
+                {statusLabels[status.name] ?? status.name}
+              </Badge>
+            )
+          },
+          filterFn: 'equals',
           sortFn: 'basic',
         }),
         columnHelper.accessor('group_id', {
-          header: 'Gruppen-ID',
-          cell: ({ getValue }) => getValue() ?? '–',
-          sortFn: 'basic',
-        }),
-        columnHelper.accessor('area_id', {
-          header: 'Bereichs-ID',
-          cell: ({ getValue }) => getValue() ?? '–',
+          header: 'Gruppe',
+          cell: ({ getValue }) => {
+            const groupId = getValue()
+            return groupId === null ? '–' : (groupsById.get(groupId)?.name ?? '–')
+          },
+          filterFn: 'equals',
           sortFn: 'basic',
         }),
         columnHelper.accessor('created_at', {
@@ -296,39 +366,21 @@ export function TasksTable() {
           cell: ({ getValue }) => dateFormatter.format(new Date(getValue())),
           sortFn: 'basic',
         }),
-        columnHelper.display({
-          id: 'actions',
-          header: 'Aktionen',
-          cell: ({ row }) => (
-            <Group gap="xs" wrap="nowrap">
-              <Button
-                size="xs"
-                variant="default"
-                onClick={() =>
-                  setFormState({ mode: 'edit', task: row.original })
-                }
-              >
-                Bearbeiten
-              </Button>
-              <Button
-                color="red"
-                size="xs"
-                variant="light"
-                onClick={() => setTaskToDelete(row.original)}
-              >
-                Löschen
-              </Button>
-            </Group>
-          ),
-        }),
       ]),
-    [],
+    [groupsById, statusesById],
   )
   const table = useTable({
     features,
     columns,
     data: tasks.data ?? emptyTasks,
   })
+  const statusFilter = table.getColumn('state_id')?.getFilterValue() as
+    | number
+    | undefined
+  const groupFilter = table.getColumn('group_id')?.getFilterValue() as
+    | number
+    | undefined
+  const rows = table.getRowModel().rows
 
   return (
     <Stack>
@@ -339,76 +391,149 @@ export function TasksTable() {
         </Button>
       </Group>
 
-      {tasks.isPending ? (
+      {tasks.isPending || metadata.isPending ? (
         <Center>
           <Loader />
         </Center>
-      ) : tasks.isError ? (
+      ) : tasks.isError || metadata.isError ? (
         <Alert color="red" title="Fehler">
-          Die Aufgaben konnten nicht geladen werden.
+          Die Aufgaben oder Auswahldaten konnten nicht geladen werden.
         </Alert>
       ) : tasks.data.length === 0 ? (
         <Text>Keine Aufgaben vorhanden.</Text>
       ) : (
-        <Table.ScrollContainer minWidth={900}>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <Table.Tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const sortDirection = header.column.getIsSorted()
+        <>
+          <Group grow maw={600}>
+            <Select
+              label="Statusfilter"
+              value={
+                statusFilter === undefined ? 'all' : String(statusFilter)
+              }
+              data={[
+                { value: 'all', label: 'Alle Status' },
+                ...(metadata.data?.states ?? []).map((status) => ({
+                  value: String(status.id),
+                  label: statusLabels[status.name] ?? status.name,
+                })),
+              ]}
+              onChange={(value) =>
+                table
+                  .getColumn('state_id')
+                  ?.setFilterValue(
+                    value === null || value === 'all'
+                      ? undefined
+                      : Number(value),
+                  )
+              }
+            />
+            <Select
+              label="Gruppenfilter"
+              value={groupFilter === undefined ? 'all' : String(groupFilter)}
+              data={[
+                { value: 'all', label: 'Alle Gruppen' },
+                ...(metadata.data?.groups ?? []).map((group) => ({
+                  value: String(group.id),
+                  label: group.name,
+                })),
+              ]}
+              onChange={(value) =>
+                table
+                  .getColumn('group_id')
+                  ?.setFilterValue(
+                    value === null || value === 'all'
+                      ? undefined
+                      : Number(value),
+                  )
+              }
+            />
+          </Group>
 
-                    return (
-                      <Table.Th
-                        key={header.id}
-                        aria-sort={
-                          sortDirection === 'asc'
-                            ? 'ascending'
-                            : sortDirection === 'desc'
-                              ? 'descending'
-                              : 'none'
-                        }
-                      >
-                        {header.isPlaceholder ? null : (
-                          <UnstyledButton
-                            disabled={!header.column.getCanSort()}
-                            onClick={header.column.getToggleSortingHandler()}
+          {rows.length === 0 ? (
+            <Text>Keine Aufgaben entsprechen den Filtern.</Text>
+          ) : (
+            <Table.ScrollContainer minWidth={700}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <Table.Tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        const sortDirection = header.column.getIsSorted()
+
+                        return (
+                          <Table.Th
+                            key={header.id}
+                            aria-sort={
+                              sortDirection === 'asc'
+                                ? 'ascending'
+                                : sortDirection === 'desc'
+                                  ? 'descending'
+                                  : 'none'
+                            }
                           >
-                            <Group gap="xs" wrap="nowrap">
-                              <table.FlexRender header={header} />
-                              <Text component="span" size="sm">
-                                {sortDirection === 'asc'
-                                  ? '↑'
-                                  : sortDirection === 'desc'
-                                    ? '↓'
-                                    : ''}
-                              </Text>
-                            </Group>
-                          </UnstyledButton>
-                        )}
-                      </Table.Th>
-                    )
-                  })}
-                </Table.Tr>
-              ))}
-            </Table.Thead>
-            <Table.Tbody>
-              {table.getRowModel().rows.map((row) => (
-                <Table.Tr key={row.id}>
-                  {row.getAllCells().map((cell) => (
-                    <Table.Td key={cell.id}>
-                      <table.FlexRender cell={cell} />
-                    </Table.Td>
+                            {header.isPlaceholder ? null : (
+                              <UnstyledButton
+                                disabled={!header.column.getCanSort()}
+                                onClick={
+                                  header.column.getToggleSortingHandler()
+                                }
+                              >
+                                <Group gap="xs" wrap="nowrap">
+                                  <table.FlexRender header={header} />
+                                  <Text component="span" size="sm">
+                                    {sortDirection === 'asc'
+                                      ? '↑'
+                                      : sortDirection === 'desc'
+                                        ? '↓'
+                                        : ''}
+                                  </Text>
+                                </Group>
+                              </UnstyledButton>
+                            )}
+                          </Table.Th>
+                        )
+                      })}
+                    </Table.Tr>
                   ))}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+                </Table.Thead>
+                <Table.Tbody>
+                  {rows.map((row) => (
+                    <Table.Tr
+                      key={row.id}
+                      tabIndex={0}
+                      onClick={() =>
+                        setFormState({ mode: 'edit', task: row.original })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setFormState({ mode: 'edit', task: row.original })
+                        }
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {row.getAllCells().map((cell) => (
+                        <Table.Td key={cell.id}>
+                          <table.FlexRender cell={cell} />
+                        </Table.Td>
+                      ))}
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          )}
+        </>
       )}
 
       {formState !== null && (
-        <TaskFormModal state={formState} onClose={() => setFormState(null)} />
+        <TaskFormModal
+          state={formState}
+          onClose={() => setFormState(null)}
+          onDelete={(task) => {
+            setFormState(null)
+            setTaskToDelete(task)
+          }}
+        />
       )}
       {taskToDelete !== null && (
         <DeleteTaskModal

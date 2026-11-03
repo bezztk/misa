@@ -8,11 +8,11 @@ export const Route = createRootRoute({
         <Button component={Link} to="/tasks" variant="subtle">
           Aufgaben
         </Button>
-        <Button component={Link} to="/development" variant="subtle">
-          Entwicklung
+        <Button component={Link} to="/continuum" variant="subtle">
+          Continuum
         </Button>
       </Group>
-      <Container>
+      <Container fluid>
         <Outlet />
       </Container>
     </>
