@@ -15,13 +15,16 @@
         getSkills,
         updateSkill,
     } from "../../../lib/api/skills";
-    import {getTasks} from "../../../lib/api/tasks";
+    import {deleteTask, getTaskMetadata, getTasks} from "../../../lib/api/tasks";
     import type {SkillMetadata} from "../../../lib/models/skill";
+    import type {Task} from "../../../lib/models/task";
+    import TaskEdit from "../../tasks/components/TaskEdit.svelte";
 
-    let {areaId, selectedItemId, onSelect}: {
+    let {areaId, selectedItemId, onSelect, onDeleted}: {
         areaId: number;
         selectedItemId: number | null;
-        onSelect: (id: number) => void;
+        onSelect: (item: TreeItem, edit: () => void, remove: () => void, editParent: () => void) => void;
+        onDeleted: (id: number) => void;
     } = $props();
 
     type ItemType = "Category" | "Skill" | "Goal" | "Task";
@@ -34,8 +37,13 @@
         parentId: number | null;
         description: string | null;
         stateId: number | null;
+        stateName: string | null;
+        groupName: string | null;
         isCompleted: boolean;
+        completedAt: string | null;
         dueAt: string | null;
+        parentName: string | null;
+        task: Task | null;
     }
 
     interface TreeRow extends TreeItem {
@@ -71,6 +79,17 @@
     let parentItem: TreeItem | null = $state(null);
     let parentId: number | null = $state(null);
     let parentFormError = $state("");
+    let taskDialog: HTMLDialogElement;
+    let editingTask: Task | null = $state(null);
+
+    function selectItem(item: TreeItem) {
+        onSelect(
+            item,
+            () => openEdit(item),
+            () => void removeItem(item),
+            () => openParentDialog(item),
+        );
+    }
 
     function buildRows() {
         const children = new Map<number | null, TreeItem[]>();
@@ -109,13 +128,14 @@
         try {
             error = "";
 
-            const [categories, skills, goals, tasks, hierarchy, metadata] = await Promise.all([
+            const [categories, skills, goals, tasks, hierarchy, metadata, taskMetadata] = await Promise.all([
                 getDevelopmentCategories(),
                 getSkills(),
                 getGoals(),
                 getTasks(),
                 getItemHierarchy(),
                 getSkillMetadata(),
+                getTaskMetadata(),
             ]);
 
             skillMetadata = metadata;
@@ -130,8 +150,13 @@
                         parentId: null,
                         description: null,
                         stateId: null,
+                        stateName: null,
+                        groupName: null,
                         isCompleted: false,
+                        completedAt: null,
                         dueAt: null,
+                        parentName: null,
+                        task: null,
                     })),
                 ...skills
                     .filter(skill => skill.area_id === areaId)
@@ -142,8 +167,13 @@
                         parentId: null,
                         description: skill.description,
                         stateId: skill.state_id,
+                        stateName: metadata.states.find(state => state.id === skill.state_id)?.name ?? null,
+                        groupName: null,
                         isCompleted: false,
+                        completedAt: null,
                         dueAt: null,
+                        parentName: null,
+                        task: null,
                     })),
                 ...goals
                     .filter(goal => goal.area_id === areaId)
@@ -154,8 +184,13 @@
                         parentId: null,
                         description: goal.description,
                         stateId: null,
+                        stateName: null,
+                        groupName: null,
                         isCompleted: goal.is_completed,
+                        completedAt: goal.completed_at,
                         dueAt: goal.due_at,
+                        parentName: null,
+                        task: null,
                     })),
                 ...tasks
                     .filter(task => task.area_id === areaId)
@@ -166,8 +201,13 @@
                         parentId: null,
                         description: task.description,
                         stateId: task.state_id,
+                        stateName: taskMetadata.states.find(state => state.id === task.state_id)?.name ?? null,
+                        groupName: taskMetadata.groups.find(group => group.id === task.group_id)?.name ?? null,
                         isCompleted: false,
+                        completedAt: task.completed_at,
                         dueAt: null,
+                        parentName: null,
+                        task,
                     })),
             ];
 
@@ -179,12 +219,16 @@
                 item.parentId = nextParentId !== undefined && itemIds.has(nextParentId)
                     ? nextParentId
                     : null;
+                item.parentName = nextItems.find(parent => parent.id === item.parentId)?.name ?? null;
             }
 
             nextItems.sort((a, b) => a.name.localeCompare(b.name));
             items = nextItems;
             collapsedItemIds = collapsedItemIds.filter(id => itemIds.has(id));
             buildRows();
+
+            const selectedItem = nextItems.find(item => item.id === selectedItemId);
+            if (selectedItem) selectItem(selectedItem);
         } catch (err) {
             error = String(err);
         }
@@ -203,7 +247,11 @@
     }
 
     function openEdit(item: TreeItem) {
-        if (item.type === "Task") return;
+        if (item.type === "Task") {
+            editingTask = item.task;
+            taskDialog.showModal();
+            return;
+        }
 
         itemFormError = "";
         editingItem = item;
@@ -261,7 +309,7 @@
     }
 
     async function removeItem(item: TreeItem) {
-        if (item.type === "Task" || pending || !confirm(`${item.type} "${item.name}" löschen?`)) {
+        if (pending || !confirm(`${item.type} "${item.name}" löschen?`)) {
             return;
         }
 
@@ -273,10 +321,13 @@
                 await deleteDevelopmentCategory(item.id);
             } else if (item.type === "Skill") {
                 await deleteSkill(item.id);
-            } else {
+            } else if (item.type === "Goal") {
                 await deleteGoal(item.id);
+            } else {
+                await deleteTask(item.id);
             }
 
+            onDeleted(item.id);
             await loadTree();
         } catch (err) {
             error = String(err);
@@ -343,15 +394,8 @@
                     {/if}
                 </span>
                 <span class="type-icon" aria-hidden="true">{symbols[row.type]}</span>
-                <button class="item-name" onclick={() => onSelect(row.id)}>{row.name}</button>
+                <button class="item-name" onclick={() => selectItem(row)}>{row.name}</button>
                 <span class="item-type">{row.type}</span>
-                <span class="row-actions">
-                    <button onclick={() => openParentDialog(row)} disabled={pending}>Parent</button>
-                    {#if row.type !== "Task"}
-                        <button onclick={() => openEdit(row)} disabled={pending}>Bearbeiten</button>
-                        <button onclick={() => removeItem(row)} disabled={pending}>Löschen</button>
-                    {/if}
-                </span>
             </div>
         {/each}
     {/if}
@@ -430,6 +474,19 @@
     </form>
 </dialog>
 
+<dialog bind:this={taskDialog} onclose={() => editingTask = null}>
+    {#if editingTask}
+        <TaskEdit
+            task={editingTask}
+            onCancel={() => taskDialog.close()}
+            onUpdated={async () => {
+                taskDialog.close();
+                await loadTree();
+            }}
+        />
+    {/if}
+</dialog>
+
 <style>
     .actions {
         display: flex;
@@ -483,12 +540,6 @@
         margin-left: 0.25rem;
         color: #666666;
         font-size: 0.85rem;
-    }
-
-    .row-actions {
-        display: inline-flex;
-        gap: 0.25rem;
-        margin-left: 0.5rem;
     }
 
     form {

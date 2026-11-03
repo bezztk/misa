@@ -9,10 +9,30 @@
     import type {DevelopmentArea} from "../../../lib/models/developmentArea";
     import DevelopmentTree from "./DevelopmentTree.svelte";
 
+    type ElementType = "Development Area" | "Category" | "Skill" | "Goal" | "Task";
+
+    interface SelectedElement {
+        id: number;
+        type: ElementType;
+        name: string;
+        description: string | null;
+        stateName: string | null;
+        groupName: string | null;
+        isCompleted: boolean;
+        completedAt: string | null;
+        dueAt: string | null;
+        parentName: string | null;
+        edit: () => void;
+        remove: () => void;
+        editParent: (() => void) | null;
+    }
+
     let areas: DevelopmentArea[] = $state([]);
     let expandedAreaIds: number[] = $state([]);
     let selectedAreaId: number | null = $state(null);
     let selectedItemId: number | null = $state(null);
+    let selectedItemAreaId: number | null = $state(null);
+    let selectedElement: SelectedElement | null = $state(null);
     let editingArea: DevelopmentArea | null = $state(null);
     let name = $state("");
     let description = $state("");
@@ -25,12 +45,46 @@
         try {
             error = "";
             areas = await getDevelopmentAreas();
+
+            if (selectedElement?.type === "Development Area") {
+                const selectedArea = areas.find(area => area.id === selectedElement?.id);
+                selectedArea ? selectArea(selectedArea) : closePanel();
+            }
         } catch (err) {
             error = String(err);
         }
     }
 
+    function closePanel() {
+        selectedAreaId = null;
+        selectedItemId = null;
+        selectedItemAreaId = null;
+        selectedElement = null;
+    }
+
+    function selectArea(area: DevelopmentArea) {
+        selectedAreaId = area.id;
+        selectedItemId = null;
+        selectedItemAreaId = null;
+        selectedElement = {
+            id: area.id,
+            type: "Development Area",
+            name: area.name,
+            description: area.description,
+            stateName: null,
+            groupName: null,
+            isCompleted: false,
+            completedAt: null,
+            dueAt: null,
+            parentName: null,
+            edit: () => openEdit(area),
+            remove: () => void remove(area),
+            editParent: null,
+        };
+    }
+
     function toggleArea(id: number) {
+        if (expandedAreaIds.includes(id) && selectedItemAreaId === id) closePanel();
         expandedAreaIds = expandedAreaIds.includes(id)
             ? expandedAreaIds.filter(areaId => areaId !== id)
             : [...expandedAreaIds, id];
@@ -83,6 +137,9 @@
             error = "";
             pending = true;
             await deleteDevelopmentArea(area.id);
+            if (selectedElement?.type === "Development Area" && selectedElement.id === area.id) {
+                closePanel();
+            }
             await loadAreas();
         } catch (err) {
             error = String(err);
@@ -96,56 +153,109 @@
     });
 </script>
 
-<section>
-    <h2>Entwicklung</h2>
-    <button onclick={openCreate} disabled={pending}>Neue Area</button>
+<div class="development-view">
+    <section class="tree-pane">
+        <h2>Entwicklung</h2>
+        <button onclick={openCreate} disabled={pending}>Neue Area</button>
 
-    {#if error}
-        <p>{error}</p>
-    {/if}
+        {#if error}
+            <p>{error}</p>
+        {/if}
 
-    {#each areas as area (area.id)}
-        <article>
-            <div class="area-heading">
-                <button
+        {#each areas as area (area.id)}
+            <article>
+                <div class="area-heading">
+                    <button
                         class="arrow"
                         aria-label={expandedAreaIds.includes(area.id) ? "Area einklappen" : "Area ausklappen"}
                         onclick={() => toggleArea(area.id)}
-                >
-                    {expandedAreaIds.includes(area.id) ? "▼" : "▶"}
-                </button>
-                <span aria-hidden="true">▰</span>
-                <button
+                    >
+                        {expandedAreaIds.includes(area.id) ? "▼" : "▶"}
+                    </button>
+                    <span aria-hidden="true">▰</span>
+                    <button
                         class="area-name"
                         class:selected={selectedAreaId === area.id}
-                        onclick={() => {
-                            selectedAreaId = area.id;
-                            selectedItemId = null;
-                        }}
-                >
-                    {area.name}
-                </button>
-                <button onclick={() => openEdit(area)} disabled={pending}>Bearbeiten</button>
-                <button onclick={() => remove(area)} disabled={pending}>Löschen</button>
-            </div>
+                        onclick={() => selectArea(area)}
+                    >
+                        {area.name}
+                    </button>
+                </div>
 
-            {#if area.description}
-                <p>{area.description}</p>
-            {/if}
+                {#if area.description}
+                    <p>{area.description}</p>
+                {/if}
 
-            {#if expandedAreaIds.includes(area.id)}
-                <DevelopmentTree
+                {#if expandedAreaIds.includes(area.id)}
+                    <DevelopmentTree
                         areaId={area.id}
                         {selectedItemId}
-                        onSelect={(id) => {
-                            selectedItemId = id;
+                        onSelect={(item, edit, remove, editParent) => {
+                            selectedItemId = item.id;
+                            selectedItemAreaId = area.id;
                             selectedAreaId = null;
+                            selectedElement = {...item, edit, remove, editParent};
                         }}
-                />
+                        onDeleted={(id) => {
+                            if (selectedItemId === id) closePanel();
+                        }}
+                    />
+                {/if}
+            </article>
+        {/each}
+    </section>
+
+    {#if selectedElement}
+        <aside class="info-panel">
+            <button class="close" aria-label="Informationspanel schließen" onclick={closePanel}>×</button>
+            <h2>{selectedElement.name}</h2>
+            <p class="element-type">{selectedElement.type}</p>
+
+            {#if selectedElement.description}
+                <h3>Beschreibung</h3>
+                <p>{selectedElement.description}</p>
             {/if}
-        </article>
-    {/each}
-</section>
+
+            {#if selectedElement.type === "Skill" && selectedElement.stateName}
+                <p><strong>Entwicklungsstatus:</strong> {selectedElement.stateName}</p>
+            {/if}
+
+            {#if selectedElement.type === "Goal"}
+                <p><strong>Abgeschlossen:</strong> {selectedElement.isCompleted ? "Ja" : "Nein"}</p>
+                {#if selectedElement.dueAt}
+                    <p><strong>Fällig:</strong> {new Date(selectedElement.dueAt).toLocaleDateString("de-DE")}</p>
+                {/if}
+                {#if selectedElement.completedAt}
+                    <p><strong>Abgeschlossen am:</strong> {new Date(selectedElement.completedAt).toLocaleDateString("de-DE")}</p>
+                {/if}
+            {/if}
+
+            {#if selectedElement.type === "Task"}
+                {#if selectedElement.stateName}
+                    <p><strong>Status:</strong> {selectedElement.stateName}</p>
+                {/if}
+                {#if selectedElement.groupName}
+                    <p><strong>Gruppe:</strong> {selectedElement.groupName}</p>
+                {/if}
+                {#if selectedElement.completedAt}
+                    <p><strong>Abgeschlossen am:</strong> {new Date(selectedElement.completedAt).toLocaleDateString("de-DE")}</p>
+                {/if}
+            {/if}
+
+            {#if selectedElement.parentName}
+                <p><strong>Parent:</strong> {selectedElement.parentName}</p>
+            {/if}
+
+            <div class="panel-actions">
+                <button onclick={selectedElement.edit}>Bearbeiten</button>
+                <button onclick={selectedElement.remove}>Löschen</button>
+                {#if selectedElement.editParent}
+                    <button onclick={selectedElement.editParent}>Parent</button>
+                {/if}
+            </div>
+        </aside>
+    {/if}
+</div>
 
 <dialog bind:this={dialog}>
     <form onsubmit={(event) => {
@@ -172,6 +282,16 @@
 </dialog>
 
 <style>
+    .development-view {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 20rem;
+        gap: 2rem;
+    }
+
+    .tree-pane {
+        min-width: 0;
+    }
+
     article {
         padding: 1rem 0;
         border-bottom: 1px solid #ddd;
@@ -203,6 +323,46 @@
 
     .area-name.selected {
         background: #e8e8e8;
+    }
+
+    .info-panel {
+        position: sticky;
+        top: 2rem;
+        align-self: start;
+        min-height: 12rem;
+        padding: 0 0 1rem 1.5rem;
+        border-left: 1px solid #dddddd;
+    }
+
+    .info-panel h2 {
+        margin: 0 2rem 0.25rem 0;
+    }
+
+    .info-panel h3 {
+        margin-bottom: 0.25rem;
+        font-size: 1rem;
+    }
+
+    .info-panel p {
+        margin: 0.5rem 0;
+    }
+
+    .element-type {
+        color: #666666;
+    }
+
+    .close {
+        float: right;
+        border: 0;
+        background: transparent;
+        font-size: 1.25rem;
+        cursor: pointer;
+    }
+
+    .panel-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1.25rem;
     }
 
     form {
