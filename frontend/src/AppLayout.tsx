@@ -8,39 +8,25 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core'
+import { useMediaQuery } from '@mantine/hooks'
+import {
+  IconHierarchy,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
+  IconListCheck,
+} from '@tabler/icons-react'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
 export function AppLayout() {
   const [mobileOpened, setMobileOpened] = useState(false)
   const [navbarCollapsed, setNavbarCollapsed] = useState(false)
+  const isDesktop = useMediaQuery('(min-width: 48em)')
+  const compact = isDesktop && navbarCollapsed
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const tasksLabel = navbarCollapsed ? (
-    <>
-      <Text component="span" hiddenFrom="sm">
-        Aufgaben
-      </Text>
-      <Text component="span" visibleFrom="sm">
-        A
-      </Text>
-    </>
-  ) : (
-    'Aufgaben'
-  )
-  const continuumLabel = navbarCollapsed ? (
-    <>
-      <Text component="span" hiddenFrom="sm">
-        Continuum
-      </Text>
-      <Text component="span" visibleFrom="sm">
-        C
-      </Text>
-    </>
-  ) : (
-    'Continuum'
-  )
 
   return (
     <AppShell
@@ -64,59 +50,79 @@ export function AppLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p={navbarCollapsed ? 'xs' : 'md'}>
+      <AppShell.Navbar p={compact ? 'xs' : 'md'}>
         <AppShell.Section>
-          <Title order={3} ta={navbarCollapsed ? 'center' : 'left'}>
-            {navbarCollapsed ? (
-              <>
-                <Text component="span" hiddenFrom="sm" inherit>
-                  Misa
-                </Text>
-                <Text component="span" visibleFrom="sm" inherit>
-                  M
-                </Text>
-              </>
-            ) : (
-              'Misa'
-            )}
-          </Title>
+          <Group gap={compact ? 2 : 'xs'} justify="space-between" wrap="nowrap">
+            <Title order={3}>{compact ? 'M' : 'Misa'}</Title>
+            <ActionIcon
+              aria-label={
+                navbarCollapsed
+                  ? 'Navigation ausklappen'
+                  : 'Navigation einklappen'
+              }
+              size="sm"
+              variant="subtle"
+              visibleFrom="sm"
+              onClick={() => setNavbarCollapsed((collapsed) => !collapsed)}
+            >
+              {navbarCollapsed ? (
+                <IconLayoutSidebarLeftExpand size={18} />
+              ) : (
+                <IconLayoutSidebarLeftCollapse size={18} />
+              )}
+            </ActionIcon>
+          </Group>
         </AppShell.Section>
 
-        <AppShell.Section grow mt="xl">
-          <Stack gap="xs">
-            <NavLink
-              active={pathname.startsWith('/tasks')}
-              aria-label="Aufgaben"
-              component={Link}
-              label={tasksLabel}
-              to="/tasks"
-              onClick={() => setMobileOpened(false)}
-            />
-            <NavLink
-              active={pathname.startsWith('/continuum')}
-              aria-label="Continuum"
-              component={Link}
-              label={continuumLabel}
-              to="/continuum"
-              onClick={() => setMobileOpened(false)}
-            />
+        <AppShell.Section grow mt="lg">
+          <Stack gap={2}>
+            <Tooltip disabled={!compact} label="Aufgaben" position="right">
+              <NavLink
+                active={pathname.startsWith('/tasks')}
+                aria-label="Aufgaben"
+                color="gray"
+                component={Link}
+                label={compact ? undefined : 'Aufgaben'}
+                leftSection={<IconListCheck size={20} stroke={1.5} />}
+                styles={
+                  compact
+                    ? {
+                        body: { display: 'none' },
+                        root: { paddingInline: 0 },
+                        section: { marginInline: 'auto' },
+                      }
+                    : undefined
+                }
+                to="/tasks"
+                variant="light"
+                w="100%"
+                onClick={() => setMobileOpened(false)}
+              />
+            </Tooltip>
+            <Tooltip disabled={!compact} label="Continuum" position="right">
+              <NavLink
+                active={pathname.startsWith('/continuum')}
+                aria-label="Continuum"
+                color="gray"
+                component={Link}
+                label={compact ? undefined : 'Continuum'}
+                leftSection={<IconHierarchy size={20} stroke={1.5} />}
+                styles={
+                  compact
+                    ? {
+                        body: { display: 'none' },
+                        root: { paddingInline: 0 },
+                        section: { marginInline: 'auto' },
+                      }
+                    : undefined
+                }
+                to="/continuum"
+                variant="light"
+                w="100%"
+                onClick={() => setMobileOpened(false)}
+              />
+            </Tooltip>
           </Stack>
-        </AppShell.Section>
-
-        <AppShell.Section visibleFrom="sm">
-          <ActionIcon
-            aria-label={
-              navbarCollapsed
-                ? 'Navigation ausklappen'
-                : 'Navigation einklappen'
-            }
-            display="block"
-            mx={navbarCollapsed ? 'auto' : 0}
-            variant="subtle"
-            onClick={() => setNavbarCollapsed((collapsed) => !collapsed)}
-          >
-            {navbarCollapsed ? '›' : '‹'}
-          </ActionIcon>
         </AppShell.Section>
       </AppShell.Navbar>
 

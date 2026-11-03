@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Center,
+  Divider,
   Group,
   Loader,
   Modal,
@@ -383,13 +384,16 @@ export function TasksTable() {
   const rows = table.getRowModel().rows
 
   return (
-    <Stack>
-      <Group justify="space-between">
-        <Title>Aufgaben</Title>
-        <Button onClick={() => setFormState({ mode: 'create' })}>
-          Neue Aufgabe
-        </Button>
-      </Group>
+    <Stack gap="md">
+      <Box>
+        <Group mih={40} justify="space-between">
+          <Title>Aufgaben</Title>
+          <Button onClick={() => setFormState({ mode: 'create' })}>
+            Neue Aufgabe
+          </Button>
+        </Group>
+        <Divider mt="md" />
+      </Box>
 
       {tasks.isPending || metadata.isPending ? (
         <Center>

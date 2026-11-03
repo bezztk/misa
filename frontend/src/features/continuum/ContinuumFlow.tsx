@@ -6,6 +6,7 @@ import {
   Button,
   Center,
   Checkbox,
+  Divider,
   Group,
   Loader,
   Modal,
@@ -1416,11 +1417,14 @@ export function ContinuumFlow() {
   }
 
   return (
-    <Stack h="100%" mih={0}>
-      <Group justify="space-between">
-        <Title>Continuum</Title>
-        <Button onClick={() => setCreateOpened(true)}>Hinzufügen</Button>
-      </Group>
+    <Stack gap="md" h="100%" mih={0}>
+      <Box>
+        <Group mih={40} justify="space-between">
+          <Title>Continuum</Title>
+          <Button onClick={() => setCreateOpened(true)}>Hinzufügen</Button>
+        </Group>
+        <Divider mt="md" />
+      </Box>
       <Box mih={0} style={{ flex: 1 }}>
         {flow.nodes.length === 0 ? (
           <Text>Keine Continuum-Daten vorhanden.</Text>
