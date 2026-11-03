@@ -7,13 +7,10 @@
         updateDevelopmentArea,
     } from "../../../lib/api/developmentAreas";
     import type {DevelopmentArea} from "../../../lib/models/developmentArea";
-    import DevelopmentCategoryList from "./DevelopmentCategoryList.svelte";
     import DevelopmentTree from "./DevelopmentTree.svelte";
-    import GoalList from "./GoalList.svelte";
-    import SkillList from "./SkillList.svelte";
 
     let areas: DevelopmentArea[] = $state([]);
-    let selectedArea: DevelopmentArea | null = $state(null);
+    let expandedAreaIds: number[] = $state([]);
     let editingArea: DevelopmentArea | null = $state(null);
     let name = $state("");
     let description = $state("");
@@ -26,13 +23,15 @@
         try {
             error = "";
             areas = await getDevelopmentAreas();
-
-            if (selectedArea) {
-                selectedArea = areas.find(area => area.id === selectedArea?.id) ?? null;
-            }
         } catch (err) {
             error = String(err);
         }
+    }
+
+    function toggleArea(id: number) {
+        expandedAreaIds = expandedAreaIds.includes(id)
+            ? expandedAreaIds.filter(areaId => areaId !== id)
+            : [...expandedAreaIds, id];
     }
 
     function openCreate() {
@@ -99,22 +98,26 @@
     <h2>Entwicklung</h2>
     <button onclick={openCreate} disabled={pending}>Neue Area</button>
 
-    {#if selectedArea}
-        <p>Ausgewählt: <strong>{selectedArea.name}</strong></p>
-    {/if}
-
     {#if error}
         <p>{error}</p>
     {/if}
 
     {#each areas as area (area.id)}
         <article>
-            <button onclick={() => selectedArea = area}>{area.name}</button>
-            <button onclick={() => openEdit(area)} disabled={pending}>Bearbeiten</button>
-            <button onclick={() => remove(area)} disabled={pending}>Löschen</button>
+            <div class="area-heading">
+                <button class="toggle" onclick={() => toggleArea(area.id)}>
+                    {expandedAreaIds.includes(area.id) ? "▼" : "▶"} {area.name}
+                </button>
+                <button onclick={() => openEdit(area)} disabled={pending}>Bearbeiten</button>
+                <button onclick={() => remove(area)} disabled={pending}>Löschen</button>
+            </div>
 
             {#if area.description}
                 <p>{area.description}</p>
+            {/if}
+
+            {#if expandedAreaIds.includes(area.id)}
+                <DevelopmentTree areaId={area.id} />
             {/if}
         </article>
     {/each}
@@ -144,23 +147,21 @@
     </form>
 </dialog>
 
-{#if selectedArea}
-    {#key selectedArea.id}
-        <DevelopmentTree areaId={selectedArea.id} />
-        <DevelopmentCategoryList areaId={selectedArea.id} />
-        <GoalList areaId={selectedArea.id} />
-        <SkillList areaId={selectedArea.id} />
-    {/key}
-{/if}
-
 <style>
     article {
         padding: 1rem 0;
         border-bottom: 1px solid #ddd;
     }
 
-    article button {
-        margin-right: 0.5rem;
+    .area-heading {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .toggle {
+        min-width: 12rem;
+        text-align: left;
+        font-weight: bold;
     }
 
     form {
