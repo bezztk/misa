@@ -47,8 +47,3 @@ export interface TaskMetadata {
   states: TaskState[]
 }
 
-export interface DevelopmentArea {
-  id: number
-  name: string
-  description: string | null
-}

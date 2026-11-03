@@ -3,7 +3,6 @@ import { apiClient } from '../../api/client'
 import type {
   CreateTask,
   CreateTaskResponse,
-  DevelopmentArea,
   Task,
   TaskMetadata,
   UpdateTask,
@@ -15,8 +14,6 @@ const taskKeys = {
   metadata: ['tasks', 'metadata'] as const,
 }
 
-const developmentAreasKey = ['development-areas'] as const
-
 export function getTasks() {
   return apiClient.get<Task[]>('/tasks')
 }
@@ -27,10 +24,6 @@ export function getTask(id: number) {
 
 export function getTaskMetadata() {
   return apiClient.get<TaskMetadata>('/tasks/metadata')
-}
-
-export function getDevelopmentAreas() {
-  return apiClient.get<DevelopmentArea[]>('/development-areas')
 }
 
 export function createTask(task: CreateTask) {
@@ -60,14 +53,6 @@ export function useTaskMetadata() {
   return useQuery({
     queryKey: taskKeys.metadata,
     queryFn: getTaskMetadata,
-  })
-}
-
-export function useDevelopmentAreas(enabled = true) {
-  return useQuery({
-    queryKey: developmentAreasKey,
-    queryFn: getDevelopmentAreas,
-    enabled,
   })
 }
 

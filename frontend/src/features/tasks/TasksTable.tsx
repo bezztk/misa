@@ -33,11 +33,11 @@ import {
 import {
   useCreateTask,
   useDeleteTask,
-  useDevelopmentAreas,
   useTaskMetadata,
   useTasks,
   useUpdateTask,
 } from './api'
+import { useDevelopmentAreas } from '../continuum/api'
 import type { CreateTask, Task, UpdateTask } from './types'
 
 const features = tableFeatures({
