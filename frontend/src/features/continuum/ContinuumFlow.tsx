@@ -23,6 +23,7 @@ import {
   MarkerType,
   Position,
   ReactFlow,
+  ViewportPortal,
 } from '@xyflow/react'
 import type { Edge, Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -74,6 +75,7 @@ import type { CreateTask, Task, UpdateTask } from '../tasks/types'
 
 const nodeWidth = 220
 const nodeHeight = 56
+const areaGap = 280
 
 type SelectedEntity =
   | { type: 'area'; value: DevelopmentArea }
@@ -221,35 +223,120 @@ function createFlowElements(
     }
   }
 
-  const graph = new graphlib.Graph()
-    .setDefaultEdgeLabel(() => ({}))
-    .setGraph({ rankdir: 'TB', ranksep: 90, nodesep: 40 })
+  const resolvedAreaIds = new Map<number, number>()
 
-  for (const node of nodes) {
-    graph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
+  const resolveAreaId = (
+    itemId: number,
+    visited = new Set<number>(),
+  ): number | undefined => {
+    const cachedAreaId = resolvedAreaIds.get(itemId)
+    if (cachedAreaId !== undefined) return cachedAreaId
+
+    const ownAreaId = itemAreaIds.get(itemId)
+    const parentId = structuralParents.get(itemId)
+
+    if (parentId === undefined || visited.has(itemId)) return ownAreaId
+
+    visited.add(itemId)
+    const parentAreaId: number | undefined = resolveAreaId(parentId, visited)
+    visited.delete(itemId)
+
+    const areaId: number | undefined = parentAreaId ?? ownAreaId
+    if (areaId !== undefined) resolvedAreaIds.set(itemId, areaId)
+    return areaId
   }
 
-  for (const edge of layoutEdges) {
-    graph.setEdge(edge.source, edge.target)
-  }
+  const areaLayouts = areas.map((area) => {
+    const nodeIds = new Set([
+      `area-${area.id}`,
+      ...[...itemIds]
+        .filter((itemId) => resolveAreaId(itemId) === area.id)
+        .map((itemId) => `item-${itemId}`),
+    ])
+    const graph = new graphlib.Graph()
+      .setDefaultEdgeLabel(() => ({}))
+      .setGraph({ rankdir: 'TB', ranksep: 90, nodesep: 40 })
 
-  layout(graph)
+    for (const nodeId of nodeIds) {
+      graph.setNode(nodeId, { width: nodeWidth, height: nodeHeight })
+    }
+
+    for (const edge of layoutEdges) {
+      if (nodeIds.has(edge.source) && nodeIds.has(edge.target)) {
+        graph.setEdge(edge.source, edge.target)
+      }
+    }
+
+    layout(graph)
+
+    const positions = new Map<string, { x: number; y: number }>()
+    let minX = Number.POSITIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let maxY = Number.NEGATIVE_INFINITY
+
+    for (const nodeId of nodeIds) {
+      const position = graph.node(nodeId)
+      const x = position.x - nodeWidth / 2
+      const y = position.y - nodeHeight / 2
+      positions.set(nodeId, { x, y })
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x + nodeWidth)
+      maxY = Math.max(maxY, y + nodeHeight)
+    }
+
+    for (const [nodeId, position] of positions) {
+      positions.set(nodeId, {
+        x: position.x - minX,
+        y: position.y - minY,
+      })
+    }
+
+    return {
+      positions,
+      width: maxX - minX,
+      height: maxY - minY,
+    }
+  })
+
+  const positions = new Map<string, { x: number; y: number }>()
+  const separators: Array<{ x: number; y: number; height: number }> = []
+  const separatorHeight = Math.max(
+    nodeHeight,
+    ...areaLayouts.map((areaLayout) => areaLayout.height),
+  )
+  let offsetX = 0
+
+  areaLayouts.forEach((areaLayout, index) => {
+    for (const [nodeId, position] of areaLayout.positions) {
+      positions.set(nodeId, { x: position.x + offsetX, y: position.y })
+    }
+
+    if (index < areaLayouts.length - 1) {
+      separators.push({
+        x: offsetX + areaLayout.width + areaGap / 2,
+        y: -40,
+        height: separatorHeight + 80,
+      })
+    }
+
+    offsetX += areaLayout.width + areaGap
+  })
 
   return {
     nodes: nodes.map((node) => {
-      const position = graph.node(node.id)
+      const position = positions.get(node.id) ?? { x: 0, y: 0 }
 
       return {
         ...node,
-        position: {
-          x: position.x - nodeWidth / 2,
-          y: position.y - nodeHeight / 2,
-        },
+        position,
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
       }
     }),
     edges,
+    separators,
   }
 }
 
@@ -1068,6 +1155,22 @@ export function ContinuumFlow() {
             onNodeClick={(_, node) => setSelectedEntity(node.data.entity)}
           >
             <Background />
+            <ViewportPortal>
+              {flow.separators.map((separator) => (
+                <Box
+                  key={separator.x}
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    height: separator.height,
+                    borderLeft: '1px solid var(--mantine-color-gray-4)',
+                    opacity: 0.6,
+                    pointerEvents: 'none',
+                    transform: `translate(${separator.x}px, ${separator.y}px)`,
+                  }}
+                />
+              ))}
+            </ViewportPortal>
             <Controls showInteractive={false} />
           </ReactFlow>
         )}
