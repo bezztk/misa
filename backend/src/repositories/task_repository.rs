@@ -37,17 +37,20 @@ pub async fn get_task(pool: &PgPool, item_id: i64) -> Result<Option<TaskDetails>
         "SELECT
             i.id AS item_id,
             i.type AS item_type,
+            h.parent_id,
             i.created_at,
             i.updated_at,
             i.is_archived,
             i.version,
             t.group_id,
+            t.area_id,
             t.state_id,
             t.name,
             t.description,
             t.completed_at
          FROM items i
          JOIN tasks t ON t.item_id = i.id
+         LEFT JOIN item_hierarchy h ON h.child_id = i.id
          WHERE i.id = $1",
     )
     .bind(item_id)
@@ -60,17 +63,20 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskDetails>, sqlx::Error> {
         "SELECT
             i.id AS item_id,
             i.type AS item_type,
+            h.parent_id,
             i.created_at,
             i.updated_at,
             i.is_archived,
             i.version,
             t.group_id,
+            t.area_id,
             t.state_id,
             t.name,
             t.description,
             t.completed_at
          FROM items i
          JOIN tasks t ON t.item_id = i.id
+         LEFT JOIN item_hierarchy h ON h.child_id = i.id
          ORDER BY i.created_at DESC, i.id DESC",
     )
     .fetch_all(pool)

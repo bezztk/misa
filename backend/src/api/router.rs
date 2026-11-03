@@ -1,12 +1,14 @@
 use crate::api::handlers::{
-    development_area_handler, development_category_handler, goal_handler, skill_handler,
-    task_handler,
+    development_area_handler, development_category_handler, goal_handler, item_handler,
+    skill_handler, task_handler,
 };
-use axum::{Router, routing::get};
+use axum::{Router, routing::{get, patch}};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route("/items/{id}/parent", patch(item_handler::update_item_parent))
+        .route("/items/{id}/archive", patch(item_handler::update_item_archive))
         .route(
             "/goals/{id}",
             get(goal_handler::get_goal)

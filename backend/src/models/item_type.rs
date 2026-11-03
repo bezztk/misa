@@ -14,6 +14,16 @@ pub enum ItemType {
 }
 
 impl ItemType {
+    pub const fn from_id(id: i32) -> Option<ItemType> {
+        match id {
+            1 => Some(ItemType::Task),
+            2 => Some(ItemType::DevelopmentCategory),
+            3 => Some(ItemType::Goal),
+            4 => Some(ItemType::Skill),
+            _ => None,
+        }
+    }
+
     pub const fn allowed_parent_types(self) -> &'static [ItemType] {
         match self {
             ItemType::Task => &[

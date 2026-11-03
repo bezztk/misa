@@ -1,0 +1,143 @@
+use crate::models::item_type::ItemType;
+use sqlx::PgPool;
+
+#[derive(sqlx::FromRow)]
+struct HierarchyItem {
+    item_type: i32,
+    area_id: Option<i32>,
+    group_id: Option<i32>,
+}
+
+pub enum UpdateParentResult {
+    Updated,
+    NotFound,
+    Invalid,
+}
+
+const ITEM_FOR_HIERARCHY: &str =
+    "SELECT
+        i.type AS item_type,
+        COALESCE(t.area_id, c.area_id, g.area_id, s.area_id) AS area_id,
+        t.group_id
+     FROM items i
+     LEFT JOIN tasks t ON t.item_id = i.id
+     LEFT JOIN development_categories c ON c.item_id = i.id
+     LEFT JOIN goals g ON g.item_id = i.id
+     LEFT JOIN skills s ON s.item_id = i.id
+     WHERE i.id = $1";
+
+pub async fn update_item_parent(
+    pool: &PgPool,
+    child_id: i32,
+    parent_id: Option<i32>,
+) -> Result<UpdateParentResult, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    let child = sqlx::query_as::<_, HierarchyItem>(ITEM_FOR_HIERARCHY)
+        .bind(child_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+    let Some(child) = child else {
+        return Ok(UpdateParentResult::NotFound);
+    };
+
+    let Some(parent_id) = parent_id else {
+        sqlx::query("DELETE FROM item_hierarchy WHERE child_id = $1")
+            .bind(child_id)
+            .execute(&mut *tx)
+            .await?;
+
+        sqlx::query(
+            "UPDATE items
+             SET updated_at = NOW(), version = version + 1
+             WHERE id = $1",
+        )
+        .bind(child_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        return Ok(UpdateParentResult::Updated);
+    };
+
+    if child_id == parent_id {
+        return Ok(UpdateParentResult::Invalid);
+    }
+
+    let parent = sqlx::query_as::<_, HierarchyItem>(ITEM_FOR_HIERARCHY)
+        .bind(parent_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+    let Some(parent) = parent else {
+        return Ok(UpdateParentResult::NotFound);
+    };
+
+    let Some(child_type) = ItemType::from_id(child.item_type) else {
+        return Ok(UpdateParentResult::Invalid);
+    };
+    let Some(parent_type) = ItemType::from_id(parent.item_type) else {
+        return Ok(UpdateParentResult::Invalid);
+    };
+
+    if !child_type.allowed_parent_types().contains(&parent_type)
+        || child.area_id.is_none()
+        || child.area_id != parent.area_id
+        || (child_type == ItemType::Task && child.group_id.is_some())
+        || (parent_type == ItemType::Task && parent.group_id.is_some())
+    {
+        return Ok(UpdateParentResult::Invalid);
+    }
+
+    let parent_parent: Option<i32> =
+        sqlx::query_scalar("SELECT parent_id FROM item_hierarchy WHERE child_id = $1")
+            .bind(parent_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+    if parent_parent == Some(child_id) {
+        return Ok(UpdateParentResult::Invalid);
+    }
+
+    sqlx::query(
+        "INSERT INTO item_hierarchy (child_id, parent_id)
+         VALUES ($1, $2)
+         ON CONFLICT (child_id) DO UPDATE SET parent_id = EXCLUDED.parent_id",
+    )
+    .bind(child_id)
+    .bind(parent_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE items
+         SET updated_at = NOW(), version = version + 1
+         WHERE id = $1",
+    )
+    .bind(child_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(UpdateParentResult::Updated)
+}
+
+pub async fn update_item_archive(
+    pool: &PgPool,
+    item_id: i32,
+    is_archived: bool,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE items
+         SET is_archived = $1, updated_at = NOW(), version = version + 1
+         WHERE id = $2",
+    )
+    .bind(is_archived)
+    .bind(item_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
