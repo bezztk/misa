@@ -21,6 +21,12 @@ export function updateTask(id: number, task: UpdateTask): Promise<void> {
     })
 }
 
+export function deleteTask(id: number): Promise<void> {
+    return api<void>(`/tasks/${id}`, {
+        method: "DELETE",
+    })
+}
+
 export function getTaskMetadata(): Promise<TaskMetadata> {
     return api<TaskMetadata>("/tasks/metadata");
 }

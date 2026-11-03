@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getTasks } from "../../../lib/api/tasks";
+    import { deleteTask, getTasks } from "../../../lib/api/tasks";
     import type { Task } from "../../../lib/models/task";
     import TaskEdit from "./TaskEdit.svelte";
 
@@ -32,6 +32,10 @@
         <p>
             {task.name}
             <button onclick={() => edit(task)}>Bearbeiten</button>
+            <button onclick={async () => {
+                await deleteTask(task.item_id);
+                await loadTasks();
+            }}>Löschen</button>
         </p>
     {/each}
 {/if}
