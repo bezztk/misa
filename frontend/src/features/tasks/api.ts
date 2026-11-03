@@ -89,7 +89,12 @@ export function useDeleteTask() {
     mutationFn: deleteTask,
     onSuccess: async (_, id) => {
       queryClient.removeQueries({ queryKey: taskKeys.detail(id) })
-      await queryClient.invalidateQueries({ queryKey: taskKeys.list })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: taskKeys.list }),
+        queryClient.invalidateQueries({
+          queryKey: ['continuum', 'items', 'hierarchy'],
+        }),
+      ])
     },
   })
 }

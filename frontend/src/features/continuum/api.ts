@@ -397,10 +397,11 @@ export function useItemHierarchy() {
   })
 }
 
-export function useAllowedTypeRelations() {
+export function useAllowedTypeRelations(enabled = true) {
   return useQuery({
     queryKey: keys.allowedTypeRelations,
     queryFn: getAllowedTypeRelations,
+    enabled,
   })
 }
 

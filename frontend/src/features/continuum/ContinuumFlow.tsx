@@ -26,8 +26,23 @@ import {
 } from '@xyflow/react'
 import type { Edge, Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useTaskMetadata, useTasks, useUpdateTask } from '../tasks/api'
 import {
+  useCreateTask,
+  useDeleteTask,
+  useTaskMetadata,
+  useTasks,
+  useUpdateTask,
+} from '../tasks/api'
+import {
+  useAllowedTypeRelations,
+  useCreateDevelopmentArea,
+  useCreateDevelopmentCategory,
+  useCreateGoal,
+  useCreateSkill,
+  useDeleteDevelopmentArea,
+  useDeleteDevelopmentCategory,
+  useDeleteGoal,
+  useDeleteSkill,
   useDevelopmentAreas,
   useDevelopmentCategories,
   useGoals,
@@ -38,8 +53,13 @@ import {
   useUpdateDevelopmentCategory,
   useUpdateGoal,
   useUpdateSkill,
+  useUpdateItemParent,
 } from './api'
 import type {
+  CreateDevelopmentArea,
+  CreateDevelopmentCategory,
+  CreateGoal,
+  CreateSkill,
   DevelopmentArea,
   DevelopmentCategory,
   Goal,
@@ -50,7 +70,7 @@ import type {
   UpdateGoal,
   UpdateSkill,
 } from './types'
-import type { Task, UpdateTask } from '../tasks/types'
+import type { CreateTask, Task, UpdateTask } from '../tasks/types'
 
 const nodeWidth = 220
 const nodeHeight = 56
@@ -253,10 +273,12 @@ function ContinuumEditModal({
   entity,
   areaName,
   onClose,
+  onDelete,
 }: {
   entity: SelectedEntity
   areaName: string | null
   onClose: () => void
+  onDelete: (entity: SelectedEntity) => void
 }) {
   const updateArea = useUpdateDevelopmentArea()
   const updateCategory = useUpdateDevelopmentCategory()
@@ -456,17 +478,336 @@ function ContinuumEditModal({
                 Das Element konnte nicht gespeichert werden.
               </Alert>
             )}
+            <Group justify="space-between">
+              <Button
+                color="red"
+                disabled={isSaving}
+                type="button"
+                variant="light"
+                onClick={() => onDelete(entity)}
+              >
+                Löschen
+              </Button>
+              <Group>
+                <Button
+                  disabled={isSaving}
+                  type="button"
+                  variant="default"
+                  onClick={onClose}
+                >
+                  Abbrechen
+                </Button>
+                <Button loading={isSaving} type="submit">
+                  Speichern
+                </Button>
+              </Group>
+            </Group>
+          </Stack>
+        </Box>
+      )}
+    </Modal>
+  )
+}
+
+type CreateEntityType = SelectedEntity['type']
+
+interface CreateFormValues {
+  type: CreateEntityType
+  name: string
+  description: string
+  area_id: string | null
+  state_id: string | null
+  due_at: string
+  parent_id: string | null
+}
+
+const backendItemTypes: Record<Exclude<CreateEntityType, 'area'>, string> = {
+  category: 'Category',
+  skill: 'Skill',
+  goal: 'Goal',
+  task: 'Task',
+}
+
+function CreateContinuumModal({
+  areas,
+  categories,
+  skills,
+  goals,
+  tasks,
+  onClose,
+}: {
+  areas: DevelopmentArea[]
+  categories: DevelopmentCategory[]
+  skills: Skill[]
+  goals: Goal[]
+  tasks: Task[]
+  onClose: () => void
+}) {
+  const createArea = useCreateDevelopmentArea()
+  const createCategory = useCreateDevelopmentCategory()
+  const createSkill = useCreateSkill()
+  const createGoal = useCreateGoal()
+  const createTask = useCreateTask()
+  const updateParent = useUpdateItemParent()
+  const skillMetadata = useSkillMetadata(true)
+  const allowedRelations = useAllowedTypeRelations(true)
+  const form = useForm<CreateFormValues>({
+    initialValues: {
+      type: 'area',
+      name: '',
+      description: '',
+      area_id: null,
+      state_id: null,
+      due_at: '',
+      parent_id: null,
+    },
+    validate: {
+      name: (value, values) => {
+        const length = [...value.trim()].length
+        const maximum = values.type === 'task' ? 150 : 50
+
+        if (length === 0) return 'Name ist erforderlich.'
+        if (length > maximum) {
+          return `Der Name darf maximal ${maximum} Zeichen haben.`
+        }
+        return null
+      },
+      area_id: (value, values) =>
+        values.type !== 'area' && value === null
+          ? 'Continuum-Bereich ist erforderlich.'
+          : null,
+    },
+  })
+  const parentCandidates = [
+    ...categories.map((category) => ({
+      areaId: category.area_id,
+      id: category.item_id,
+      label: `Kategorie: ${category.name}`,
+      type: 'Category',
+    })),
+    ...skills.map((skill) => ({
+      areaId: skill.area_id,
+      id: skill.item_id,
+      label: `Fähigkeit: ${skill.name}`,
+      type: 'Skill',
+    })),
+    ...goals.map((goal) => ({
+      areaId: goal.area_id,
+      id: goal.item_id,
+      label: `Ziel: ${goal.name}`,
+      type: 'Goal',
+    })),
+    ...tasks
+      .filter((task) => task.area_id !== null && task.group_id === null)
+      .map((task) => ({
+        areaId: task.area_id as number,
+        id: task.item_id,
+        label: `Aufgabe: ${task.name}`,
+        type: 'Task',
+      })),
+  ]
+  const childType =
+    form.values.type === 'area' ? null : backendItemTypes[form.values.type]
+  const allowedParentTypes = new Set(
+    (allowedRelations.data ?? [])
+      .filter((relation) => relation.child_type === childType)
+      .map((relation) => relation.parent_type),
+  )
+  const areaId =
+    form.values.area_id === null ? null : Number(form.values.area_id)
+  const parentOptions = parentCandidates
+    .filter(
+      (candidate) =>
+        candidate.areaId === areaId && allowedParentTypes.has(candidate.type),
+    )
+    .map((candidate) => ({
+      value: String(candidate.id),
+      label: candidate.label,
+    }))
+  const isPending =
+    createArea.isPending ||
+    createCategory.isPending ||
+    createSkill.isPending ||
+    createGoal.isPending ||
+    createTask.isPending ||
+    updateParent.isPending
+  const isError =
+    createArea.isError ||
+    createCategory.isError ||
+    createSkill.isError ||
+    createGoal.isError ||
+    createTask.isError ||
+    updateParent.isError
+
+  const submit = async (values: CreateFormValues) => {
+    const name = values.name.trim()
+    const description = values.description.trim() || null
+    const areaId = values.area_id === null ? null : Number(values.area_id)
+    let id: number
+
+    try {
+      if (values.type === 'area') {
+        const area: CreateDevelopmentArea = { name, description }
+        id = (await createArea.mutateAsync(area)).id
+      } else if (values.type === 'category') {
+        const category: CreateDevelopmentCategory = {
+          area_id: areaId as number,
+          name,
+        }
+        id = (await createCategory.mutateAsync(category)).id
+      } else if (values.type === 'skill') {
+        const skill: CreateSkill = {
+          area_id: areaId as number,
+          state_id:
+            values.state_id === null ? null : Number(values.state_id),
+          name,
+          description,
+        }
+        id = (await createSkill.mutateAsync(skill)).id
+      } else if (values.type === 'goal') {
+        const goal: CreateGoal = {
+          area_id: areaId as number,
+          name,
+          description,
+          due_at: values.due_at
+            ? new Date(values.due_at).toISOString()
+            : null,
+        }
+        id = (await createGoal.mutateAsync(goal)).id
+      } else {
+        const task: CreateTask = {
+          area_id: areaId as number,
+          group_id: null,
+          name,
+          description,
+        }
+        id = (await createTask.mutateAsync(task)).id
+      }
+
+      if (values.type !== 'area' && values.parent_id !== null) {
+        await updateParent.mutateAsync({
+          id,
+          item: { parent_id: Number(values.parent_id) },
+        })
+      }
+
+      onClose()
+    } catch {
+      return
+    }
+  }
+
+  const metadataPending =
+    allowedRelations.isPending ||
+    (form.values.type === 'skill' && skillMetadata.isPending)
+  const metadataError =
+    allowedRelations.isError ||
+    (form.values.type === 'skill' && skillMetadata.isError)
+
+  return (
+    <Modal centered opened onClose={onClose} title="Element hinzufügen">
+      {metadataPending ? (
+        <Center>
+          <Loader />
+        </Center>
+      ) : metadataError ? (
+        <Alert color="red" title="Fehler">
+          Die Auswahldaten konnten nicht geladen werden.
+        </Alert>
+      ) : (
+        <Box component="form" onSubmit={form.onSubmit(submit)}>
+          <Stack>
+            <Select
+              label="Elementtyp"
+              value={form.values.type}
+              data={[
+                { value: 'area', label: 'Development Area' },
+                { value: 'category', label: 'Kategorie' },
+                { value: 'skill', label: 'Fähigkeit' },
+                { value: 'goal', label: 'Ziel' },
+                { value: 'task', label: 'Aufgabe' },
+              ]}
+              onChange={(value) => {
+                if (value !== null) {
+                  form.setFieldValue('type', value as CreateEntityType)
+                  form.setFieldValue('parent_id', null)
+                }
+              }}
+            />
+            <TextInput
+              data-autofocus
+              required
+              label="Name"
+              {...form.getInputProps('name')}
+            />
+            {form.values.type !== 'area' && (
+              <Select
+                required
+                label="Continuum-Bereich"
+                value={form.values.area_id}
+                data={areas.map((area) => ({
+                  value: String(area.id),
+                  label: area.name,
+                }))}
+                error={form.errors.area_id}
+                onBlur={() => form.validateField('area_id')}
+                onChange={(value) => {
+                  form.setFieldValue('area_id', value)
+                  form.setFieldValue('parent_id', null)
+                }}
+              />
+            )}
+            {form.values.type === 'skill' && (
+              <Select
+                clearable
+                label="Status"
+                data={(skillMetadata.data?.states ?? []).map((state) => ({
+                  value: String(state.id),
+                  label: state.name,
+                }))}
+                {...form.getInputProps('state_id')}
+              />
+            )}
+            {form.values.type === 'goal' && (
+              <TextInput
+                label="Fällig am"
+                type="datetime-local"
+                {...form.getInputProps('due_at')}
+              />
+            )}
+            {form.values.type !== 'category' && (
+              <Textarea
+                autosize
+                label="Beschreibung"
+                minRows={3}
+                {...form.getInputProps('description')}
+              />
+            )}
+            {form.values.type !== 'area' && (
+              <Select
+                clearable
+                disabled={form.values.area_id === null}
+                label="Übergeordnetes Element"
+                data={parentOptions}
+                {...form.getInputProps('parent_id')}
+              />
+            )}
+            {isError && (
+              <Alert color="red" title="Fehler">
+                Das Element konnte nicht erstellt werden.
+              </Alert>
+            )}
             <Group justify="flex-end">
               <Button
-                disabled={isSaving}
+                disabled={isPending}
                 type="button"
                 variant="default"
                 onClick={onClose}
               >
                 Abbrechen
               </Button>
-              <Button loading={isSaving} type="submit">
-                Speichern
+              <Button loading={isPending} type="submit">
+                Hinzufügen
               </Button>
             </Group>
           </Stack>
@@ -476,8 +817,79 @@ function ContinuumEditModal({
   )
 }
 
+function DeleteContinuumModal({
+  entity,
+  onClose,
+}: {
+  entity: SelectedEntity
+  onClose: () => void
+}) {
+  const deleteArea = useDeleteDevelopmentArea()
+  const deleteCategory = useDeleteDevelopmentCategory()
+  const deleteSkill = useDeleteSkill()
+  const deleteGoal = useDeleteGoal()
+  const deleteTask = useDeleteTask()
+  const isPending =
+    deleteArea.isPending ||
+    deleteCategory.isPending ||
+    deleteSkill.isPending ||
+    deleteGoal.isPending ||
+    deleteTask.isPending
+  const isError =
+    deleteArea.isError ||
+    deleteCategory.isError ||
+    deleteSkill.isError ||
+    deleteGoal.isError ||
+    deleteTask.isError
+
+  const remove = () => {
+    if (entity.type === 'area') {
+      deleteArea.mutate(entity.value.id, { onSuccess: onClose })
+    } else if (entity.type === 'category') {
+      deleteCategory.mutate(entity.value.item_id, { onSuccess: onClose })
+    } else if (entity.type === 'skill') {
+      deleteSkill.mutate(entity.value.item_id, { onSuccess: onClose })
+    } else if (entity.type === 'goal') {
+      deleteGoal.mutate(entity.value.item_id, { onSuccess: onClose })
+    } else {
+      deleteTask.mutate(entity.value.item_id, { onSuccess: onClose })
+    }
+  }
+
+  return (
+    <Modal centered opened onClose={onClose} title="Element löschen">
+      <Stack>
+        <Text>Möchtest du „{entity.value.name}“ wirklich löschen?</Text>
+        {isError && (
+          <Alert color="red" title="Fehler">
+            Das Element konnte nicht gelöscht werden. Möglicherweise bestehen
+            noch Verknüpfungen.
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button
+            disabled={isPending}
+            type="button"
+            variant="default"
+            onClick={onClose}
+          >
+            Abbrechen
+          </Button>
+          <Button color="red" loading={isPending} onClick={remove}>
+            Löschen
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
 export function ContinuumFlow() {
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(
+    null,
+  )
+  const [createOpened, setCreateOpened] = useState(false)
+  const [entityToDelete, setEntityToDelete] = useState<SelectedEntity | null>(
     null,
   )
   const areas = useDevelopmentAreas()
@@ -548,38 +960,56 @@ export function ContinuumFlow() {
     )
   }
 
-  if (flow.nodes.length === 0) {
-    return (
-      <Stack>
-        <Title>Continuum</Title>
-        <Text>Keine Continuum-Daten vorhanden.</Text>
-      </Stack>
-    )
-  }
-
   return (
     <Stack h="calc(100vh - 100px)">
-      <Title>Continuum</Title>
+      <Group justify="space-between">
+        <Title>Continuum</Title>
+        <Button onClick={() => setCreateOpened(true)}>Hinzufügen</Button>
+      </Group>
       <Box style={{ flex: 1 }} mih={500}>
-        <ReactFlow
-          edges={flow.edges}
-          elementsSelectable={false}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          nodes={flow.nodes}
-          nodesConnectable={false}
-          nodesDraggable={false}
-          onNodeClick={(_, node) => setSelectedEntity(node.data.entity)}
-        >
-          <Background />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+        {flow.nodes.length === 0 ? (
+          <Text>Keine Continuum-Daten vorhanden.</Text>
+        ) : (
+          <ReactFlow
+            edges={flow.edges}
+            elementsSelectable={false}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            nodes={flow.nodes}
+            nodesConnectable={false}
+            nodesDraggable={false}
+            onNodeClick={(_, node) => setSelectedEntity(node.data.entity)}
+          >
+            <Background />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        )}
       </Box>
       {selectedEntity !== null && (
         <ContinuumEditModal
           areaName={selectedAreaName}
           entity={selectedEntity}
           onClose={() => setSelectedEntity(null)}
+          onDelete={(entity) => {
+            setSelectedEntity(null)
+            setEntityToDelete(entity)
+          }}
+        />
+      )}
+      {createOpened && (
+        <CreateContinuumModal
+          areas={areas.data ?? []}
+          categories={categories.data ?? []}
+          goals={goals.data ?? []}
+          skills={skills.data ?? []}
+          tasks={tasks.data ?? []}
+          onClose={() => setCreateOpened(false)}
+        />
+      )}
+      {entityToDelete !== null && (
+        <DeleteContinuumModal
+          entity={entityToDelete}
+          onClose={() => setEntityToDelete(null)}
         />
       )}
     </Stack>
