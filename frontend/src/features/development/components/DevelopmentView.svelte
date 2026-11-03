@@ -14,6 +14,8 @@
     let name = $state("");
     let description = $state("");
     let error = $state("");
+    let formError = $state("");
+    let pending = $state(false);
     let dialog: HTMLDialogElement;
 
     async function loadAreas() {
@@ -30,6 +32,8 @@
     }
 
     function openCreate() {
+        error = "";
+        formError = "";
         editingArea = null;
         name = "";
         description = "";
@@ -37,6 +41,8 @@
     }
 
     function openEdit(area: DevelopmentArea) {
+        error = "";
+        formError = "";
         editingArea = area;
         name = area.name;
         description = area.description ?? "";
@@ -44,8 +50,11 @@
     }
 
     async function submit() {
+        if (pending) return;
+
         try {
-            error = "";
+            formError = "";
+            pending = true;
 
             if (editingArea) {
                 await updateDevelopmentArea(editingArea.id, {name, description});
@@ -56,17 +65,24 @@
             dialog.close();
             await loadAreas();
         } catch (err) {
-            error = String(err);
+            formError = String(err);
+        } finally {
+            pending = false;
         }
     }
 
     async function remove(area: DevelopmentArea) {
+        if (pending || !confirm(`Area "${area.name}" löschen?`)) return;
+
         try {
             error = "";
+            pending = true;
             await deleteDevelopmentArea(area.id);
             await loadAreas();
         } catch (err) {
             error = String(err);
+        } finally {
+            pending = false;
         }
     }
 
@@ -77,7 +93,7 @@
 
 <section>
     <h2>Entwicklung</h2>
-    <button onclick={openCreate}>Neue Area</button>
+    <button onclick={openCreate} disabled={pending}>Neue Area</button>
 
     {#if selectedArea}
         <p>Ausgewählt: <strong>{selectedArea.name}</strong></p>
@@ -90,8 +106,8 @@
     {#each areas as area (area.id)}
         <article>
             <button onclick={() => selectedArea = area}>{area.name}</button>
-            <button onclick={() => openEdit(area)}>Bearbeiten</button>
-            <button onclick={() => remove(area)}>Löschen</button>
+            <button onclick={() => openEdit(area)} disabled={pending}>Bearbeiten</button>
+            <button onclick={() => remove(area)} disabled={pending}>Löschen</button>
 
             {#if area.description}
                 <p>{area.description}</p>
@@ -113,11 +129,13 @@
         <label for="area-description">Beschreibung</label>
         <textarea id="area-description" bind:value={description}></textarea>
 
-        {#if error}
-            <p>{error}</p>
+        {#if formError}
+            <p>{formError}</p>
         {/if}
 
-        <button type="submit">Speichern</button>
+        <button type="submit" disabled={pending}>
+            {pending ? "Wird gespeichert..." : "Speichern"}
+        </button>
         <button type="button" onclick={() => dialog.close()}>Abbrechen</button>
     </form>
 </dialog>

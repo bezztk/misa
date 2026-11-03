@@ -8,7 +8,7 @@ export async function api<T>(endpoint: string, options: RequestInit = {}): Promi
         });
 
     if (!response.ok) {
-        throw new Error(response.statusText);
+        throw new Error(`${response.status} ${response.statusText}: ${API_BASE_URL}${endpoint}`);
     }
 
     if (response.status === 204) {
