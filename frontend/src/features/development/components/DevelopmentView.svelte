@@ -7,6 +7,7 @@
         updateDevelopmentArea,
     } from "../../../lib/api/developmentAreas";
     import type {DevelopmentArea} from "../../../lib/models/developmentArea";
+    import DevelopmentCategoryList from "./DevelopmentCategoryList.svelte";
 
     let areas: DevelopmentArea[] = $state([]);
     let selectedArea: DevelopmentArea | null = $state(null);
@@ -139,6 +140,12 @@
         <button type="button" onclick={() => dialog.close()}>Abbrechen</button>
     </form>
 </dialog>
+
+{#if selectedArea}
+    {#key selectedArea.id}
+        <DevelopmentCategoryList areaId={selectedArea.id} />
+    {/key}
+{/if}
 
 <style>
     article {
