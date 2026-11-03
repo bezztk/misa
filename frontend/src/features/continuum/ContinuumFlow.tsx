@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Center,
@@ -8,6 +9,7 @@ import {
   Group,
   Loader,
   Modal,
+  Paper,
   Select,
   Stack,
   Text,
@@ -20,12 +22,13 @@ import { graphlib, layout } from '@dagrejs/dagre'
 import {
   Background,
   Controls,
+  Handle,
   MarkerType,
   Position,
   ReactFlow,
   ViewportPortal,
 } from '@xyflow/react'
-import type { Edge, Node } from '@xyflow/react'
+import type { Edge, Node, NodeProps, NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
   useCreateTask,
@@ -66,15 +69,19 @@ import type {
   Goal,
   ItemHierarchy,
   Skill,
+  SkillState,
   UpdateDevelopmentArea,
   UpdateDevelopmentCategory,
   UpdateGoal,
   UpdateSkill,
 } from './types'
-import type { CreateTask, Task, UpdateTask } from '../tasks/types'
+import type {
+  CreateTask,
+  Task,
+  TaskState,
+  UpdateTask,
+} from '../tasks/types'
 
-const nodeWidth = 220
-const nodeHeight = 56
 const areaGap = 280
 
 type SelectedEntity =
@@ -87,9 +94,135 @@ type SelectedEntity =
 interface ContinuumNodeData extends Record<string, unknown> {
   label: string
   entity: SelectedEntity
+  statusColor?: string
+  statusLabel?: string
 }
 
-type ContinuumNode = Node<ContinuumNodeData>
+type ContinuumNodeType = SelectedEntity['type']
+type ContinuumNode = Node<ContinuumNodeData, ContinuumNodeType>
+
+const nodeWidths: Record<
+  ContinuumNodeType,
+  { min: number; max: number }
+> = {
+  area: { min: 280, max: 340 },
+  skill: { min: 280, max: 340 },
+  goal: { min: 260, max: 320 },
+  category: { min: 200, max: 260 },
+  task: { min: 240, max: 320 },
+}
+
+const typeLabels: Record<ContinuumNodeType, string> = {
+  area: 'Development Area',
+  skill: 'Fähigkeit',
+  goal: 'Ziel',
+  category: 'Kategorie',
+  task: 'Aufgabe',
+}
+
+function getNodeSize(data: ContinuumNodeData) {
+  const type = data.entity.type
+  const widths = nodeWidths[type]
+  const width = Math.min(widths.max, widths.min + data.label.length * 3)
+  const horizontalPadding = type === 'category' ? 16 : 28
+  const charactersPerLine = Math.max(
+    1,
+    Math.floor((width - horizontalPadding) / 9),
+  )
+  const lines = Math.max(1, Math.ceil(data.label.length / charactersPerLine))
+  const statusHeight =
+    type !== 'task' && data.statusLabel !== undefined ? 22 : 0
+  const verticalPadding = type === 'category' ? 14 : 24
+  const height = verticalPadding + 18 + lines * 20 + statusHeight
+
+  return { width, height }
+}
+
+function ContinuumNodeView({ data }: NodeProps<ContinuumNode>) {
+  const type = data.entity.type
+  const isArea = type === 'area'
+  const isSkill = type === 'skill'
+  const isGoal = type === 'goal'
+  const isCategory = type === 'category'
+  const size = getNodeSize(data)
+  const borderColor = isSkill
+    ? 'var(--mantine-color-blue-6)'
+    : isGoal
+      ? 'var(--mantine-color-violet-6)'
+      : isArea
+        ? 'var(--mantine-color-gray-7)'
+        : 'var(--mantine-color-gray-4)'
+  const labelColor = isSkill ? 'blue' : isGoal ? 'violet' : 'dimmed'
+  const handleStyle = {
+    width: 8,
+    height: 8,
+    border: '2px solid var(--mantine-color-body)',
+    background: borderColor,
+  }
+
+  return (
+    <>
+      {!isArea && (
+        <Handle position={Position.Top} style={handleStyle} type="target" />
+      )}
+      <Paper
+        h={size.height}
+        p={isCategory ? 7 : 'sm'}
+        radius={isSkill ? 'md' : isCategory ? 'xs' : 'sm'}
+        shadow={isSkill ? 'sm' : undefined}
+        w={size.width}
+        style={{
+          border: `${isArea || isSkill ? 2 : 1}px solid ${borderColor}`,
+          boxSizing: 'border-box',
+          cursor: 'pointer',
+        }}
+      >
+        <Stack gap={4} h="100%" justify="center">
+          <Group gap={6} wrap="nowrap">
+            {type === 'task' && data.statusLabel !== undefined && (
+              <Box
+                aria-label={`Status: ${data.statusLabel}`}
+                title={data.statusLabel}
+                style={{
+                  flex: '0 0 auto',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: `var(--mantine-color-${data.statusColor ?? 'gray'}-6)`,
+                }}
+              />
+            )}
+            <Text c={labelColor} fw={700} size="10px" tt="uppercase">
+              {typeLabels[type]}
+            </Text>
+          </Group>
+          <Text
+            fw={isSkill || isArea ? 700 : 500}
+            lh={1.35}
+            size={isCategory ? 'xs' : 'sm'}
+            style={{ overflowWrap: 'anywhere' }}
+          >
+            {data.label}
+          </Text>
+          {type !== 'task' && data.statusLabel !== undefined && (
+            <Badge color={data.statusColor ?? 'gray'} size="xs" variant="light">
+              {data.statusLabel}
+            </Badge>
+          )}
+        </Stack>
+      </Paper>
+      <Handle position={Position.Bottom} style={handleStyle} type="source" />
+    </>
+  )
+}
+
+const nodeTypes = {
+  area: ContinuumNodeView,
+  category: ContinuumNodeView,
+  goal: ContinuumNodeView,
+  skill: ContinuumNodeView,
+  task: ContinuumNodeView,
+} satisfies NodeTypes
 
 function createFlowElements(
   areas: DevelopmentArea[],
@@ -98,6 +231,8 @@ function createFlowElements(
   goals: Goal[],
   tasks: Task[],
   hierarchy: ItemHierarchy[],
+  skillStates: SkillState[],
+  taskStates: TaskState[],
 ) {
   const nodes: ContinuumNode[] = []
   const edges: Edge[] = []
@@ -105,17 +240,29 @@ function createFlowElements(
   const areaIds = new Set<number>()
   const itemIds = new Set<number>()
   const itemAreaIds = new Map<number, number>()
+  const skillStateNames = new Map(
+    skillStates.map((state) => [state.id, state.name]),
+  )
+  const taskStateNames = new Map(
+    taskStates.map((state) => [state.id, state.name]),
+  )
+  const taskStatusColors: Record<string, string> = {
+    open: 'gray',
+    in_progress: 'blue',
+    completed: 'green',
+    cancelled: 'red',
+  }
 
   for (const area of areas) {
     areaIds.add(area.id)
     nodes.push({
       id: `area-${area.id}`,
       data: {
-        label: `Bereich: ${area.name}`,
+        label: area.name,
         entity: { type: 'area', value: area },
       },
       position: { x: 0, y: 0 },
-      style: { cursor: 'pointer', width: nodeWidth },
+      type: 'area',
     })
   }
 
@@ -124,14 +271,16 @@ function createFlowElements(
     areaId: number,
     label: string,
     entity: SelectedEntity,
+    statusLabel?: string,
+    statusColor?: string,
   ) => {
     itemIds.add(itemId)
     itemAreaIds.set(itemId, areaId)
     nodes.push({
       id: `item-${itemId}`,
-      data: { label, entity },
+      data: { label, entity, statusColor, statusLabel },
       position: { x: 0, y: 0 },
-      style: { cursor: 'pointer', width: nodeWidth },
+      type: entity.type,
     })
   }
 
@@ -139,31 +288,44 @@ function createFlowElements(
     addItem(
       category.item_id,
       category.area_id,
-      `Kategorie: ${category.name}`,
+      category.name,
       { type: 'category', value: category },
     )
   }
 
   for (const skill of skills) {
-    addItem(skill.item_id, skill.area_id, `Fähigkeit: ${skill.name}`, {
-      type: 'skill',
-      value: skill,
-    })
+    addItem(
+      skill.item_id,
+      skill.area_id,
+      skill.name,
+      { type: 'skill', value: skill },
+      skillStateNames.get(skill.state_id),
+      'blue',
+    )
   }
 
   for (const goal of goals) {
-    addItem(goal.item_id, goal.area_id, `Ziel: ${goal.name}`, {
-      type: 'goal',
-      value: goal,
-    })
+    addItem(
+      goal.item_id,
+      goal.area_id,
+      goal.name,
+      { type: 'goal', value: goal },
+      goal.is_completed ? 'Erledigt' : 'Offen',
+      goal.is_completed ? 'green' : 'gray',
+    )
   }
 
   for (const task of tasks) {
     if (task.area_id !== null) {
-      addItem(task.item_id, task.area_id, `Aufgabe: ${task.name}`, {
-        type: 'task',
-        value: task,
-      })
+      const statusLabel = taskStateNames.get(task.state_id)
+      addItem(
+        task.item_id,
+        task.area_id,
+        task.name,
+        { type: 'task', value: task },
+        statusLabel,
+        statusLabel === undefined ? undefined : taskStatusColors[statusLabel],
+      )
     }
   }
 
@@ -246,19 +408,35 @@ function createFlowElements(
     return areaId
   }
 
-  const areaLayouts = areas.map((area) => {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]))
+  const groupedNodeIds = new Set<string>()
+  const layoutGroups = areas.map((area) => {
     const nodeIds = new Set([
       `area-${area.id}`,
       ...[...itemIds]
         .filter((itemId) => resolveAreaId(itemId) === area.id)
         .map((itemId) => `item-${itemId}`),
     ])
+
+    for (const nodeId of nodeIds) groupedNodeIds.add(nodeId)
+    return nodeIds
+  })
+  const unassignedNodeIds = new Set(
+    nodes
+      .map((node) => node.id)
+      .filter((nodeId) => !groupedNodeIds.has(nodeId)),
+  )
+
+  if (unassignedNodeIds.size > 0) layoutGroups.push(unassignedNodeIds)
+
+  const areaLayouts = layoutGroups.map((nodeIds) => {
     const graph = new graphlib.Graph()
       .setDefaultEdgeLabel(() => ({}))
       .setGraph({ rankdir: 'TB', ranksep: 90, nodesep: 40 })
 
     for (const nodeId of nodeIds) {
-      graph.setNode(nodeId, { width: nodeWidth, height: nodeHeight })
+      const node = nodesById.get(nodeId)
+      if (node !== undefined) graph.setNode(nodeId, getNodeSize(node.data))
     }
 
     for (const edge of layoutEdges) {
@@ -276,14 +454,18 @@ function createFlowElements(
     let maxY = Number.NEGATIVE_INFINITY
 
     for (const nodeId of nodeIds) {
+      const node = nodesById.get(nodeId)
+      if (node === undefined) continue
+
+      const size = getNodeSize(node.data)
       const position = graph.node(nodeId)
-      const x = position.x - nodeWidth / 2
-      const y = position.y - nodeHeight / 2
+      const x = position.x - size.width / 2
+      const y = position.y - size.height / 2
       positions.set(nodeId, { x, y })
       minX = Math.min(minX, x)
       minY = Math.min(minY, y)
-      maxX = Math.max(maxX, x + nodeWidth)
-      maxY = Math.max(maxY, y + nodeHeight)
+      maxX = Math.max(maxX, x + size.width)
+      maxY = Math.max(maxY, y + size.height)
     }
 
     for (const [nodeId, position] of positions) {
@@ -303,7 +485,7 @@ function createFlowElements(
   const positions = new Map<string, { x: number; y: number }>()
   const separators: Array<{ x: number; y: number; height: number }> = []
   const separatorHeight = Math.max(
-    nodeHeight,
+    72,
     ...areaLayouts.map((areaLayout) => areaLayout.height),
   )
   let offsetX = 0
@@ -1072,6 +1254,8 @@ export function ContinuumFlow() {
   const goals = useGoals()
   const tasks = useTasks()
   const hierarchy = useItemHierarchy()
+  const skillMetadata = useSkillMetadata()
+  const taskMetadata = useTaskMetadata()
   const isPending =
     areas.isPending ||
     categories.isPending ||
@@ -1095,13 +1279,17 @@ export function ContinuumFlow() {
         goals.data ?? [],
         tasks.data ?? [],
         hierarchy.data ?? [],
+        skillMetadata.data?.states ?? [],
+        taskMetadata.data?.states ?? [],
       ),
     [
       areas.data,
       categories.data,
       goals.data,
       hierarchy.data,
+      skillMetadata.data,
       skills.data,
+      taskMetadata.data,
       tasks.data,
     ],
   )
@@ -1150,6 +1338,7 @@ export function ContinuumFlow() {
             fitView
             fitViewOptions={{ padding: 0.2 }}
             nodes={flow.nodes}
+            nodeTypes={nodeTypes}
             nodesConnectable={false}
             nodesDraggable={false}
             onNodeClick={(_, node) => setSelectedEntity(node.data.entity)}
