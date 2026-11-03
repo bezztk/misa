@@ -40,9 +40,13 @@ function createFlowElements(
 ) {
   const nodes: Node[] = []
   const edges: Edge[] = []
+  const layoutEdges: Array<{ source: string; target: string }> = []
+  const areaIds = new Set<number>()
   const itemIds = new Set<number>()
+  const itemAreaIds = new Map<number, number>()
 
   for (const area of areas) {
+    areaIds.add(area.id)
     nodes.push({
       id: `area-${area.id}`,
       data: { label: `Bereich: ${area.name}` },
@@ -53,17 +57,12 @@ function createFlowElements(
 
   const addItem = (itemId: number, areaId: number, label: string) => {
     itemIds.add(itemId)
+    itemAreaIds.set(itemId, areaId)
     nodes.push({
       id: `item-${itemId}`,
       data: { label },
       position: { x: 0, y: 0 },
       style: { width: nodeWidth },
-    })
-    edges.push({
-      id: `area-${areaId}-item-${itemId}`,
-      source: `area-${areaId}`,
-      target: `item-${itemId}`,
-      markerEnd: { type: MarkerType.ArrowClosed },
     })
   }
 
@@ -85,14 +84,59 @@ function createFlowElements(
     }
   }
 
-  for (const relation of hierarchy) {
-    if (itemIds.has(relation.parent_id) && itemIds.has(relation.child_id)) {
-      edges.push({
-        id: `hierarchy-${relation.parent_id}-${relation.child_id}`,
-        source: `item-${relation.parent_id}`,
-        target: `item-${relation.child_id}`,
-        markerEnd: { type: MarkerType.ArrowClosed },
-      })
+  const validHierarchy = hierarchy
+    .filter(
+      (relation) =>
+        itemIds.has(relation.parent_id) && itemIds.has(relation.child_id),
+    )
+    .sort(
+      (left, right) =>
+        left.child_id - right.child_id || left.parent_id - right.parent_id,
+    )
+  const structuralParents = new Map<number, number>()
+
+  for (const relation of validHierarchy) {
+    if (!structuralParents.has(relation.child_id)) {
+      structuralParents.set(relation.child_id, relation.parent_id)
+    }
+  }
+
+  for (const [itemId, areaId] of itemAreaIds) {
+    if (!areaIds.has(areaId)) continue
+
+    const edge = {
+      id: `area-${areaId}-item-${itemId}`,
+      source: `area-${areaId}`,
+      target: `item-${itemId}`,
+      markerEnd: { type: MarkerType.ArrowClosed },
+    }
+    const isStructural = !structuralParents.has(itemId)
+
+    edges.push(
+      isStructural ? edge : { ...edge, style: { strokeDasharray: '5 5' } },
+    )
+
+    if (isStructural) {
+      layoutEdges.push({ source: edge.source, target: edge.target })
+    }
+  }
+
+  for (const relation of validHierarchy) {
+    const edge = {
+      id: `hierarchy-${relation.parent_id}-${relation.child_id}`,
+      source: `item-${relation.parent_id}`,
+      target: `item-${relation.child_id}`,
+      markerEnd: { type: MarkerType.ArrowClosed },
+    }
+    const isStructural =
+      structuralParents.get(relation.child_id) === relation.parent_id
+
+    edges.push(
+      isStructural ? edge : { ...edge, style: { strokeDasharray: '5 5' } },
+    )
+
+    if (isStructural) {
+      layoutEdges.push({ source: edge.source, target: edge.target })
     }
   }
 
@@ -104,7 +148,7 @@ function createFlowElements(
     graph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
   }
 
-  for (const edge of edges) {
+  for (const edge of layoutEdges) {
     graph.setEdge(edge.source, edge.target)
   }
 
