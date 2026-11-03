@@ -3,6 +3,7 @@
     import TaskCreate from "./features/tasks/components/TaskCreate.svelte";
 
     let dialog: HTMLDialogElement;
+    let taskList: TaskList;
 </script>
 
 <main>
@@ -13,9 +14,12 @@
     <dialog bind:this={dialog}>
         <TaskCreate
                 onCancel={() => dialog.close()}
-                onCreated={() => dialog.close()}
+                onCreated={() => {
+                    dialog.close();
+                    void taskList.loadTasks();
+                }}
         />
     </dialog>
 
-    <TaskList />
+    <TaskList bind:this={taskList} />
 </main>
