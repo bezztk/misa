@@ -1,5 +1,6 @@
 use crate::models::development_category::DevelopmentCategory;
 use crate::models::item_type::ItemType;
+use crate::repositories::item_repository;
 use sqlx::PgPool;
 
 pub async fn create_development_category(
@@ -9,11 +10,8 @@ pub async fn create_development_category(
 ) -> Result<i32, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
-    let item_id: i32 =
-        sqlx::query_scalar("INSERT INTO items (type) VALUES ($1) RETURNING id::INTEGER")
-            .bind(ItemType::DevelopmentCategory as i32)
-            .fetch_one(&mut *tx)
-            .await?;
+    let item_id =
+        item_repository::create_item(&mut tx, ItemType::DevelopmentCategory).await?;
 
     sqlx::query(
         "INSERT INTO development_categories (item_id, area_id, name)
@@ -61,6 +59,8 @@ pub async fn update_development_category(
     item_id: i32,
     name: Option<&str>,
 ) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
     let result = sqlx::query(
         "UPDATE development_categories
          SET name = COALESCE($1, name)
@@ -68,10 +68,18 @@ pub async fn update_development_category(
     )
     .bind(name)
     .bind(item_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    if result.rows_affected() == 0 {
+        tx.rollback().await?;
+        return Ok(false);
+    }
+
+    item_repository::update_item(&mut tx, i64::from(item_id)).await?;
+    tx.commit().await?;
+
+    Ok(true)
 }
 
 pub async fn delete_development_category(

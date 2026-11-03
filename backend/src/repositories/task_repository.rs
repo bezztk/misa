@@ -1,6 +1,7 @@
 use crate::models::item_type::ItemType;
 use crate::models::task::TaskDetails;
 use crate::models::task_metadata::{TaskGroup, TaskMetadata, TaskStateRow};
+use crate::repositories::item_repository;
 use sqlx::PgPool;
 
 pub async fn create_task(
@@ -11,10 +12,7 @@ pub async fn create_task(
 ) -> Result<i64, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
-    let item_id: i64 = sqlx::query_scalar("INSERT INTO items (type) VALUES ($1) RETURNING id")
-        .bind(ItemType::Task as i32)
-        .fetch_one(&mut *tx)
-        .await?;
+    let item_id = item_repository::create_item(&mut tx, ItemType::Task).await?;
 
     sqlx::query(
         "INSERT INTO tasks (item_id, group_id, name, description)
@@ -29,7 +27,7 @@ pub async fn create_task(
 
     tx.commit().await?;
 
-    Ok(item_id)
+    Ok(i64::from(item_id))
 }
 
 pub async fn get_task(pool: &PgPool, item_id: i64) -> Result<Option<TaskDetails>, sqlx::Error> {
@@ -133,15 +131,7 @@ pub async fn update_task(
         return Ok(false);
     }
 
-    sqlx::query(
-        "UPDATE items
-         SET updated_at = NOW(),
-             version = version + 1
-         WHERE id = $1",
-    )
-    .bind(item_id)
-    .execute(&mut *tx)
-    .await?;
+    item_repository::update_item(&mut tx, item_id).await?;
 
     tx.commit().await?;
 

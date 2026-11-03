@@ -1,5 +1,31 @@
 use crate::models::item_type::ItemType;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
+
+pub async fn create_item(
+    tx: &mut Transaction<'_, Postgres>,
+    item_type: ItemType,
+) -> Result<i32, sqlx::Error> {
+    sqlx::query_scalar("INSERT INTO items (type) VALUES ($1) RETURNING id::INTEGER")
+        .bind(item_type as i32)
+        .fetch_one(&mut **tx)
+        .await
+}
+
+pub async fn update_item(
+    tx: &mut Transaction<'_, Postgres>,
+    item_id: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE items
+         SET updated_at = NOW(), version = version + 1
+         WHERE id = $1",
+    )
+    .bind(item_id)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
 
 #[derive(sqlx::FromRow)]
 struct HierarchyItem {
@@ -48,14 +74,7 @@ pub async fn update_item_parent(
             .execute(&mut *tx)
             .await?;
 
-        sqlx::query(
-            "UPDATE items
-             SET updated_at = NOW(), version = version + 1
-             WHERE id = $1",
-        )
-        .bind(child_id)
-        .execute(&mut *tx)
-        .await?;
+        update_item(&mut tx, i64::from(child_id)).await?;
 
         tx.commit().await?;
         return Ok(UpdateParentResult::Updated);
@@ -110,14 +129,7 @@ pub async fn update_item_parent(
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query(
-        "UPDATE items
-         SET updated_at = NOW(), version = version + 1
-         WHERE id = $1",
-    )
-    .bind(child_id)
-    .execute(&mut *tx)
-    .await?;
+    update_item(&mut tx, i64::from(child_id)).await?;
 
     tx.commit().await?;
 
@@ -129,15 +141,21 @@ pub async fn update_item_archive(
     item_id: i32,
     is_archived: bool,
 ) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "UPDATE items
-         SET is_archived = $1, updated_at = NOW(), version = version + 1
-         WHERE id = $2",
-    )
+    let mut tx = pool.begin().await?;
+
+    let result = sqlx::query("UPDATE items SET is_archived = $1 WHERE id = $2")
     .bind(is_archived)
     .bind(item_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    if result.rows_affected() == 0 {
+        tx.rollback().await?;
+        return Ok(false);
+    }
+
+    update_item(&mut tx, i64::from(item_id)).await?;
+    tx.commit().await?;
+
+    Ok(true)
 }
