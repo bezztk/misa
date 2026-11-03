@@ -28,10 +28,8 @@
     }
 
     let areas: DevelopmentArea[] = $state([]);
-    let expandedAreaIds: number[] = $state([]);
     let selectedAreaId: number | null = $state(null);
     let selectedItemId: number | null = $state(null);
-    let selectedItemAreaId: number | null = $state(null);
     let selectedElement: SelectedElement | null = $state(null);
     let editingArea: DevelopmentArea | null = $state(null);
     let name = $state("");
@@ -58,14 +56,12 @@
     function closePanel() {
         selectedAreaId = null;
         selectedItemId = null;
-        selectedItemAreaId = null;
         selectedElement = null;
     }
 
     function selectArea(area: DevelopmentArea) {
         selectedAreaId = area.id;
         selectedItemId = null;
-        selectedItemAreaId = null;
         selectedElement = {
             id: area.id,
             type: "Development Area",
@@ -81,13 +77,6 @@
             remove: () => void remove(area),
             editParent: null,
         };
-    }
-
-    function toggleArea(id: number) {
-        if (expandedAreaIds.includes(id) && selectedItemAreaId === id) closePanel();
-        expandedAreaIds = expandedAreaIds.includes(id)
-            ? expandedAreaIds.filter(areaId => areaId !== id)
-            : [...expandedAreaIds, id];
     }
 
     function openCreate() {
@@ -166,14 +155,6 @@
             <article>
                 <div class="area-heading">
                     <button
-                        class="arrow"
-                        aria-label={expandedAreaIds.includes(area.id) ? "Area einklappen" : "Area ausklappen"}
-                        onclick={() => toggleArea(area.id)}
-                    >
-                        {expandedAreaIds.includes(area.id) ? "▼" : "▶"}
-                    </button>
-                    <span aria-hidden="true">▰</span>
-                    <button
                         class="area-name"
                         class:selected={selectedAreaId === area.id}
                         onclick={() => selectArea(area)}
@@ -182,25 +163,18 @@
                     </button>
                 </div>
 
-                {#if area.description}
-                    <p>{area.description}</p>
-                {/if}
-
-                {#if expandedAreaIds.includes(area.id)}
-                    <DevelopmentTree
-                        areaId={area.id}
-                        {selectedItemId}
-                        onSelect={(item, edit, remove, editParent) => {
-                            selectedItemId = item.id;
-                            selectedItemAreaId = area.id;
-                            selectedAreaId = null;
-                            selectedElement = {...item, edit, remove, editParent};
-                        }}
-                        onDeleted={(id) => {
-                            if (selectedItemId === id) closePanel();
-                        }}
-                    />
-                {/if}
+                <DevelopmentTree
+                    areaId={area.id}
+                    {selectedItemId}
+                    onSelect={(item, edit, remove, editParent) => {
+                        selectedItemId = item.id;
+                        selectedAreaId = null;
+                        selectedElement = {...item, edit, remove, editParent};
+                    }}
+                    onDeleted={(id) => {
+                        if (selectedItemId === id) closePanel();
+                    }}
+                />
             </article>
         {/each}
     </section>
@@ -298,25 +272,17 @@
     }
 
     .area-heading {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .arrow {
-        width: 1.75rem;
-        border: 0;
-        background: transparent;
-        cursor: pointer;
+        margin-bottom: 0.5rem;
     }
 
     .area-name {
-        min-width: 10rem;
-        padding: 0.35rem 0.5rem;
+        width: 100%;
+        padding: 0.6rem 0.75rem;
         border: 0;
         border-radius: 0.25rem;
-        background: transparent;
+        background: #f2f2f2;
         text-align: left;
+        font-size: 1.05rem;
         font-weight: bold;
         cursor: pointer;
     }

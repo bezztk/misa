@@ -3,7 +3,8 @@
     import type {TaskMetadata} from "../../../lib/models/taskMetadata";
     import {onMount} from "svelte";
 
-    let {onCancel, onCreated}: {
+    let {initialGroupId, onCancel, onCreated}: {
+        initialGroupId: number | null;
         onCancel: () => void;
         onCreated: () => void;
     } = $props();
@@ -24,7 +25,7 @@
                 throw new Error("Keine Aufgabengruppen verfügbar.");
             }
 
-            groupId = metadata.groups[0].id;
+            groupId = initialGroupId ?? metadata.groups[0].id;
         } catch (err) {
             error = String(err);
         }
