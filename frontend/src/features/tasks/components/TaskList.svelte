@@ -1,5 +1,16 @@
 <script lang="ts">
     import {onMount} from "svelte";
+    import {
+        columnFilteringFeature,
+        columnVisibilityFeature,
+        createFilteredRowModel,
+        createSortedRowModel,
+        createTable,
+        FlexRender,
+        globalFilteringFeature,
+        rowSortingFeature,
+        tableFeatures,
+    } from "@tanstack/svelte-table";
     import {getDevelopmentCategories} from "../../../lib/api/developmentCategories";
     import {deleteTask, getTaskMetadata, getTasks} from "../../../lib/api/tasks";
     import type {DevelopmentCategory} from "../../../lib/models/developmentCategory";
@@ -7,6 +18,34 @@
     import type {TaskMetadata} from "../../../lib/models/taskMetadata";
     import TaskCreate from "./TaskCreate.svelte";
     import TaskEdit from "./TaskEdit.svelte";
+
+    interface TaskTableRow {
+        task: Task;
+        name: string;
+        description: string;
+        status: string;
+        category: string;
+        group: string;
+        completedAt: string;
+    }
+
+    const tableFeatureSet = tableFeatures({
+        columnFilteringFeature,
+        globalFilteringFeature,
+        columnVisibilityFeature,
+        rowSortingFeature,
+        filteredRowModel: createFilteredRowModel(),
+        sortedRowModel: createSortedRowModel(),
+    });
+
+    const columns = [
+        {accessorKey: "name", header: "Name"},
+        {accessorKey: "status", header: "Status"},
+        {accessorKey: "category", header: "Kategorie"},
+        {accessorKey: "group", header: "Gruppe"},
+        {accessorKey: "completedAt", header: "Abgeschlossen"},
+        {accessorKey: "description", header: "Beschreibung"},
+    ];
 
     let tasks: Task[] = $state([]);
     let metadata: TaskMetadata | null = $state(null);
@@ -17,14 +56,39 @@
     let createGroupId: number | null = $state(null);
     let creating = $state(false);
     let error = $state("");
+    let search = $state("");
+    let statusFilter = $state("");
     let createDialog: HTMLDialogElement;
     let editDialog: HTMLDialogElement;
 
     let visibleTasks = $derived(tasks.filter(task => {
-        if (selectedView === "development") return task.area_id !== null;
-        if (selectedView === "all") return task.area_id === null;
-        return task.area_id === null && task.group_id === selectedView;
+        if (selectedView === "development") return task.group_id === null;
+        if (selectedView === "all") return true;
+        return task.group_id === selectedView;
     }));
+
+    let tableData = $derived<TaskTableRow[]>(visibleTasks.map(task => ({
+        task,
+        name: task.name,
+        description: task.description ?? "",
+        status: metadata?.states.find(state => state.id === task.state_id)?.name ?? "",
+        category: categories.find(category => category.item_id === task.parent_id)?.name ?? "",
+        group: metadata?.groups.find(group => group.id === task.group_id)?.name ?? "",
+        completedAt: task.completed_at
+            ? new Date(task.completed_at).toLocaleDateString("de-DE")
+            : "",
+    })));
+
+    const table = createTable({
+        features: tableFeatureSet,
+        columns,
+        get data() {
+            return tableData;
+        },
+        initialState: {
+            columnVisibility: {description: false},
+        },
+    });
 
     export async function loadTasks() {
         try {
@@ -63,11 +127,6 @@
         editDialog.showModal();
     }
 
-    function selectView(view: "all" | "development" | number) {
-        selectedView = view;
-        selectedTask = null;
-    }
-
     async function removeSelected() {
         if (!selectedTask) return;
 
@@ -78,58 +137,96 @@
 </script>
 
 <div class="task-layout" class:with-detail={selectedTask !== null}>
-    <nav class="task-navigation" aria-label="Aufgabenansichten">
-        <button class:active={selectedView === "all"} onclick={() => selectView("all")}>
-            Alle Aufgaben
-        </button>
-
-        <button
-            class:active={selectedView === "development"}
-            onclick={() => selectView("development")}
-        >
-            Entwicklung
-        </button>
-
-        <strong>Gruppen</strong>
-        {#each metadata?.groups ?? [] as group}
-            <button class:active={selectedView === group.id} onclick={() => selectView(group.id)}>
-                {group.name}
-            </button>
-        {/each}
-    </nav>
-
     <section>
         <div class="heading">
             <h2>Aufgaben</h2>
-            {#if selectedView !== "development"}
-                <button onclick={openCreate}>Neue Aufgabe</button>
-            {/if}
+            <button onclick={openCreate}>Neue Aufgabe</button>
+        </div>
+
+        <div class="table-controls">
+            <select
+                aria-label="Aufgabenansicht"
+                bind:value={selectedView}
+                onchange={() => selectedTask = null}
+            >
+                <option value="all">Alle Aufgaben</option>
+                <optgroup label="Gruppen">
+                    {#each metadata?.groups ?? [] as group}
+                        <option value={group.id}>{group.name}</option>
+                    {/each}
+                </optgroup>
+                <option value="development">Entwicklung</option>
+            </select>
+            <input
+                type="search"
+                placeholder="Aufgaben durchsuchen"
+                bind:value={search}
+                oninput={() => table.setGlobalFilter(search)}
+            />
+            <select
+                aria-label="Status filtern"
+                bind:value={statusFilter}
+                onchange={() => table.getColumn("status")?.setFilterValue(statusFilter || undefined)}
+            >
+                <option value="">Alle Status</option>
+                {#each metadata?.states ?? [] as state}
+                    <option value={state.name}>{state.name}</option>
+                {/each}
+            </select>
+            <details class="column-menu">
+                <summary>Spalten</summary>
+                <div>
+                    {#each table.getAllLeafColumns() as column (column.id)}
+                        <label>
+                            <input
+                                type="checkbox"
+                                checked={column.getIsVisible()}
+                                onchange={(event) => column.toggleVisibility(event.currentTarget.checked)}
+                            />
+                            {column.columnDef.header}
+                        </label>
+                    {/each}
+                </div>
+            </details>
         </div>
 
         {#if error}
             <p>{error}</p>
-        {:else if visibleTasks.length === 0}
+        {:else if table.getRowModel().rows.length === 0}
             <p>Keine Aufgaben vorhanden.</p>
         {:else}
-            {#each visibleTasks as task (task.item_id)}
-                <button
-                    class="task-row"
-                    class:selected={selectedTask?.item_id === task.item_id}
-                    onclick={() => selectedTask = task}
-                >
-                    <strong>{task.name}</strong>
-                    <span>{metadata?.states.find(state => state.id === task.state_id)?.name}</span>
-                    {#if task.group_id !== null}
-                        <span>{metadata?.groups.find(group => group.id === task.group_id)?.name}</span>
-                    {/if}
-                    {#if task.parent_id !== null && categories.some(category => category.item_id === task.parent_id)}
-                        <span>{categories.find(category => category.item_id === task.parent_id)?.name}</span>
-                    {/if}
-                    {#if task.description}
-                        <small>{task.description}</small>
-                    {/if}
-                </button>
-            {/each}
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        {#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
+                            <tr>
+                                {#each headerGroup.headers as header (header.id)}
+                                    <th>
+                                        {#if !header.isPlaceholder}
+                                            <button onclick={() => header.column.toggleSorting()}>
+                                                <FlexRender {header} />
+                                                {#if header.column.getIsSorted() === "asc"}▲{:else if header.column.getIsSorted() === "desc"}▼{/if}
+                                            </button>
+                                        {/if}
+                                    </th>
+                                {/each}
+                            </tr>
+                        {/each}
+                    </thead>
+                    <tbody>
+                        {#each table.getRowModel().rows as row (row.id)}
+                            <tr
+                                class:selected={selectedTask?.item_id === row.original.task.item_id}
+                                onclick={() => selectedTask = row.original.task}
+                            >
+                                {#each row.getVisibleCells() as cell (cell.id)}
+                                    <td><FlexRender {cell} /></td>
+                                {/each}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
         {/if}
     </section>
 
@@ -170,6 +267,7 @@
     {#if creating}
         <TaskCreate
             initialGroupId={createGroupId}
+            development={selectedView === "development"}
             onCancel={() => createDialog.close()}
             onCreated={() => {
                 createDialog.close();
@@ -195,42 +293,12 @@
 <style>
     .task-layout {
         display: grid;
-        grid-template-columns: 12rem minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
         gap: 2rem;
     }
 
     .task-layout.with-detail {
-        grid-template-columns: 12rem minmax(18rem, 1fr) 18rem;
-    }
-
-    .task-navigation {
-        display: flex;
-        min-height: calc(100vh - 4rem);
-        padding-right: 1rem;
-        border-right: 1px solid #dddddd;
-        flex-direction: column;
-        gap: 0.25rem;
-    }
-
-    .task-navigation strong {
-        margin: 1rem 0 0.25rem;
-        padding: 0 0.5rem;
-        font-size: 0.85rem;
-        color: #666666;
-    }
-
-    .task-navigation button {
-        padding: 0.5rem;
-        border: 0;
-        border-radius: 0.25rem;
-        background: transparent;
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .task-navigation button:hover,
-    .task-navigation button.active {
-        background: #e8e8e8;
+        grid-template-columns: minmax(18rem, 1fr) 18rem;
     }
 
     .heading {
@@ -243,35 +311,78 @@
         margin-top: 0;
     }
 
-    .task-row {
-        display: grid;
-        width: 100%;
+    .table-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .table-controls input,
+    .table-controls select,
+    .column-menu summary {
         padding: 0.35rem 0.5rem;
-        border: 0;
-        border-bottom: 1px solid #e5e5e5;
-        background: transparent;
-        grid-template-columns: minmax(8rem, 1fr) auto auto auto;
-        gap: 0.25rem 0.75rem;
-        text-align: left;
+    }
+
+    .column-menu {
+        position: relative;
+    }
+
+    .column-menu summary {
+        border: 1px solid #cccccc;
+        border-radius: 0.2rem;
         cursor: pointer;
     }
 
-    .task-row:hover,
-    .task-row.selected {
-        background: #eeeeee;
+    .column-menu > div {
+        position: absolute;
+        z-index: 2;
+        top: 2rem;
+        right: 0;
+        display: flex;
+        min-width: 10rem;
+        padding: 0.5rem;
+        border: 1px solid #cccccc;
+        background: white;
+        flex-direction: column;
+        gap: 0.35rem;
     }
 
-    .task-row span,
-    .task-row small {
-        color: #666666;
-        font-size: 0.8rem;
+    .table-scroll {
+        overflow-x: auto;
     }
 
-    .task-row small {
-        overflow: hidden;
-        grid-column: 1 / -1;
-        text-overflow: ellipsis;
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    th,
+    td {
+        padding: 0.45rem 0.6rem;
+        border-bottom: 1px solid #dddddd;
+        text-align: left;
         white-space: nowrap;
+    }
+
+    th button {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    tbody tr {
+        cursor: pointer;
+    }
+
+    tbody tr:hover,
+    tbody tr.selected {
+        background: #eeeeee;
     }
 
     .task-details {

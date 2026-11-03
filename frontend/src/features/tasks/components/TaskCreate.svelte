@@ -1,10 +1,13 @@
 <script lang="ts">
     import {createTask, getTaskMetadata} from "../../../lib/api/tasks";
+    import {getDevelopmentAreas} from "../../../lib/api/developmentAreas";
+    import type {DevelopmentArea} from "../../../lib/models/developmentArea";
     import type {TaskMetadata} from "../../../lib/models/taskMetadata";
     import {onMount} from "svelte";
 
-    let {initialGroupId, onCancel, onCreated}: {
+    let {initialGroupId, development, onCancel, onCreated}: {
         initialGroupId: number | null;
+        development: boolean;
         onCancel: () => void;
         onCreated: () => void;
     } = $props();
@@ -15,17 +18,27 @@
     let submitting = $state(false);
 
     let metadata: TaskMetadata | null = $state(null);
+    let areas: DevelopmentArea[] = $state([]);
     let groupId: number | null = $state(null);
+    let areaId: number | null = $state(null);
 
     onMount(async () => {
         try {
-            metadata = await getTaskMetadata();
+            [metadata, areas] = await Promise.all([
+                getTaskMetadata(),
+                development ? getDevelopmentAreas() : Promise.resolve([]),
+            ]);
 
-            if (metadata.groups.length === 0) {
+            if (development && areas.length === 0) {
+                throw new Error("Keine Entwicklungsbereiche verfügbar.");
+            }
+
+            if (!development && metadata.groups.length === 0) {
                 throw new Error("Keine Aufgabengruppen verfügbar.");
             }
 
-            groupId = initialGroupId ?? metadata.groups[0].id;
+            groupId = development ? null : initialGroupId ?? metadata.groups[0].id;
+            areaId = areas[0]?.id ?? null;
         } catch (err) {
             error = String(err);
         }
@@ -39,7 +52,8 @@
             await createTask({
                 name,
                 description,
-                group_id: groupId
+                group_id: development ? null : groupId,
+                area_id: development ? areaId : null,
             });
 
             name = "";
@@ -64,12 +78,21 @@
             required
     />
 
-    <label for="group">Gruppe</label>
-    <select id="group" bind:value={groupId}>
-        {#each metadata?.groups ?? [] as group}
-            <option value={group.id}>{group.name}</option>
-        {/each}
-    </select>
+    {#if development}
+        <label for="area">Entwicklungsbereich</label>
+        <select id="area" bind:value={areaId}>
+            {#each areas as area}
+                <option value={area.id}>{area.name}</option>
+            {/each}
+        </select>
+    {:else}
+        <label for="group">Gruppe</label>
+        <select id="group" bind:value={groupId}>
+            {#each metadata?.groups ?? [] as group}
+                <option value={group.id}>{group.name}</option>
+            {/each}
+        </select>
+    {/if}
 
     <textarea placeholder="Beschreibung" bind:value={description}></textarea>
 
