@@ -1,11 +1,22 @@
 use crate::api::handlers::{
-    development_area_handler, development_category_handler, task_handler,
+    development_area_handler, development_category_handler, skill_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route(
+            "/skills/{id}",
+            get(skill_handler::get_skill)
+                .patch(skill_handler::update_skill)
+                .delete(skill_handler::delete_skill),
+        )
+        .route(
+            "/skills",
+            get(skill_handler::get_skills).post(skill_handler::create_skill),
+        )
+        .route("/skills/metadata", get(skill_handler::get_skill_metadata))
         .route(
             "/development-categories/{id}",
             get(development_category_handler::get_development_category)

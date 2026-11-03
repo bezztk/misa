@@ -15,3 +15,8 @@ pub enum SkillState {
     Paused = 4,
     Inactive = 5,
 }
+
+#[derive(Debug, Serialize)]
+pub struct SkillMetadata {
+    pub states: Vec<SkillStateRow>,
+}
