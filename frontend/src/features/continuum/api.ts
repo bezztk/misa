@@ -257,10 +257,11 @@ export function useSkill(id: number) {
   })
 }
 
-export function useSkillMetadata() {
+export function useSkillMetadata(enabled = true) {
   return useQuery({
     queryKey: keys.skillMetadata,
     queryFn: getSkillMetadata,
+    enabled,
   })
 }
 

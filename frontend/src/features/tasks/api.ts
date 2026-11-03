@@ -49,10 +49,11 @@ export function useTask(id: number) {
   })
 }
 
-export function useTaskMetadata() {
+export function useTaskMetadata(enabled = true) {
   return useQuery({
     queryKey: taskKeys.metadata,
     queryFn: getTaskMetadata,
+    enabled,
   })
 }
 
