@@ -3,6 +3,11 @@
     import type {TaskMetadata} from "../../../lib/models/taskMetadata";
     import {onMount} from "svelte";
 
+    let {onCancel, onCreated}: {
+        onCancel: () => void;
+        onCreated: () => void;
+    } = $props();
+
     let name = $state("");
     let description = $state("");
     let error = $state("");
@@ -38,6 +43,7 @@
 
             name = "";
             description = "";
+            onCreated();
         } catch (err) {
             error = String(err);
         } finally {
@@ -69,8 +75,18 @@
     <button type="submit" disabled={submitting}>
         {submitting ? "Wird erstellt..." : "Aufgabe erstellen"}
     </button>
+
+    <button type="button" onclick={onCancel}>Abbrechen</button>
 </form>
 
 {#if error}
     <p>{error}</p>
 {/if}
+
+<style>
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+</style>
