@@ -18,3 +18,10 @@ export interface CreateTask {
     description: string | null;
     group_id: number | null;
 }
+
+export interface UpdateTask {
+    name?: string;
+    description?: string | null;
+    group_id?: number | null;
+    state_id?: number | null;
+}
