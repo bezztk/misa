@@ -7,7 +7,7 @@
         updateDevelopmentCategory,
     } from "../../../lib/api/developmentCategories";
     import {createGoal, deleteGoal, getGoals, updateGoal} from "../../../lib/api/goals";
-    import {getItemHierarchy, updateItemParent} from "../../../lib/api/items";
+    import {getAllowedTypeRelations, getItemHierarchy, updateItemParent} from "../../../lib/api/items";
     import {
         createSkill,
         deleteSkill,
@@ -15,7 +15,8 @@
         getSkills,
         updateSkill,
     } from "../../../lib/api/skills";
-    import {deleteTask, getTaskMetadata, getTasks} from "../../../lib/api/tasks";
+    import {createTask, deleteTask, getTaskMetadata, getTasks} from "../../../lib/api/tasks";
+    import type {AllowedTypeRelation} from "../../../lib/models/item";
     import type {SkillMetadata} from "../../../lib/models/skill";
     import type {Task} from "../../../lib/models/task";
     import TaskEdit from "../../tasks/components/TaskEdit.svelte";
@@ -28,7 +29,7 @@
     } = $props();
 
     type ItemType = "Category" | "Skill" | "Goal" | "Task";
-    type EditableType = "Category" | "Skill" | "Goal";
+    type EditableType = "Category" | "Skill" | "Goal" | "Task";
 
     interface TreeItem {
         id: number;
@@ -61,12 +62,14 @@
     let items: TreeItem[] = $state([]);
     let rows: TreeRow[] = $state([]);
     let collapsedItemIds: number[] = $state([]);
+    let allowedTypeRelations: AllowedTypeRelation[] = $state([]);
     let skillMetadata: SkillMetadata | null = $state(null);
     let error = $state("");
     let pending = $state(false);
 
     let itemDialog: HTMLDialogElement;
     let editingItem: TreeItem | null = $state(null);
+    let creatingParent: TreeItem | null = $state(null);
     let formType: EditableType = $state("Category");
     let name = $state("");
     let description = $state("");
@@ -124,11 +127,17 @@
         buildRows();
     }
 
+    function allowedChildTypes(parentType: ItemType): EditableType[] {
+        return allowedTypeRelations
+            .filter(relation => relation.parent_type === parentType)
+            .map(relation => relation.child_type as EditableType);
+    }
+
     async function loadTree() {
         try {
             error = "";
 
-            const [categories, skills, goals, tasks, hierarchy, metadata, taskMetadata] = await Promise.all([
+            const [categories, skills, goals, tasks, hierarchy, metadata, taskMetadata, relations] = await Promise.all([
                 getDevelopmentCategories(),
                 getSkills(),
                 getGoals(),
@@ -136,9 +145,11 @@
                 getItemHierarchy(),
                 getSkillMetadata(),
                 getTaskMetadata(),
+                getAllowedTypeRelations(),
             ]);
 
             skillMetadata = metadata;
+            allowedTypeRelations = relations;
 
             const nextItems: TreeItem[] = [
                 ...categories
@@ -234,9 +245,10 @@
         }
     }
 
-    function openCreate(type: EditableType) {
+    function openCreate(type: EditableType, parent: TreeItem) {
         itemFormError = "";
         editingItem = null;
+        creatingParent = parent;
         formType = type;
         name = "";
         description = "";
@@ -255,6 +267,7 @@
 
         itemFormError = "";
         editingItem = item;
+        creatingParent = null;
         formType = item.type;
         name = item.name;
         description = item.description ?? "";
@@ -288,15 +301,26 @@
                         clear_due_at: dueAt === null,
                     });
                 }
-            } else if (formType === "Category") {
-                await createDevelopmentCategory({area_id: areaId, name});
-            } else if (formType === "Skill") {
-                await createSkill({area_id: areaId, name, description, state_id: stateId});
             } else {
-                const dueAt = dueDate
-                    ? new Date(`${dueDate}T00:00:00.000Z`).toISOString()
-                    : null;
-                await createGoal({area_id: areaId, name, description, due_at: dueAt});
+                if (!creatingParent) return;
+
+                let created: {id: number};
+
+                if (formType === "Category") {
+                    created = await createDevelopmentCategory({area_id: areaId, name});
+                } else if (formType === "Skill") {
+                    created = await createSkill({area_id: areaId, name, description, state_id: stateId});
+                } else if (formType === "Goal") {
+                    const dueAt = dueDate
+                        ? new Date(`${dueDate}T00:00:00.000Z`).toISOString()
+                        : null;
+                    created = await createGoal({area_id: areaId, name, description, due_at: dueAt});
+                } else {
+                    created = await createTask({area_id: areaId, group_id: null, name, description});
+                }
+
+                await updateItemParent(created.id, creatingParent.id);
+                collapsedItemIds = collapsedItemIds.filter(id => id !== creatingParent?.id);
             }
 
             itemDialog.close();
@@ -365,12 +389,6 @@
 </script>
 
 <section>
-    <div class="actions">
-        <button onclick={() => openCreate("Category")} disabled={pending}>Neue Kategorie</button>
-        <button onclick={() => openCreate("Skill")} disabled={pending}>Neuer Skill</button>
-        <button onclick={() => openCreate("Goal")} disabled={pending}>Neues Goal</button>
-    </div>
-
     {#if error}
         <p>{error}</p>
     {:else if rows.length === 0}
@@ -396,6 +414,24 @@
                 <span class="type-icon" aria-hidden="true">{symbols[row.type]}</span>
                 <button class="item-name" onclick={() => selectItem(row)}>{row.name}</button>
                 <span class="item-type">{row.type}</span>
+                {#if allowedChildTypes(row.type).length > 0}
+                    <details class="create-child">
+                        <summary aria-label={`Unterelement für ${row.name} erstellen`}>+</summary>
+                        <div class="child-menu">
+                        {#each allowedChildTypes(row.type) as type}
+                            <button
+                                disabled={pending}
+                                onclick={(event) => {
+                                    event.currentTarget.closest("details")?.removeAttribute("open");
+                                    openCreate(type, row);
+                                }}
+                            >
+                                {type}
+                            </button>
+                        {/each}
+                        </div>
+                    </details>
+                {/if}
             </div>
         {/each}
     {/if}
@@ -420,7 +456,7 @@
             </select>
         {/if}
 
-        {#if formType === "Skill" || formType === "Goal"}
+        {#if formType === "Skill" || formType === "Goal" || formType === "Task"}
             <label for="item-description">Beschreibung</label>
             <textarea id="item-description" bind:value={description}></textarea>
         {/if}
@@ -488,12 +524,6 @@
 </dialog>
 
 <style>
-    .actions {
-        display: flex;
-        gap: 0.5rem;
-        margin: 0.75rem 0;
-    }
-
     .tree-row {
         display: flex;
         align-items: center;
@@ -540,6 +570,54 @@
         margin-left: 0.25rem;
         color: #666666;
         font-size: 0.85rem;
+    }
+
+    .create-child {
+        position: relative;
+        margin-left: 0.5rem;
+    }
+
+    .create-child summary {
+        display: grid;
+        width: 1.25rem;
+        height: 1.25rem;
+        padding: 0;
+        border: 1px solid #cccccc;
+        border-radius: 0.2rem;
+        cursor: pointer;
+        place-items: center;
+        list-style: none;
+        line-height: 1;
+    }
+
+    .create-child summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .child-menu {
+        position: absolute;
+        z-index: 1;
+        top: 1.5rem;
+        left: 0;
+        display: flex;
+        min-width: 7rem;
+        padding: 0.25rem;
+        border: 1px solid #cccccc;
+        background: white;
+        flex-direction: column;
+        gap: 0.125rem;
+    }
+
+    .child-menu button {
+        padding: 0.25rem 0.5rem;
+        border: 0;
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .child-menu button:hover {
+        background: #eeeeee;
     }
 
     form {

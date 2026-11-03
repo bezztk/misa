@@ -156,7 +156,7 @@
 <div class="development-view">
     <section class="tree-pane">
         <h2>Entwicklung</h2>
-        <button onclick={openCreate} disabled={pending}>Neue Area</button>
+        <button onclick={openCreate} disabled={pending}>Neuer Bereich</button>
 
         {#if error}
             <p>{error}</p>
@@ -262,7 +262,7 @@
         event.preventDefault();
         void submit();
     }}>
-        <h3>{editingArea ? "Area bearbeiten" : "Neue Area"}</h3>
+        <h3>{editingArea ? "Bereich bearbeiten" : "Neuer Bereich"}</h3>
 
         <label for="area-name">Name</label>
         <input id="area-name" bind:value={name} required />

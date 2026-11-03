@@ -7,8 +7,8 @@ export function getTasks(): Promise<Task[]> {
     return api<Task[]>("/tasks");
 }
 
-export function createTask(task: CreateTask): Promise<Task> {
-    return api<Task>("/tasks", {
+export function createTask(task: CreateTask): Promise<{id: number}> {
+    return api<{id: number}>("/tasks", {
         method: "POST",
         body: JSON.stringify(task),
     })

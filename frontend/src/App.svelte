@@ -1,10 +1,7 @@
 <script lang="ts">
     import TaskList from "./features/tasks/components/TaskList.svelte";
-    import TaskCreate from "./features/tasks/components/TaskCreate.svelte";
     import DevelopmentView from "./features/development/components/DevelopmentView.svelte";
 
-    let dialog = $state<HTMLDialogElement>();
-    let taskList = $state<TaskList>();
     let view = $state<"tasks" | "development">("tasks");
 </script>
 
@@ -32,19 +29,7 @@
 
 <main>
     {#if view === "tasks"}
-        <button onclick={() => dialog?.showModal()}>Neue Aufgabe</button>
-
-        <dialog bind:this={dialog}>
-            <TaskCreate
-                    onCancel={() => dialog?.close()}
-                    onCreated={() => {
-                        dialog?.close();
-                        void taskList?.loadTasks();
-                    }}
-            />
-        </dialog>
-
-        <TaskList bind:this={taskList} />
+        <TaskList />
     {:else}
         <DevelopmentView />
     {/if}

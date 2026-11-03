@@ -19,6 +19,7 @@ export interface CreateTask {
     name: string;
     description: string | null;
     group_id: number | null;
+    area_id?: number | null;
 }
 
 export interface UpdateTask {
