@@ -1323,12 +1323,12 @@ export function ContinuumFlow() {
   }
 
   return (
-    <Stack h="calc(100vh - 100px)">
+    <Stack h="100%" mih={0}>
       <Group justify="space-between">
         <Title>Continuum</Title>
         <Button onClick={() => setCreateOpened(true)}>Hinzufügen</Button>
       </Group>
-      <Box style={{ flex: 1 }} mih={500}>
+      <Box mih={0} style={{ flex: 1 }}>
         {flow.nodes.length === 0 ? (
           <Text>Keine Continuum-Daten vorhanden.</Text>
         ) : (
