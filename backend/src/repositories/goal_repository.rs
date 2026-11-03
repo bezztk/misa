@@ -60,6 +60,7 @@ pub async fn update_goal(
     description: Option<&str>,
     is_completed: Option<bool>,
     due_at: Option<DateTime<Utc>>,
+    clear_due_at: bool,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
@@ -73,13 +74,14 @@ pub async fn update_goal(
                  ELSE NULL
              END,
              is_completed = COALESCE($3, is_completed),
-             due_at = COALESCE($4, due_at)
-         WHERE item_id = $5",
+             due_at = CASE WHEN $5 THEN NULL ELSE COALESCE($4, due_at) END
+         WHERE item_id = $6",
     )
     .bind(name)
     .bind(description)
     .bind(is_completed)
     .bind(due_at)
+    .bind(clear_due_at)
     .bind(item_id)
     .execute(&mut *tx)
     .await?;

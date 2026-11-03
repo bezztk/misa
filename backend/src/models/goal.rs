@@ -26,4 +26,5 @@ pub struct UpdateGoal {
     pub description: Option<String>,
     pub is_completed: Option<bool>,
     pub due_at: Option<DateTime<Utc>>,
+    pub clear_due_at: Option<bool>,
 }

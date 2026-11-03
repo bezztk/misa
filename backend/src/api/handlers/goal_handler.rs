@@ -85,6 +85,7 @@ pub async fn update_goal(
         && payload.description.is_none()
         && payload.is_completed.is_none()
         && payload.due_at.is_none()
+        && !payload.clear_due_at.unwrap_or(false)
     {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -104,6 +105,7 @@ pub async fn update_goal(
         payload.description.as_deref(),
         payload.is_completed,
         payload.due_at,
+        payload.clear_due_at.unwrap_or(false),
     )
     .await
     {
