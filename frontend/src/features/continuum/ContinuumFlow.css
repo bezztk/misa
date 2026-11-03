@@ -1,3 +1,7 @@
+.continuum-node:hover {
+  filter: drop-shadow(0 0 3px var(--mantine-color-blue-5));
+}
+
 .continuum-skill-node {
   transition:
     transform 120ms ease,

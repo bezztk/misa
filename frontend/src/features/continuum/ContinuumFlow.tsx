@@ -127,16 +127,20 @@ function getNodeSize(data: ContinuumNodeData) {
   const width = Math.min(widths.max, widths.min + data.label.length * 3)
   const horizontalPadding =
     type === 'area' ? 32 : type === 'skill' ? 36 : type === 'category' ? 16 : 28
+  const inlineStatusWidth =
+    (type === 'skill' || type === 'goal') && data.statusLabel !== undefined
+      ? Math.min(130, data.statusLabel.length * 7 + 28)
+      : 0
   const characterWidth = type === 'area' ? 17 : 9
   const charactersPerLine = Math.max(
     1,
-    Math.floor((width - horizontalPadding) / characterWidth),
+    Math.floor(
+      (width - horizontalPadding - inlineStatusWidth) / characterWidth,
+    ),
   )
   const lines = Math.max(1, Math.ceil(data.label.length / charactersPerLine))
   const labelLineHeight = type === 'area' ? 44 : type === 'skill' ? 24 : 20
   const typeHeight = type === 'category' || type === 'area' ? 0 : 14
-  const statusHeight =
-    type !== 'task' && data.statusLabel !== undefined ? 22 : 0
   const verticalPadding =
     type === 'area' ? 32 : type === 'skill' ? 32 : type === 'category' ? 8 : 24
   const contentGap = type === 'category' || type === 'area' ? 0 : 4
@@ -144,8 +148,7 @@ function getNodeSize(data: ContinuumNodeData) {
     verticalPadding +
     typeHeight +
     contentGap +
-    lines * labelLineHeight +
-    statusHeight
+    lines * labelLineHeight
 
   return { width, height }
 }
@@ -179,11 +182,10 @@ function ContinuumNodeView({ data, selected }: NodeProps<ContinuumNode>) {
         <Handle position={Position.Top} style={handleStyle} type="target" />
       )}
       <Paper
-        className={isSkill ? 'continuum-skill-node' : undefined}
+        className={`continuum-node${isSkill ? ' continuum-skill-node' : ''}`}
         data-selected={isSkill && selected ? true : undefined}
         h={size.height}
         p={isArea ? 'md' : isSkill ? 'md' : isCategory ? 4 : 'sm'}
-        radius={isSkill ? 'lg' : isCategory ? 0 : 'sm'}
         shadow={isSkill ? 'sm' : undefined}
         w={size.width}
         style={{
@@ -226,20 +228,38 @@ function ContinuumNodeView({ data, selected }: NodeProps<ContinuumNode>) {
               </Text>
             </Group>
           )}
-          <Text
-            fw={isSkill || isArea ? 700 : 500}
-            lh={1.35}
-            size={isArea ? '32px' : isSkill ? 'md' : isCategory ? 'sm' : 'sm'}
-            ta={isCategory || isArea ? 'center' : 'left'}
-            c={isCategory ? 'dimmed' : undefined}
-            style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
-          >
-            {data.label}
-          </Text>
-          {type !== 'task' && data.statusLabel !== undefined && (
-            <Badge color={data.statusColor ?? 'gray'} size="xs" variant="light">
-              {data.statusLabel}
-            </Badge>
+          {isSkill || isGoal ? (
+            <Group align="flex-start" gap="xs" wrap="nowrap">
+              <Text
+                fw={isSkill ? 700 : 500}
+                lh={1.35}
+                size={isSkill ? 'md' : 'sm'}
+                style={{ minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}
+              >
+                {data.label}
+              </Text>
+              {data.statusLabel !== undefined && (
+                <Badge
+                  color={data.statusColor ?? 'gray'}
+                  size="xs"
+                  variant="light"
+                  style={{ flexShrink: 0 }}
+                >
+                  {data.statusLabel}
+                </Badge>
+              )}
+            </Group>
+          ) : (
+            <Text
+              fw={isArea ? 700 : 500}
+              lh={1.35}
+              size={isArea ? '32px' : 'sm'}
+              ta={isCategory || isArea ? 'center' : 'left'}
+              c={isCategory ? 'dimmed' : undefined}
+              style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
+            >
+              {data.label}
+            </Text>
           )}
         </Stack>
       </Paper>
@@ -269,6 +289,10 @@ function createFlowElements(
   const nodes: ContinuumNode[] = []
   const edges: Edge[] = []
   const layoutEdges: Array<{ source: string; target: string }> = []
+  const parentPath = new Map<
+    string,
+    { edgeId: string; parentNodeId: string }
+  >()
   const areaIds = new Set<number>()
   const itemIds = new Set<number>()
   const itemAreaIds = new Map<number, number>()
@@ -393,6 +417,10 @@ function createFlowElements(
 
     if (isStructural) {
       layoutEdges.push({ source: edge.source, target: edge.target })
+      parentPath.set(edge.target, {
+        edgeId: edge.id,
+        parentNodeId: edge.source,
+      })
     }
   }
 
@@ -412,6 +440,10 @@ function createFlowElements(
 
     if (isStructural) {
       layoutEdges.push({ source: edge.source, target: edge.target })
+      parentPath.set(edge.target, {
+        edgeId: edge.id,
+        parentNodeId: edge.source,
+      })
     }
   }
 
@@ -548,6 +580,7 @@ function createFlowElements(
       }
     }),
     edges,
+    parentPath,
     separators,
   }
 }
@@ -1271,6 +1304,7 @@ function DeleteContinuumModal({
 }
 
 export function ContinuumFlow() {
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(
     null,
   )
@@ -1323,6 +1357,35 @@ export function ContinuumFlow() {
       tasks.data,
     ],
   )
+  const highlightedEdgeIds = useMemo(() => {
+    const edgeIds = new Set<string>()
+    let nodeId = hoveredNodeId
+
+    while (nodeId !== null) {
+      const parent = flow.parentPath.get(nodeId)
+      if (parent === undefined) break
+      edgeIds.add(parent.edgeId)
+      nodeId = parent.parentNodeId
+    }
+
+    return edgeIds
+  }, [flow.parentPath, hoveredNodeId])
+  const displayedEdges = useMemo(
+    () =>
+      flow.edges.map((edge) =>
+        highlightedEdgeIds.has(edge.id)
+          ? {
+              ...edge,
+              style: {
+                ...edge.style,
+                stroke: 'var(--mantine-color-blue-6)',
+                strokeWidth: 2.5,
+              },
+            }
+          : edge,
+      ),
+    [flow.edges, highlightedEdgeIds],
+  )
   const selectedAreaName =
     selectedEntity === null || selectedEntity.type === 'area'
       ? null
@@ -1363,7 +1426,7 @@ export function ContinuumFlow() {
           <Text>Keine Continuum-Daten vorhanden.</Text>
         ) : (
           <ReactFlow
-            edges={flow.edges}
+            edges={displayedEdges}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             nodes={flow.nodes}
@@ -1371,6 +1434,8 @@ export function ContinuumFlow() {
             nodesConnectable={false}
             nodesDraggable={false}
             onNodeClick={(_, node) => setSelectedEntity(node.data.entity)}
+            onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+            onNodeMouseLeave={() => setHoveredNodeId(null)}
           >
             <Background />
             <ViewportPortal>
