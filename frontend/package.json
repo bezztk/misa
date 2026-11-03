@@ -17,5 +17,11 @@
     "svelte-check": "^4.7.7",
     "typescript": "~6.0.3",
     "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@schedule-x/calendar": "^4.9.1",
+    "@schedule-x/svelte": "^3.0.0",
+    "@schedule-x/theme-default": "^4.9.1",
+    "temporal-polyfill": "^1.0.6"
   }
 }

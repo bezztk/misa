@@ -1,8 +1,9 @@
 <script lang="ts">
     import TaskList from "./features/tasks/components/TaskList.svelte";
     import DevelopmentView from "./features/development/components/DevelopmentView.svelte";
+    import Calendar from "./features/calendar/components/Calendar.svelte";
 
-    let view = $state<"tasks" | "development">("tasks");
+    let view = $state<"tasks" | "development" | "calendar">("tasks");
 </script>
 
 <aside>
@@ -24,14 +25,24 @@
             <span aria-hidden="true">◆</span>
             Entwicklung
         </button>
+        <button
+                class:active={view === "calendar"}
+                aria-current={view === "calendar" ? "page" : undefined}
+                onclick={() => view = "calendar"}
+        >
+            <span aria-hidden="true">▦</span>
+            Kalender
+        </button>
     </nav>
 </aside>
 
-<main>
+<main class:calendar-view={view === "calendar"}>
     {#if view === "tasks"}
         <TaskList />
-    {:else}
+    {:else if view === "development"}
         <DevelopmentView />
+    {:else}
+        <Calendar />
     {/if}
 </main>
 
@@ -82,5 +93,9 @@
         min-height: 100vh;
         margin-left: 14rem;
         padding: 2rem;
+    }
+
+    main.calendar-view {
+        padding: 0;
     }
 </style>
