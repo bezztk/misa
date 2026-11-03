@@ -2,7 +2,7 @@
     import {onMount} from "svelte";
     import {getDevelopmentCategories} from "../../../lib/api/developmentCategories";
     import {getGoals} from "../../../lib/api/goals";
-    import {getItemHierarchy} from "../../../lib/api/items";
+    import {getItemHierarchy, updateItemParent} from "../../../lib/api/items";
     import {getSkills} from "../../../lib/api/skills";
     import {getTasks} from "../../../lib/api/tasks";
 
@@ -19,8 +19,14 @@
         depth: number;
     }
 
+    let items: TreeItem[] = $state([]);
     let rows: TreeRow[] = $state([]);
     let error = $state("");
+    let formError = $state("");
+    let pending = $state(false);
+    let editingItem: TreeItem | null = $state(null);
+    let parentId: number | null = $state(null);
+    let dialog: HTMLDialogElement;
 
     async function loadTree() {
         try {
@@ -34,7 +40,7 @@
                 getItemHierarchy(),
             ]);
 
-            const items: TreeItem[] = [
+            const nextItems: TreeItem[] = [
                 ...categories
                     .filter(category => category.area_id === areaId)
                     .map(category => ({
@@ -69,20 +75,21 @@
                     })),
             ];
 
-            const itemIds = new Set(items.map(item => item.id));
+            const itemIds = new Set(nextItems.map(item => item.id));
             const parents = new Map(hierarchy.map(item => [item.child_id, item.parent_id]));
 
-            for (const item of items) {
+            for (const item of nextItems) {
                 const parentId = parents.get(item.id);
                 item.parentId = parentId !== undefined && itemIds.has(parentId) ? parentId : null;
             }
 
-            items.sort((a, b) => a.name.localeCompare(b.name));
+            nextItems.sort((a, b) => a.name.localeCompare(b.name));
+            items = nextItems;
 
             const nextRows: TreeRow[] = [];
 
             function addChildren(parentId: number | null, depth: number) {
-                for (const item of items.filter(item => item.parentId === parentId)) {
+                for (const item of nextItems.filter(item => item.parentId === parentId)) {
                     nextRows.push({...item, depth});
                     addChildren(item.id, depth + 1);
                 }
@@ -92,6 +99,29 @@
             rows = nextRows;
         } catch (err) {
             error = String(err);
+        }
+    }
+
+    function openParentDialog(item: TreeItem) {
+        formError = "";
+        editingItem = item;
+        parentId = item.parentId;
+        dialog.showModal();
+    }
+
+    async function saveParent() {
+        if (!editingItem || pending) return;
+
+        try {
+            formError = "";
+            pending = true;
+            await updateItemParent(editingItem.id, parentId);
+            dialog.close();
+            await loadTree();
+        } catch (err) {
+            formError = String(err);
+        } finally {
+            pending = false;
         }
     }
 
@@ -111,13 +141,50 @@
         {#each rows as row (row.id)}
             <div style={`padding-left: ${row.depth * 1.5}rem`}>
                 {row.name} ({row.type})
+                <button onclick={() => openParentDialog(row)}>Parent ändern</button>
             </div>
         {/each}
     {/if}
 </section>
 
+<dialog bind:this={dialog}>
+    <form onsubmit={(event) => {
+        event.preventDefault();
+        void saveParent();
+    }}>
+        <h3>Parent für {editingItem?.name}</h3>
+
+        <label for="parent">Parent</label>
+        <select id="parent" bind:value={parentId}>
+            <option value={null}>Kein Parent</option>
+            {#each items.filter(item => item.id !== editingItem?.id) as item (item.id)}
+                <option value={item.id}>{item.name} ({item.type})</option>
+            {/each}
+        </select>
+
+        {#if formError}
+            <p>{formError}</p>
+        {/if}
+
+        <button type="submit" disabled={pending}>
+            {pending ? "Wird gespeichert..." : "Speichern"}
+        </button>
+        <button type="button" onclick={() => dialog.close()}>Abbrechen</button>
+    </form>
+</dialog>
+
 <style>
     div {
         margin: 0.25rem 0;
+    }
+
+    div button {
+        margin-left: 0.5rem;
+    }
+
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
     }
 </style>
