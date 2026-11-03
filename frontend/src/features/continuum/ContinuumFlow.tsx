@@ -106,7 +106,7 @@ const nodeWidths: Record<
   ContinuumNodeType,
   { min: number; max: number }
 > = {
-  area: { min: 360, max: 460 },
+  area: { min: 420, max: 560 },
   skill: { min: 300, max: 380 },
   goal: { min: 260, max: 320 },
   category: { min: 200, max: 260 },
@@ -126,19 +126,20 @@ function getNodeSize(data: ContinuumNodeData) {
   const widths = nodeWidths[type]
   const width = Math.min(widths.max, widths.min + data.label.length * 3)
   const horizontalPadding =
-    type === 'area' ? 48 : type === 'skill' ? 36 : type === 'category' ? 16 : 28
+    type === 'area' ? 32 : type === 'skill' ? 36 : type === 'category' ? 16 : 28
+  const characterWidth = type === 'area' ? 17 : 9
   const charactersPerLine = Math.max(
     1,
-    Math.floor((width - horizontalPadding) / 9),
+    Math.floor((width - horizontalPadding) / characterWidth),
   )
   const lines = Math.max(1, Math.ceil(data.label.length / charactersPerLine))
-  const labelLineHeight = type === 'area' ? 28 : type === 'skill' ? 24 : 20
-  const typeHeight = type === 'category' ? 0 : type === 'area' ? 18 : 14
+  const labelLineHeight = type === 'area' ? 44 : type === 'skill' ? 24 : 20
+  const typeHeight = type === 'category' || type === 'area' ? 0 : 14
   const statusHeight =
     type !== 'task' && data.statusLabel !== undefined ? 22 : 0
   const verticalPadding =
-    type === 'area' ? 40 : type === 'skill' ? 32 : type === 'category' ? 8 : 24
-  const contentGap = type === 'category' ? 0 : 4
+    type === 'area' ? 32 : type === 'skill' ? 32 : type === 'category' ? 8 : 24
+  const contentGap = type === 'category' || type === 'area' ? 0 : 4
   const height =
     verticalPadding +
     typeHeight +
@@ -169,7 +170,7 @@ function ContinuumNodeView({ data, selected }: NodeProps<ContinuumNode>) {
     height: 8,
     border: '2px solid var(--mantine-color-body)',
     background: borderColor,
-    opacity: isCategory ? 0 : 1,
+    opacity: isCategory || isArea ? 0 : 1,
   }
 
   return (
@@ -181,21 +182,26 @@ function ContinuumNodeView({ data, selected }: NodeProps<ContinuumNode>) {
         className={isSkill ? 'continuum-skill-node' : undefined}
         data-selected={isSkill && selected ? true : undefined}
         h={size.height}
-        p={isArea ? 'lg' : isSkill ? 'md' : isCategory ? 4 : 'sm'}
+        p={isArea ? 'md' : isSkill ? 'md' : isCategory ? 4 : 'sm'}
         radius={isSkill ? 'lg' : isCategory ? 0 : 'sm'}
         shadow={isSkill ? 'sm' : undefined}
         w={size.width}
         style={{
-          border: isCategory
+          border: isCategory || isArea
             ? 'none'
             : `${isArea || isSkill ? 2 : 1}px solid ${borderColor}`,
-          background: isCategory ? 'transparent' : undefined,
+          background: isCategory || isArea ? 'transparent' : undefined,
           boxSizing: 'border-box',
           cursor: 'pointer',
         }}
       >
-        <Stack align={isCategory ? 'center' : 'stretch'} gap={4} h="100%" justify="center">
-          {!isCategory && (
+        <Stack
+          align={isCategory || isArea ? 'center' : 'stretch'}
+          gap={4}
+          h="100%"
+          justify="center"
+        >
+          {!isCategory && !isArea && (
             <Group gap={6} wrap="nowrap">
               {type === 'task' && data.statusLabel !== undefined && (
                 <Box
@@ -223,8 +229,8 @@ function ContinuumNodeView({ data, selected }: NodeProps<ContinuumNode>) {
           <Text
             fw={isSkill || isArea ? 700 : 500}
             lh={1.35}
-            size={isArea ? 'lg' : isSkill ? 'md' : isCategory ? 'sm' : 'sm'}
-            ta={isCategory ? 'center' : 'left'}
+            size={isArea ? '32px' : isSkill ? 'md' : isCategory ? 'sm' : 'sm'}
+            ta={isCategory || isArea ? 'center' : 'left'}
             c={isCategory ? 'dimmed' : undefined}
             style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
           >
@@ -383,9 +389,7 @@ function createFlowElements(
     }
     const isStructural = !structuralParents.has(itemId)
 
-    edges.push(
-      isStructural ? edge : { ...edge, style: { strokeDasharray: '5 5' } },
-    )
+    if (isStructural) edges.push(edge)
 
     if (isStructural) {
       layoutEdges.push({ source: edge.source, target: edge.target })
