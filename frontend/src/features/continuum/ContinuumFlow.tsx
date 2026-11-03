@@ -30,6 +30,7 @@ import {
 } from '@xyflow/react'
 import type { Edge, Node, NodeProps, NodeTypes } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import './ContinuumFlow.css'
 import {
   useCreateTask,
   useDeleteTask,
@@ -105,8 +106,8 @@ const nodeWidths: Record<
   ContinuumNodeType,
   { min: number; max: number }
 > = {
-  area: { min: 280, max: 340 },
-  skill: { min: 280, max: 340 },
+  area: { min: 360, max: 460 },
+  skill: { min: 300, max: 380 },
   goal: { min: 260, max: 320 },
   category: { min: 200, max: 260 },
   task: { min: 240, max: 320 },
@@ -124,21 +125,31 @@ function getNodeSize(data: ContinuumNodeData) {
   const type = data.entity.type
   const widths = nodeWidths[type]
   const width = Math.min(widths.max, widths.min + data.label.length * 3)
-  const horizontalPadding = type === 'category' ? 16 : 28
+  const horizontalPadding =
+    type === 'area' ? 48 : type === 'skill' ? 36 : type === 'category' ? 16 : 28
   const charactersPerLine = Math.max(
     1,
     Math.floor((width - horizontalPadding) / 9),
   )
   const lines = Math.max(1, Math.ceil(data.label.length / charactersPerLine))
+  const labelLineHeight = type === 'area' ? 28 : type === 'skill' ? 24 : 20
+  const typeHeight = type === 'category' ? 0 : type === 'area' ? 18 : 14
   const statusHeight =
     type !== 'task' && data.statusLabel !== undefined ? 22 : 0
-  const verticalPadding = type === 'category' ? 14 : 24
-  const height = verticalPadding + 18 + lines * 20 + statusHeight
+  const verticalPadding =
+    type === 'area' ? 40 : type === 'skill' ? 32 : type === 'category' ? 8 : 24
+  const contentGap = type === 'category' ? 0 : 4
+  const height =
+    verticalPadding +
+    typeHeight +
+    contentGap +
+    lines * labelLineHeight +
+    statusHeight
 
   return { width, height }
 }
 
-function ContinuumNodeView({ data }: NodeProps<ContinuumNode>) {
+function ContinuumNodeView({ data, selected }: NodeProps<ContinuumNode>) {
   const type = data.entity.type
   const isArea = type === 'area'
   const isSkill = type === 'skill'
@@ -158,6 +169,7 @@ function ContinuumNodeView({ data }: NodeProps<ContinuumNode>) {
     height: 8,
     border: '2px solid var(--mantine-color-body)',
     background: borderColor,
+    opacity: isCategory ? 0 : 1,
   }
 
   return (
@@ -166,41 +178,55 @@ function ContinuumNodeView({ data }: NodeProps<ContinuumNode>) {
         <Handle position={Position.Top} style={handleStyle} type="target" />
       )}
       <Paper
+        className={isSkill ? 'continuum-skill-node' : undefined}
+        data-selected={isSkill && selected ? true : undefined}
         h={size.height}
-        p={isCategory ? 7 : 'sm'}
-        radius={isSkill ? 'md' : isCategory ? 'xs' : 'sm'}
+        p={isArea ? 'lg' : isSkill ? 'md' : isCategory ? 4 : 'sm'}
+        radius={isSkill ? 'lg' : isCategory ? 0 : 'sm'}
         shadow={isSkill ? 'sm' : undefined}
         w={size.width}
         style={{
-          border: `${isArea || isSkill ? 2 : 1}px solid ${borderColor}`,
+          border: isCategory
+            ? 'none'
+            : `${isArea || isSkill ? 2 : 1}px solid ${borderColor}`,
+          background: isCategory ? 'transparent' : undefined,
           boxSizing: 'border-box',
           cursor: 'pointer',
         }}
       >
-        <Stack gap={4} h="100%" justify="center">
-          <Group gap={6} wrap="nowrap">
-            {type === 'task' && data.statusLabel !== undefined && (
-              <Box
-                aria-label={`Status: ${data.statusLabel}`}
-                title={data.statusLabel}
-                style={{
-                  flex: '0 0 auto',
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: `var(--mantine-color-${data.statusColor ?? 'gray'}-6)`,
-                }}
-              />
-            )}
-            <Text c={labelColor} fw={700} size="10px" tt="uppercase">
-              {typeLabels[type]}
-            </Text>
-          </Group>
+        <Stack align={isCategory ? 'center' : 'stretch'} gap={4} h="100%" justify="center">
+          {!isCategory && (
+            <Group gap={6} wrap="nowrap">
+              {type === 'task' && data.statusLabel !== undefined && (
+                <Box
+                  aria-label={`Status: ${data.statusLabel}`}
+                  title={data.statusLabel}
+                  style={{
+                    flex: '0 0 auto',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: `var(--mantine-color-${data.statusColor ?? 'gray'}-6)`,
+                  }}
+                />
+              )}
+              <Text
+                c={labelColor}
+                fw={700}
+                size={isArea ? 'xs' : '10px'}
+                tt="uppercase"
+              >
+                {typeLabels[type]}
+              </Text>
+            </Group>
+          )}
           <Text
             fw={isSkill || isArea ? 700 : 500}
             lh={1.35}
-            size={isCategory ? 'xs' : 'sm'}
-            style={{ overflowWrap: 'anywhere' }}
+            size={isArea ? 'lg' : isSkill ? 'md' : isCategory ? 'sm' : 'sm'}
+            ta={isCategory ? 'center' : 'left'}
+            c={isCategory ? 'dimmed' : undefined}
+            style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
           >
             {data.label}
           </Text>
@@ -1334,7 +1360,6 @@ export function ContinuumFlow() {
         ) : (
           <ReactFlow
             edges={flow.edges}
-            elementsSelectable={false}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             nodes={flow.nodes}
