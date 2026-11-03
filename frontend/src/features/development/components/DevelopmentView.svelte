@@ -8,6 +8,7 @@
     } from "../../../lib/api/developmentAreas";
     import type {DevelopmentArea} from "../../../lib/models/developmentArea";
     import DevelopmentCategoryList from "./DevelopmentCategoryList.svelte";
+    import SkillList from "./SkillList.svelte";
 
     let areas: DevelopmentArea[] = $state([]);
     let selectedArea: DevelopmentArea | null = $state(null);
@@ -144,6 +145,7 @@
 {#if selectedArea}
     {#key selectedArea.id}
         <DevelopmentCategoryList areaId={selectedArea.id} />
+        <SkillList areaId={selectedArea.id} />
     {/key}
 {/if}
 
