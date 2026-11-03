@@ -259,6 +259,7 @@ interface EditFormValues {
   state_id: string | null
   is_completed: boolean
   due_at: string
+  parent_id: string | null
 }
 
 function toLocalDateTime(value: string | null) {
@@ -269,14 +270,89 @@ function toLocalDateTime(value: string | null) {
   return localDate.toISOString().slice(0, 16)
 }
 
+type CreateEntityType = SelectedEntity['type']
+
+const backendItemTypes: Record<Exclude<CreateEntityType, 'area'>, string> = {
+  category: 'Category',
+  skill: 'Skill',
+  goal: 'Goal',
+  task: 'Task',
+}
+
+function getParentCandidates(
+  categories: DevelopmentCategory[],
+  skills: Skill[],
+  goals: Goal[],
+  tasks: Task[],
+) {
+  return [
+    ...categories.map((category) => ({
+      areaId: category.area_id,
+      id: category.item_id,
+      label: `Kategorie: ${category.name}`,
+      type: 'Category',
+    })),
+    ...skills.map((skill) => ({
+      areaId: skill.area_id,
+      id: skill.item_id,
+      label: `Fähigkeit: ${skill.name}`,
+      type: 'Skill',
+    })),
+    ...goals.map((goal) => ({
+      areaId: goal.area_id,
+      id: goal.item_id,
+      label: `Ziel: ${goal.name}`,
+      type: 'Goal',
+    })),
+    ...tasks
+      .filter((task) => task.area_id !== null && task.group_id === null)
+      .map((task) => ({
+        areaId: task.area_id as number,
+        id: task.item_id,
+        label: `Aufgabe: ${task.name}`,
+        type: 'Task',
+      })),
+  ]
+}
+
+function createsCycle(
+  parentId: number,
+  childId: number,
+  hierarchy: ItemHierarchy[],
+) {
+  const parents = new Map(
+    hierarchy.map((relation) => [relation.child_id, relation.parent_id]),
+  )
+  const visited = new Set<number>()
+  let currentId: number | undefined = parentId
+
+  while (currentId !== undefined && !visited.has(currentId)) {
+    if (currentId === childId) return true
+    visited.add(currentId)
+    currentId = parents.get(currentId)
+  }
+
+  return false
+}
+
 function ContinuumEditModal({
   entity,
   areaName,
+  categories,
+  skills,
+  goals,
+  tasks,
+  hierarchy,
   onClose,
   onDelete,
 }: {
   entity: SelectedEntity
   areaName: string | null
+  categories: DevelopmentCategory[]
+  skills: Skill[]
+  goals: Goal[]
+  tasks: Task[]
+  hierarchy: ItemHierarchy[]
   onClose: () => void
   onDelete: (entity: SelectedEntity) => void
 }) {
@@ -285,8 +361,16 @@ function ContinuumEditModal({
   const updateSkill = useUpdateSkill()
   const updateGoal = useUpdateGoal()
   const updateTask = useUpdateTask()
+  const updateParent = useUpdateItemParent()
   const skillMetadata = useSkillMetadata(entity.type === 'skill')
   const taskMetadata = useTaskMetadata(entity.type === 'task')
+  const allowedRelations = useAllowedTypeRelations(entity.type !== 'area')
+  const itemId = entity.type === 'area' ? null : entity.value.item_id
+  const currentParentId =
+    itemId === null
+      ? null
+      : (hierarchy.find((relation) => relation.child_id === itemId)
+          ?.parent_id ?? null)
   const description =
     entity.type === 'category' ? '' : (entity.value.description ?? '')
   const form = useForm<EditFormValues>({
@@ -300,6 +384,8 @@ function ContinuumEditModal({
       is_completed: entity.type === 'goal' && entity.value.is_completed,
       due_at:
         entity.type === 'goal' ? toLocalDateTime(entity.value.due_at) : '',
+      parent_id:
+        currentParentId === null ? null : String(currentParentId),
     },
     validate: {
       name: (value) => {
@@ -319,9 +405,11 @@ function ContinuumEditModal({
     },
   })
   const isMetadataPending =
+    (entity.type !== 'area' && allowedRelations.isPending) ||
     (entity.type === 'skill' && skillMetadata.isPending) ||
     (entity.type === 'task' && taskMetadata.isPending)
   const isMetadataError =
+    (entity.type !== 'area' && allowedRelations.isError) ||
     (entity.type === 'skill' && skillMetadata.isError) ||
     (entity.type === 'task' && taskMetadata.isError)
   const isSaving =
@@ -329,81 +417,103 @@ function ContinuumEditModal({
     updateCategory.isPending ||
     updateSkill.isPending ||
     updateGoal.isPending ||
-    updateTask.isPending
+    updateTask.isPending ||
+    updateParent.isPending
   const isError =
     updateArea.isError ||
     updateCategory.isError ||
     updateSkill.isError ||
     updateGoal.isError ||
-    updateTask.isError
+    updateTask.isError ||
+    updateParent.isError
+  const entityAreaId =
+    entity.type === 'area' ? null : entity.value.area_id
+  const childType =
+    entity.type === 'area' ? null : backendItemTypes[entity.type]
+  const allowedParentTypes = new Set(
+    (allowedRelations.data ?? [])
+      .filter((relation) => relation.child_type === childType)
+      .map((relation) => relation.parent_type),
+  )
+  const canHaveParent =
+    entity.type !== 'task' || entity.value.group_id === null
+  const parentOptions =
+    itemId === null || !canHaveParent
+      ? []
+      : getParentCandidates(categories, skills, goals, tasks)
+          .filter(
+            (candidate) =>
+              candidate.id !== itemId &&
+              candidate.areaId === entityAreaId &&
+              allowedParentTypes.has(candidate.type) &&
+              !createsCycle(candidate.id, itemId, hierarchy),
+          )
+          .map((candidate) => ({
+            value: String(candidate.id),
+            label: candidate.label,
+          }))
 
-  const submit = (values: EditFormValues) => {
+  const submit = async (values: EditFormValues) => {
     const name = values.name.trim()
     const description = values.description.trim()
 
-    if (entity.type === 'area') {
-      const area: UpdateDevelopmentArea = { name, description }
-      updateArea.mutate(
-        { id: entity.value.id, area },
-        { onSuccess: onClose },
-      )
-      return
-    }
-
-    if (entity.type === 'category') {
-      const category: UpdateDevelopmentCategory = { name }
-      updateCategory.mutate(
-        { id: entity.value.item_id, category },
-        { onSuccess: onClose },
-      )
-      return
-    }
-
-    if (entity.type === 'skill') {
-      const skill: UpdateSkill = {
-        name,
-        description,
-        state_id:
-          values.state_id === null
-            ? entity.value.state_id
-            : Number(values.state_id),
+    try {
+      if (entity.type === 'area') {
+        const area: UpdateDevelopmentArea = { name, description }
+        await updateArea.mutateAsync({ id: entity.value.id, area })
+      } else if (entity.type === 'category') {
+        const category: UpdateDevelopmentCategory = { name }
+        await updateCategory.mutateAsync({
+          id: entity.value.item_id,
+          category,
+        })
+      } else if (entity.type === 'skill') {
+        const skill: UpdateSkill = {
+          name,
+          description,
+          state_id:
+            values.state_id === null
+              ? entity.value.state_id
+              : Number(values.state_id),
+        }
+        await updateSkill.mutateAsync({ id: entity.value.item_id, skill })
+      } else if (entity.type === 'goal') {
+        const goal: UpdateGoal = {
+          name,
+          description,
+          is_completed: values.is_completed,
+          due_at: values.due_at
+            ? new Date(values.due_at).toISOString()
+            : undefined,
+          clear_due_at: values.due_at === '' && entity.value.due_at !== null,
+        }
+        await updateGoal.mutateAsync({ id: entity.value.item_id, goal })
+      } else {
+        const task: UpdateTask = {
+          name,
+          description,
+          state_id:
+            values.state_id === null
+              ? entity.value.state_id
+              : Number(values.state_id),
+        }
+        await updateTask.mutateAsync({ id: entity.value.item_id, task })
       }
-      updateSkill.mutate(
-        { id: entity.value.item_id, skill },
-        { onSuccess: onClose },
-      )
-      return
-    }
 
-    if (entity.type === 'goal') {
-      const goal: UpdateGoal = {
-        name,
-        description,
-        is_completed: values.is_completed,
-        due_at: values.due_at
-          ? new Date(values.due_at).toISOString()
-          : undefined,
-        clear_due_at: values.due_at === '' && entity.value.due_at !== null,
+      const nextParentId =
+        values.parent_id === null ? null : Number(values.parent_id)
+
+      if (itemId !== null && nextParentId !== currentParentId) {
+        await updateParent.mutateAsync({
+          id: itemId,
+          item: { parent_id: nextParentId },
+        })
       }
-      updateGoal.mutate(
-        { id: entity.value.item_id, goal },
-        { onSuccess: onClose },
-      )
+
+      onClose()
+    } catch {
       return
     }
-
-    const task: UpdateTask = {
-      name,
-      description,
-      state_id:
-        values.state_id === null
-          ? entity.value.state_id
-          : Number(values.state_id),
-    }
-    updateTask.mutate(
-      { id: entity.value.item_id, task },
-      { onSuccess: onClose },
-    )
   }
 
   return (
@@ -427,6 +537,14 @@ function ContinuumEditModal({
             />
             {areaName !== null && (
               <TextInput disabled label="Continuum-Bereich" value={areaName} />
+            )}
+            {entity.type !== 'area' && (
+              <Select
+                clearable
+                label="Übergeordnetes Element"
+                data={parentOptions}
+                {...form.getInputProps('parent_id')}
+              />
             )}
             {entity.type !== 'category' && (
               <Textarea
@@ -509,8 +627,6 @@ function ContinuumEditModal({
   )
 }
 
-type CreateEntityType = SelectedEntity['type']
-
 interface CreateFormValues {
   type: CreateEntityType
   name: string
@@ -519,13 +635,6 @@ interface CreateFormValues {
   state_id: string | null
   due_at: string
   parent_id: string | null
-}
-
-const backendItemTypes: Record<Exclude<CreateEntityType, 'area'>, string> = {
-  category: 'Category',
-  skill: 'Skill',
-  goal: 'Goal',
-  task: 'Task',
 }
 
 function CreateContinuumModal({
@@ -578,34 +687,12 @@ function CreateContinuumModal({
           : null,
     },
   })
-  const parentCandidates = [
-    ...categories.map((category) => ({
-      areaId: category.area_id,
-      id: category.item_id,
-      label: `Kategorie: ${category.name}`,
-      type: 'Category',
-    })),
-    ...skills.map((skill) => ({
-      areaId: skill.area_id,
-      id: skill.item_id,
-      label: `Fähigkeit: ${skill.name}`,
-      type: 'Skill',
-    })),
-    ...goals.map((goal) => ({
-      areaId: goal.area_id,
-      id: goal.item_id,
-      label: `Ziel: ${goal.name}`,
-      type: 'Goal',
-    })),
-    ...tasks
-      .filter((task) => task.area_id !== null && task.group_id === null)
-      .map((task) => ({
-        areaId: task.area_id as number,
-        id: task.item_id,
-        label: `Aufgabe: ${task.name}`,
-        type: 'Task',
-      })),
-  ]
+  const parentCandidates = getParentCandidates(
+    categories,
+    skills,
+    goals,
+    tasks,
+  )
   const childType =
     form.values.type === 'area' ? null : backendItemTypes[form.values.type]
   const allowedParentTypes = new Set(
@@ -988,7 +1075,12 @@ export function ContinuumFlow() {
       {selectedEntity !== null && (
         <ContinuumEditModal
           areaName={selectedAreaName}
+          categories={categories.data ?? []}
           entity={selectedEntity}
+          goals={goals.data ?? []}
+          hierarchy={hierarchy.data ?? []}
+          skills={skills.data ?? []}
+          tasks={tasks.data ?? []}
           onClose={() => setSelectedEntity(null)}
           onDelete={(entity) => {
             setSelectedEntity(null)
