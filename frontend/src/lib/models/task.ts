@@ -6,7 +6,9 @@ export interface Task {
     is_archived: boolean;
     version: number;
 
+    parent_id: number | null;
     group_id: number | null;
+    area_id: number | null;
     state_id: number | null;
     name: string;
     description: string | null;
