@@ -1,5 +1,7 @@
+import { Title } from '@mantine/core'
+
 function App() {
-  return <h1>Misa</h1>
+  return <Title>Misa</Title>
 }
 
 export default App
