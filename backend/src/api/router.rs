@@ -1,9 +1,22 @@
-use crate::api::handlers::{development_area_handler, task_handler};
+use crate::api::handlers::{
+    development_area_handler, development_category_handler, task_handler,
+};
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route(
+            "/development-categories/{id}",
+            get(development_category_handler::get_development_category)
+                .patch(development_category_handler::update_development_category)
+                .delete(development_category_handler::delete_development_category),
+        )
+        .route(
+            "/development-categories",
+            get(development_category_handler::get_development_categories)
+                .post(development_category_handler::create_development_category),
+        )
         .route(
             "/development-areas/{id}",
             get(development_area_handler::get_development_area)
