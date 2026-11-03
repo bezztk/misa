@@ -64,10 +64,12 @@ pub async fn update_item_parent(
         .fetch_optional(&mut *tx)
         .await?;
 
+    // Child not found
     let Some(child) = child else {
         return Ok(UpdateParentResult::NotFound);
     };
 
+    // Remove Parent
     let Some(parent_id) = parent_id else {
         sqlx::query("DELETE FROM item_hierarchy WHERE child_id = $1")
             .bind(child_id)
@@ -80,6 +82,7 @@ pub async fn update_item_parent(
         return Ok(UpdateParentResult::Updated);
     };
 
+    // Child = Parent
     if child_id == parent_id {
         return Ok(UpdateParentResult::Invalid);
     }
@@ -89,10 +92,12 @@ pub async fn update_item_parent(
         .fetch_optional(&mut *tx)
         .await?;
 
+    // Parent not found
     let Some(parent) = parent else {
         return Ok(UpdateParentResult::NotFound);
     };
 
+    // Parent & Child no valid type
     let Some(child_type) = ItemType::from_id(child.item_type) else {
         return Ok(UpdateParentResult::Invalid);
     };
@@ -100,6 +105,7 @@ pub async fn update_item_parent(
         return Ok(UpdateParentResult::Invalid);
     };
 
+    // Parent & Child relation allowed?
     if !child_type.allowed_parent_types().contains(&parent_type)
         || child.area_id.is_none()
         || child.area_id != parent.area_id
@@ -109,14 +115,19 @@ pub async fn update_item_parent(
         return Ok(UpdateParentResult::Invalid);
     }
 
-    let parent_parent: Option<i32> =
-        sqlx::query_scalar("SELECT parent_id FROM item_hierarchy WHERE child_id = $1")
-            .bind(parent_id)
-            .fetch_optional(&mut *tx)
-            .await?;
+    let mut current_id = Some(parent_id);
 
-    if parent_parent == Some(child_id) {
-        return Ok(UpdateParentResult::Invalid);
+    // Loop the parent.parent chain up to check if the child is in it
+    while let Some(id) = current_id {
+        if id == child_id {
+            return Ok(UpdateParentResult::Invalid);
+        }
+
+        current_id =
+            sqlx::query_scalar("SELECT parent_id FROM item_hierarchy WHERE child_id = $1")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
     }
 
     sqlx::query(
