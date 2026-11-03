@@ -11,6 +11,8 @@
 
     let areas: DevelopmentArea[] = $state([]);
     let expandedAreaIds: number[] = $state([]);
+    let selectedAreaId: number | null = $state(null);
+    let selectedItemId: number | null = $state(null);
     let editingArea: DevelopmentArea | null = $state(null);
     let name = $state("");
     let description = $state("");
@@ -105,8 +107,23 @@
     {#each areas as area (area.id)}
         <article>
             <div class="area-heading">
-                <button class="toggle" onclick={() => toggleArea(area.id)}>
-                    {expandedAreaIds.includes(area.id) ? "▼" : "▶"} {area.name}
+                <button
+                        class="arrow"
+                        aria-label={expandedAreaIds.includes(area.id) ? "Area einklappen" : "Area ausklappen"}
+                        onclick={() => toggleArea(area.id)}
+                >
+                    {expandedAreaIds.includes(area.id) ? "▼" : "▶"}
+                </button>
+                <span aria-hidden="true">▰</span>
+                <button
+                        class="area-name"
+                        class:selected={selectedAreaId === area.id}
+                        onclick={() => {
+                            selectedAreaId = area.id;
+                            selectedItemId = null;
+                        }}
+                >
+                    {area.name}
                 </button>
                 <button onclick={() => openEdit(area)} disabled={pending}>Bearbeiten</button>
                 <button onclick={() => remove(area)} disabled={pending}>Löschen</button>
@@ -117,7 +134,14 @@
             {/if}
 
             {#if expandedAreaIds.includes(area.id)}
-                <DevelopmentTree areaId={area.id} />
+                <DevelopmentTree
+                        areaId={area.id}
+                        {selectedItemId}
+                        onSelect={(id) => {
+                            selectedItemId = id;
+                            selectedAreaId = null;
+                        }}
+                />
             {/if}
         </article>
     {/each}
@@ -155,13 +179,30 @@
 
     .area-heading {
         display: flex;
+        align-items: center;
         gap: 0.5rem;
     }
 
-    .toggle {
-        min-width: 12rem;
+    .arrow {
+        width: 1.75rem;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .area-name {
+        min-width: 10rem;
+        padding: 0.35rem 0.5rem;
+        border: 0;
+        border-radius: 0.25rem;
+        background: transparent;
         text-align: left;
         font-weight: bold;
+        cursor: pointer;
+    }
+
+    .area-name.selected {
+        background: #e8e8e8;
     }
 
     form {

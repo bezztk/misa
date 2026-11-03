@@ -18,7 +18,11 @@
     import {getTasks} from "../../../lib/api/tasks";
     import type {SkillMetadata} from "../../../lib/models/skill";
 
-    let {areaId}: {areaId: number} = $props();
+    let {areaId, selectedItemId, onSelect}: {
+        areaId: number;
+        selectedItemId: number | null;
+        onSelect: (id: number) => void;
+    } = $props();
 
     type ItemType = "Category" | "Skill" | "Goal" | "Task";
     type EditableType = "Category" | "Skill" | "Goal";
@@ -36,10 +40,19 @@
 
     interface TreeRow extends TreeItem {
         depth: number;
+        hasChildren: boolean;
     }
+
+    const symbols: Record<ItemType, string> = {
+        Category: "▣",
+        Skill: "◆",
+        Goal: "◎",
+        Task: "✓",
+    };
 
     let items: TreeItem[] = $state([]);
     let rows: TreeRow[] = $state([]);
+    let collapsedItemIds: number[] = $state([]);
     let skillMetadata: SkillMetadata | null = $state(null);
     let error = $state("");
     let pending = $state(false);
@@ -58,6 +71,39 @@
     let parentItem: TreeItem | null = $state(null);
     let parentId: number | null = $state(null);
     let parentFormError = $state("");
+
+    function buildRows() {
+        const children = new Map<number | null, TreeItem[]>();
+
+        for (const item of items) {
+            const siblings = children.get(item.parentId) ?? [];
+            siblings.push(item);
+            children.set(item.parentId, siblings);
+        }
+
+        const nextRows: TreeRow[] = [];
+
+        function addChildren(parentId: number | null, depth: number) {
+            for (const item of children.get(parentId) ?? []) {
+                const hasChildren = children.has(item.id);
+                nextRows.push({...item, depth, hasChildren});
+
+                if (!collapsedItemIds.includes(item.id)) {
+                    addChildren(item.id, depth + 1);
+                }
+            }
+        }
+
+        addChildren(null, 0);
+        rows = nextRows;
+    }
+
+    function toggleItem(id: number) {
+        collapsedItemIds = collapsedItemIds.includes(id)
+            ? collapsedItemIds.filter(itemId => itemId !== id)
+            : [...collapsedItemIds, id];
+        buildRows();
+    }
 
     async function loadTree() {
         try {
@@ -137,18 +183,8 @@
 
             nextItems.sort((a, b) => a.name.localeCompare(b.name));
             items = nextItems;
-
-            const nextRows: TreeRow[] = [];
-
-            function addChildren(nextParentId: number | null, depth: number) {
-                for (const item of nextItems.filter(item => item.parentId === nextParentId)) {
-                    nextRows.push({...item, depth});
-                    addChildren(item.id, depth + 1);
-                }
-            }
-
-            addChildren(null, 0);
-            rows = nextRows;
+            collapsedItemIds = collapsedItemIds.filter(id => itemIds.has(id));
+            buildRows();
         } catch (err) {
             error = String(err);
         }
@@ -290,13 +326,32 @@
         <p>Keine Elemente vorhanden.</p>
     {:else}
         {#each rows as row (row.id)}
-            <div class="tree-row" style={`padding-left: ${row.depth * 1.5}rem`}>
-                {row.name} ({row.type})
-                <button onclick={() => openParentDialog(row)} disabled={pending}>Parent</button>
-                {#if row.type !== "Task"}
-                    <button onclick={() => openEdit(row)} disabled={pending}>Bearbeiten</button>
-                    <button onclick={() => removeItem(row)} disabled={pending}>Löschen</button>
-                {/if}
+            <div
+                class="tree-row"
+                class:selected={selectedItemId === row.id}
+                style={`padding-left: ${row.depth * 1.5}rem`}
+            >
+                <span class="toggle-slot">
+                    {#if row.hasChildren}
+                        <button
+                            class="arrow"
+                            aria-label={collapsedItemIds.includes(row.id) ? "Öffnen" : "Schließen"}
+                            onclick={() => toggleItem(row.id)}
+                        >
+                            {collapsedItemIds.includes(row.id) ? "▶" : "▼"}
+                        </button>
+                    {/if}
+                </span>
+                <span class="type-icon" aria-hidden="true">{symbols[row.type]}</span>
+                <button class="item-name" onclick={() => onSelect(row.id)}>{row.name}</button>
+                <span class="item-type">{row.type}</span>
+                <span class="row-actions">
+                    <button onclick={() => openParentDialog(row)} disabled={pending}>Parent</button>
+                    {#if row.type !== "Task"}
+                        <button onclick={() => openEdit(row)} disabled={pending}>Bearbeiten</button>
+                        <button onclick={() => removeItem(row)} disabled={pending}>Löschen</button>
+                    {/if}
+                </span>
             </div>
         {/each}
     {/if}
@@ -383,10 +438,56 @@
     }
 
     .tree-row {
-        margin: 0.25rem 0;
+        display: flex;
+        align-items: center;
+        min-height: 2rem;
+        margin: 0.125rem 0;
+        border-radius: 0.25rem;
+        font-size: 0.95rem;
     }
 
-    .tree-row button {
+    .tree-row.selected {
+        background: #eeeeee;
+    }
+
+    .toggle-slot {
+        display: inline-flex;
+        flex: 0 0 1.75rem;
+        width: 1.75rem;
+    }
+
+    .arrow {
+        width: 1.75rem;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .type-icon {
+        flex: 0 0 1.5rem;
+        width: 1.5rem;
+        text-align: center;
+    }
+
+    .item-name {
+        padding: 0.25rem 0.4rem;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .item-type {
+        margin-left: 0.25rem;
+        color: #666666;
+        font-size: 0.85rem;
+    }
+
+    .row-actions {
+        display: inline-flex;
+        gap: 0.25rem;
         margin-left: 0.5rem;
     }
 
