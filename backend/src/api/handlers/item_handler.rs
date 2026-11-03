@@ -1,9 +1,21 @@
-use crate::models::item::{UpdateItemArchive, UpdateItemParent};
+use crate::models::item::{ItemHierarchy, UpdateItemArchive, UpdateItemParent};
 use crate::repositories::item_repository::{self, UpdateParentResult};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use sqlx::PgPool;
+
+pub async fn get_item_hierarchy(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<ItemHierarchy>>, StatusCode> {
+    match item_repository::get_item_hierarchy(&pool).await {
+        Ok(hierarchy) => Ok(Json(hierarchy)),
+        Err(error) => {
+            eprintln!("Failed to retrieve item hierarchy: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
 
 pub async fn update_item_parent(
     State(pool): State<PgPool>,

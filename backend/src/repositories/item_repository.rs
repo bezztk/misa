@@ -1,3 +1,4 @@
+use crate::models::item::ItemHierarchy;
 use crate::models::item_type::ItemType;
 use sqlx::{PgPool, Postgres, Transaction};
 
@@ -25,6 +26,12 @@ pub async fn update_item(
     .await?;
 
     Ok(())
+}
+
+pub async fn get_item_hierarchy(pool: &PgPool) -> Result<Vec<ItemHierarchy>, sqlx::Error> {
+    sqlx::query_as("SELECT child_id, parent_id FROM item_hierarchy ORDER BY child_id")
+        .fetch_all(pool)
+        .await
 }
 
 #[derive(sqlx::FromRow)]
