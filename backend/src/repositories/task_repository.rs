@@ -8,6 +8,7 @@ pub async fn create_task(
     pool: &PgPool,
     name: &str,
     group_id: Option<i32>,
+    area_id: Option<i32>,
     description: Option<&str>,
 ) -> Result<i64, sqlx::Error> {
     let mut tx = pool.begin().await?;
@@ -15,11 +16,12 @@ pub async fn create_task(
     let item_id = item_repository::create_item(&mut tx, ItemType::Task).await?;
 
     sqlx::query(
-        "INSERT INTO tasks (item_id, group_id, name, description)
-         VALUES ($1, $2, $3, $4)",
+        "INSERT INTO tasks (item_id, group_id, area_id, name, description)
+         VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(item_id)
     .bind(group_id)
+    .bind(area_id)
     .bind(name)
     .bind(description)
     .execute(&mut *tx)

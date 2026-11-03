@@ -80,6 +80,7 @@ pub async fn create_task(
         &pool,
         &payload.name,
         payload.group_id,
+        payload.area_id,
         payload.description.as_deref(),
     )
     .await

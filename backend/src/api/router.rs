@@ -8,6 +8,10 @@ use sqlx::PgPool;
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
         .route("/items/hierarchy", get(item_handler::get_item_hierarchy))
+        .route(
+            "/items/allowed-type-relations",
+            get(item_handler::get_allowed_type_relations),
+        )
         .route("/items/{id}/parent", patch(item_handler::update_item_parent))
         .route("/items/{id}/archive", patch(item_handler::update_item_archive))
         .route(

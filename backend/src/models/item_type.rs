@@ -14,6 +14,13 @@ pub enum ItemType {
 }
 
 impl ItemType {
+    pub const ALL: [ItemType; 4] = [
+        ItemType::Task,
+        ItemType::DevelopmentCategory,
+        ItemType::Goal,
+        ItemType::Skill,
+    ];
+
     pub const fn from_id(id: i32) -> Option<ItemType> {
         match id {
             1 => Some(ItemType::Task),
@@ -48,6 +55,15 @@ impl ItemType {
                 ItemType::Goal,
                 ItemType::Skill,
             ],
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            ItemType::Task => "Task",
+            ItemType::DevelopmentCategory => "Category",
+            ItemType::Goal => "Goal",
+            ItemType::Skill => "Skill",
         }
     }
 }

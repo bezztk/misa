@@ -17,6 +17,12 @@ pub struct ItemHierarchy {
     pub parent_id: i32,
 }
 
+#[derive(Debug, Serialize)]
+pub struct AllowedTypeRelation {
+    pub parent_type: &'static str,
+    pub child_type: &'static str,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateItemParent {
     pub parent_id: Option<i32>,

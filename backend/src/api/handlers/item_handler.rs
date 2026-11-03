@@ -1,9 +1,25 @@
-use crate::models::item::{ItemHierarchy, UpdateItemArchive, UpdateItemParent};
+use crate::models::item::{AllowedTypeRelation, ItemHierarchy, UpdateItemArchive, UpdateItemParent};
+use crate::models::item_type::ItemType;
 use crate::repositories::item_repository::{self, UpdateParentResult};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use sqlx::PgPool;
+
+pub async fn get_allowed_type_relations() -> Json<Vec<AllowedTypeRelation>> {
+    let mut relations = Vec::new();
+
+    for child_type in ItemType::ALL {
+        for parent_type in child_type.allowed_parent_types() {
+            relations.push(AllowedTypeRelation {
+                parent_type: parent_type.name(),
+                child_type: child_type.name(),
+            });
+        }
+    }
+
+    Json(relations)
+}
 
 pub async fn get_item_hierarchy(
     State(pool): State<PgPool>,
