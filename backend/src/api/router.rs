@@ -3,8 +3,7 @@ use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
-    Router::new()
-        .route("/health", get(health))
+    let api_routes = Router::new()
         .route(
             "/tasks/{id}",
             get(task_handler::get_task)
@@ -15,7 +14,11 @@ pub fn create_router(pool: PgPool) -> Router {
             "/tasks",
             get(task_handler::get_tasks).post(task_handler::create_task),
         )
-        .route("/tasks/metadata", get(task_handler::get_task_metadata))
+        .route("/tasks/metadata", get(task_handler::get_task_metadata));
+
+    Router::new()
+        .route("/health", get(health))
+        .nest("/api", api_routes)
         .with_state(pool)
 }
 
