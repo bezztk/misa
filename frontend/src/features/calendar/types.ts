@@ -7,10 +7,8 @@ export interface CalendarEntry {
   title: string
   note: string | null
   is_reminder: boolean
-  planned_start_at: string
-  planned_end_at: string | null
-  actual_start_at: string | null
-  actual_end_at: string | null
+  start_at: string
+  end_at: string | null
 }
 
 export interface CreateCalendarEntry {
@@ -18,10 +16,8 @@ export interface CreateCalendarEntry {
   title: string
   note: string | null
   is_reminder: boolean
-  planned_start_at: string
-  planned_end_at: string | null
-  actual_start_at: string | null
-  actual_end_at: string | null
+  start_at: string
+  end_at: string | null
 }
 
 export type UpdateCalendarEntry = CreateCalendarEntry

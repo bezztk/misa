@@ -37,10 +37,8 @@ export type CalendarFormState =
 interface CalendarEntryFormValues {
   title: string
   note: string
-  planned_start_at: string
-  planned_end_at: string
-  actual_start_at: string
-  actual_end_at: string
+  start_at: string
+  end_at: string
   is_reminder: boolean
 }
 
@@ -69,16 +67,14 @@ export function CalendarEntryModal({
     initialValues: {
       title: entry?.title ?? (state.mode === 'create' ? state.title : ''),
       note: entry?.note ?? '',
-      planned_start_at:
+      start_at:
         entry === null
           ? selectedTime?.start ?? ''
-          : toLocalDateTime(entry.planned_start_at),
-      planned_end_at:
+          : toLocalDateTime(entry.start_at),
+      end_at:
         entry === null
           ? selectedTime?.end ?? ''
-          : toLocalDateTime(entry.planned_end_at),
-      actual_start_at: toLocalDateTime(entry?.actual_start_at ?? null),
-      actual_end_at: toLocalDateTime(entry?.actual_end_at ?? null),
+          : toLocalDateTime(entry.end_at),
       is_reminder: entry?.is_reminder ?? false,
     },
     validate: {
@@ -88,24 +84,13 @@ export function CalendarEntryModal({
         if (length > 150) return 'Der Titel darf maximal 150 Zeichen haben.'
         return null
       },
-      planned_start_at: (value) =>
+      start_at: (value) =>
         value === '' ? 'Startzeit ist erforderlich.' : null,
-      planned_end_at: (value, values) => {
+      end_at: (value, values) => {
         if (values.is_reminder) return null
         if (value === '') return 'Endzeit ist erforderlich.'
-        if (new Date(value) <= new Date(values.planned_start_at)) {
+        if (new Date(value) <= new Date(values.start_at)) {
           return 'Die Endzeit muss nach der Startzeit liegen.'
-        }
-        return null
-      },
-      actual_end_at: (value, values) => {
-        if (values.is_reminder) return null
-        if (value === '') return null
-        if (values.actual_start_at === '') {
-          return 'Für eine Endzeit ist eine Startzeit erforderlich.'
-        }
-        if (new Date(value) < new Date(values.actual_start_at)) {
-          return 'Die Endzeit darf nicht vor der Startzeit liegen.'
         }
         return null
       },
@@ -122,16 +107,10 @@ export function CalendarEntryModal({
       title: values.title.trim(),
       note: values.note.trim() || null,
       is_reminder: values.is_reminder,
-      planned_start_at: new Date(values.planned_start_at).toISOString(),
-      planned_end_at: values.is_reminder
+      start_at: new Date(values.start_at).toISOString(),
+      end_at: values.is_reminder
         ? null
-        : new Date(values.planned_end_at).toISOString(),
-      actual_start_at: !values.is_reminder && values.actual_start_at
-        ? new Date(values.actual_start_at).toISOString()
-        : null,
-      actual_end_at: !values.is_reminder && values.actual_end_at
-        ? new Date(values.actual_end_at).toISOString()
-        : null,
+        : new Date(values.end_at).toISOString(),
     }
 
     if (entry === null) {
@@ -157,31 +136,19 @@ export function CalendarEntryModal({
           <TextInput data-autofocus required label="Titel" {...form.getInputProps('title')} />
           <Textarea autosize label="Notiz" minRows={3} {...form.getInputProps('note')} />
           <TextInput
-            required label="Geplanter Start" type="datetime-local"
-            {...form.getInputProps('planned_start_at')}
+            required label="Startzeit" type="datetime-local"
+            {...form.getInputProps('start_at')}
           />
           {!form.values.is_reminder && (
             <TextInput
-              required label="Geplantes Ende" type="datetime-local"
-              {...form.getInputProps('planned_end_at')}
+              required label="Endzeit" type="datetime-local"
+              {...form.getInputProps('end_at')}
             />
           )}
           <Checkbox
             label="Erinnerung"
             {...form.getInputProps('is_reminder', { type: 'checkbox' })}
           />
-          {!form.values.is_reminder && (
-            <>
-              <TextInput
-                label="Tatsächlicher Start" type="datetime-local"
-                {...form.getInputProps('actual_start_at')}
-              />
-              <TextInput
-                label="Tatsächliches Ende" type="datetime-local"
-                {...form.getInputProps('actual_end_at')}
-              />
-            </>
-          )}
           {isError && (
             <Alert color="red" title="Fehler">
               Der Kalendereintrag konnte nicht gespeichert werden.
@@ -254,32 +221,12 @@ export function CalendarView() {
   const [entryToDelete, setEntryToDelete] = useState<CalendarEntry | null>(null)
   const events = useMemo(
     () =>
-      (calendarEntries.data ?? []).map((entry) => {
-        let start = entry.planned_start_at
-        let end = entry.planned_end_at ?? undefined
-
-        if (!entry.is_reminder && entry.actual_start_at !== null) {
-          start = entry.actual_start_at
-
-          if (entry.actual_end_at !== null) {
-            end = entry.actual_end_at
-          } else if (entry.planned_end_at !== null) {
-            const plannedDuration =
-              new Date(entry.planned_end_at).getTime() -
-              new Date(entry.planned_start_at).getTime()
-            end = new Date(
-              new Date(entry.actual_start_at).getTime() + plannedDuration,
-            ).toISOString()
-          }
-        }
-
-        return {
-          id: String(entry.entity_id),
-          title: entry.title,
-          start,
-          end: entry.is_reminder ? undefined : end,
-        }
-      }),
+      (calendarEntries.data ?? []).map((entry) => ({
+        id: String(entry.entity_id),
+        title: entry.title,
+        start: entry.start_at,
+        end: entry.is_reminder ? undefined : (entry.end_at ?? undefined),
+      })),
     [calendarEntries.data],
   )
 
