@@ -1,11 +1,4 @@
 pub mod calendar_entry;
-pub mod development_area;
-pub mod development_category;
 pub mod entity;
-pub mod goal;
-pub mod item;
-pub mod item_type;
-pub mod skill;
-pub mod skill_state;
 pub mod task;
 pub mod task_metadata;
