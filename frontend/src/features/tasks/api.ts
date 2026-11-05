@@ -10,7 +10,7 @@ import type {
 
 const taskKeys = {
   list: ['tasks', 'list'] as const,
-  detail: (id: number) => ['tasks', 'detail', id] as const,
+  detail: (entityId: number) => ['tasks', 'detail', entityId] as const,
   metadata: ['tasks', 'metadata'] as const,
 }
 
@@ -18,8 +18,8 @@ export function getTasks() {
   return apiClient.get<Task[]>('/tasks')
 }
 
-export function getTask(id: number) {
-  return apiClient.get<Task>(`/tasks/${id}`)
+export function getTask(entityId: number) {
+  return apiClient.get<Task>(`/tasks/${entityId}`)
 }
 
 export function getTaskMetadata() {
@@ -30,22 +30,22 @@ export function createTask(task: CreateTask) {
   return apiClient.post<CreateTaskResponse>('/tasks', task)
 }
 
-export function updateTask(id: number, task: UpdateTask) {
-  return apiClient.patch<void>(`/tasks/${id}`, task)
+export function updateTask(entityId: number, task: UpdateTask) {
+  return apiClient.put<void>(`/tasks/${entityId}`, task)
 }
 
-export function deleteTask(id: number) {
-  return apiClient.delete(`/tasks/${id}`)
+export function deleteTask(entityId: number) {
+  return apiClient.delete(`/tasks/${entityId}`)
 }
 
 export function useTasks() {
   return useQuery({ queryKey: taskKeys.list, queryFn: getTasks })
 }
 
-export function useTask(id: number) {
+export function useTask(entityId: number) {
   return useQuery({
-    queryKey: taskKeys.detail(id),
-    queryFn: () => getTask(id),
+    queryKey: taskKeys.detail(entityId),
+    queryFn: () => getTask(entityId),
   })
 }
 
@@ -71,12 +71,19 @@ export function useUpdateTask() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, task }: { id: number; task: UpdateTask }) =>
-      updateTask(id, task),
-    onSuccess: async (_, { id }) => {
+    mutationFn: ({
+      entityId,
+      task,
+    }: {
+      entityId: number
+      task: UpdateTask
+    }) => updateTask(entityId, task),
+    onSuccess: async (_, { entityId }) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: taskKeys.list }),
-        queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) }),
+        queryClient.invalidateQueries({
+          queryKey: taskKeys.detail(entityId),
+        }),
       ])
     },
   })
@@ -87,14 +94,9 @@ export function useDeleteTask() {
 
   return useMutation({
     mutationFn: deleteTask,
-    onSuccess: async (_, id) => {
-      queryClient.removeQueries({ queryKey: taskKeys.detail(id) })
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: taskKeys.list }),
-        queryClient.invalidateQueries({
-          queryKey: ['continuum', 'items', 'hierarchy'],
-        }),
-      ])
+    onSuccess: async (_, entityId) => {
+      queryClient.removeQueries({ queryKey: taskKeys.detail(entityId) })
+      await queryClient.invalidateQueries({ queryKey: taskKeys.list })
     },
   })
 }

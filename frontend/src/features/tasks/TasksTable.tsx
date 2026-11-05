@@ -38,7 +38,6 @@ import {
   useTasks,
   useUpdateTask,
 } from './api'
-import { useDevelopmentAreas } from '../continuum/api'
 import type { CreateTask, Task, UpdateTask } from './types'
 
 const features = tableFeatures({
@@ -74,16 +73,21 @@ interface TaskFormValues {
   name: string
   description: string
   group_id: string | null
-  area_id: string | null
   state_id: string | null
-}
-
-function optionalNumber(value: string | null) {
-  return value === null ? null : Number(value)
+  priority_id: string | null
+  due_at: string
 }
 
 function optionalString(value: number | null | undefined) {
   return value === null || value === undefined ? null : String(value)
+}
+
+function toLocalDateTime(value: string | null | undefined) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
 }
 
 function TaskFormModal({
@@ -97,7 +101,6 @@ function TaskFormModal({
 }) {
   const task = state.mode === 'edit' ? state.task : null
   const metadata = useTaskMetadata()
-  const developmentAreas = useDevelopmentAreas(state.mode === 'create')
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const form = useForm<TaskFormValues>({
@@ -105,8 +108,9 @@ function TaskFormModal({
       name: task?.name ?? '',
       description: task?.description ?? '',
       group_id: optionalString(task?.group_id),
-      area_id: optionalString(task?.area_id),
       state_id: task === null ? null : String(task.state_id),
+      priority_id: optionalString(task?.priority_id),
+      due_at: toLocalDateTime(task?.due_at),
     },
     validate: {
       name: (value) => {
@@ -120,26 +124,32 @@ function TaskFormModal({
         state.mode === 'edit' && value === null
           ? 'Status ist erforderlich.'
           : null,
+      group_id: (value) =>
+        value === null ? 'Gruppe ist erforderlich.' : null,
+      priority_id: (value) =>
+        value === null ? 'Priorität ist erforderlich.' : null,
     },
   })
 
-  const isLoading =
-    metadata.isPending ||
-    (state.mode === 'create' && developmentAreas.isPending)
-  const isError =
-    metadata.isError || (state.mode === 'create' && developmentAreas.isError)
+  const isLoading = metadata.isPending
+  const isError = metadata.isError
   const isSaving = createTask.isPending || updateTask.isPending
 
   const submit = (values: TaskFormValues) => {
     const name = values.name.trim()
-    const group_id = optionalNumber(values.group_id)
+    const group_id = Number(values.group_id)
+    const priority_id = Number(values.priority_id)
+    const due_at = values.due_at
+      ? new Date(values.due_at).toISOString()
+      : null
 
     if (task === null) {
       const newTask: CreateTask = {
         name,
         description: values.description.trim() || null,
         group_id,
-        area_id: optionalNumber(values.area_id),
+        priority_id,
+        due_at,
       }
 
       createTask.mutate(newTask, { onSuccess: onClose })
@@ -148,14 +158,16 @@ function TaskFormModal({
 
     const changedTask: UpdateTask = {
       name,
-      description: values.description.trim(),
+      description: values.description.trim() || null,
       group_id,
       state_id:
         values.state_id === null ? task.state_id : Number(values.state_id),
+      priority_id,
+      due_at,
     }
 
     updateTask.mutate(
-      { id: task.item_id, task: changedTask },
+      { entityId: task.entity_id, task: changedTask },
       { onSuccess: onClose },
     )
   }
@@ -184,30 +196,16 @@ function TaskFormModal({
               label="Name"
               {...form.getInputProps('name')}
             />
-            {(task === null || task.area_id === null) && (
-              <Select
-                clearable={task === null}
-                disabled={task === null && form.values.area_id !== null}
-                label="Gruppe"
-                data={(metadata.data?.groups ?? []).map((group) => ({
-                  value: String(group.id),
-                  label: group.name,
-                }))}
-                {...form.getInputProps('group_id')}
-              />
-            )}
-            {task === null ? (
-              <Select
-                clearable
-                disabled={form.values.group_id !== null}
-                label="Continuum-Bereich"
-                data={(developmentAreas.data ?? []).map((area) => ({
-                  value: String(area.id),
-                  label: area.name,
-                }))}
-                {...form.getInputProps('area_id')}
-              />
-            ) : (
+            <Select
+              required
+              label="Gruppe"
+              data={(metadata.data?.groups ?? []).map((group) => ({
+                value: String(group.id),
+                label: group.name,
+              }))}
+              {...form.getInputProps('group_id')}
+            />
+            {task !== null && (
               <Select
                 required
                 label="Status"
@@ -218,6 +216,20 @@ function TaskFormModal({
                 {...form.getInputProps('state_id')}
               />
             )}
+            <Select
+              required
+              label="Priorität"
+              data={(metadata.data?.priorities ?? []).map((priority) => ({
+                value: String(priority.id),
+                label: priority.name,
+              }))}
+              {...form.getInputProps('priority_id')}
+            />
+            <TextInput
+              label="Fällig am"
+              type="datetime-local"
+              {...form.getInputProps('due_at')}
+            />
             <Textarea
               autosize
               label="Beschreibung"
@@ -287,7 +299,7 @@ function DeleteTaskModal({ task, onClose }: { task: Task; onClose: () => void })
             color="red"
             loading={deleteTask.isPending}
             onClick={() =>
-              deleteTask.mutate(task.item_id, { onSuccess: onClose })
+              deleteTask.mutate(task.entity_id, { onSuccess: onClose })
             }
           >
             Löschen
@@ -316,16 +328,7 @@ export function TasksTable() {
       columnHelper.columns([
         columnHelper.accessor('name', {
           header: 'Aufgabe',
-          cell: ({ getValue, row }) => (
-            <Group gap="xs" wrap="nowrap">
-              <Text fw={500}>{getValue()}</Text>
-              {row.original.area_id !== null && (
-                <Badge color="violet" variant="light">
-                  Continuum
-                </Badge>
-              )}
-            </Group>
-          ),
+          cell: ({ getValue }) => <Text fw={500}>{getValue()}</Text>,
           sortFn: 'text',
         }),
         columnHelper.accessor('description', {
@@ -357,7 +360,7 @@ export function TasksTable() {
           header: 'Gruppe',
           cell: ({ getValue }) => {
             const groupId = getValue()
-            return groupId === null ? '–' : (groupsById.get(groupId)?.name ?? '–')
+            return groupsById.get(groupId)?.name ?? '–'
           },
           filterFn: 'equals',
           sortFn: 'basic',

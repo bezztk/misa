@@ -12,7 +12,6 @@ import {
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
 import {
-  IconHierarchy,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconListCheck,
@@ -94,29 +93,6 @@ export function AppLayout() {
                     : undefined
                 }
                 to="/tasks"
-                variant="light"
-                w="100%"
-                onClick={() => setMobileOpened(false)}
-              />
-            </Tooltip>
-            <Tooltip disabled={!compact} label="Continuum" position="right">
-              <NavLink
-                active={pathname.startsWith('/continuum')}
-                aria-label="Continuum"
-                color="gray"
-                component={Link}
-                label={compact ? undefined : 'Continuum'}
-                leftSection={<IconHierarchy size={20} stroke={1.5} />}
-                styles={
-                  compact
-                    ? {
-                        body: { display: 'none' },
-                        root: { paddingInline: 0 },
-                        section: { marginInline: 'auto' },
-                      }
-                    : undefined
-                }
-                to="/continuum"
                 variant="light"
                 w="100%"
                 onClick={() => setMobileOpened(false)}

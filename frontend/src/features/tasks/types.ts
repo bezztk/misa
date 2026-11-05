@@ -1,35 +1,36 @@
 export interface Task {
-  item_id: number
-  item_type: number
-  parent_id: number | null
+  entity_id: number
   created_at: string
   updated_at: string
-  is_archived: boolean
   version: number
-  group_id: number | null
-  area_id: number | null
-  state_id: number
+  group_id: number
   name: string
   description: string | null
+  state_id: number
+  priority_id: number
+  due_at: string | null
   completed_at: string | null
 }
 
 export interface CreateTask {
+  group_id: number
   name: string
-  group_id: number | null
-  area_id: number | null
   description: string | null
+  priority_id: number
+  due_at: string | null
 }
 
 export interface UpdateTask {
-  name?: string
-  state_id?: number | null
-  group_id?: number | null
-  description?: string | null
+  group_id: number
+  name: string
+  description: string | null
+  state_id: number
+  priority_id: number
+  due_at: string | null
 }
 
 export interface CreateTaskResponse {
-  id: number
+  entity_id: number
 }
 
 export interface TaskGroup {
@@ -42,8 +43,14 @@ export interface TaskState {
   name: string
 }
 
+export interface TaskPriority {
+  id: number
+  name: string
+}
+
 export interface TaskMetadata {
   groups: TaskGroup[]
   states: TaskState[]
+  priorities: TaskPriority[]
 }
 
