@@ -1,4 +1,3 @@
-use crate::models::patch_field::PatchField;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -28,14 +27,10 @@ pub struct CreateCalendarEntry {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCalendarEntry {
-    #[serde(default)]
-    pub source_entity_id: PatchField<i32>,
-    pub is_reminder: Option<bool>,
-    pub planned_start_at: Option<DateTime<Utc>>,
-    #[serde(default)]
-    pub planned_end_at: PatchField<DateTime<Utc>>,
-    #[serde(default)]
-    pub actual_start_at: PatchField<DateTime<Utc>>,
-    #[serde(default)]
-    pub actual_end_at: PatchField<DateTime<Utc>>,
+    pub source_entity_id: Option<i32>,
+    pub is_reminder: bool,
+    pub planned_start_at: DateTime<Utc>,
+    pub planned_end_at: Option<DateTime<Utc>>,
+    pub actual_start_at: Option<DateTime<Utc>>,
+    pub actual_end_at: Option<DateTime<Utc>>,
 }

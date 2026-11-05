@@ -5,7 +5,6 @@ pub mod entity;
 pub mod goal;
 pub mod item;
 pub mod item_type;
-pub mod patch_field;
 pub mod skill;
 pub mod skill_state;
 pub mod task;

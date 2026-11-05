@@ -1,6 +1,5 @@
 use crate::models::calendar_entry::CalendarEntry;
 use crate::models::entity::EntityType;
-use crate::models::patch_field::PatchField;
 use crate::repositories::entity_repository;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -86,38 +85,29 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
 pub async fn update_calendar_entry(
     pool: &PgPool,
     entity_id: i32,
-    source_entity_id: PatchField<i32>,
-    is_reminder: Option<bool>,
-    planned_start_at: Option<DateTime<Utc>>,
-    planned_end_at: PatchField<DateTime<Utc>>,
-    actual_start_at: PatchField<DateTime<Utc>>,
-    actual_end_at: PatchField<DateTime<Utc>>,
+    source_entity_id: Option<i32>,
+    is_reminder: bool,
+    planned_start_at: DateTime<Utc>,
+    planned_end_at: Option<DateTime<Utc>>,
+    actual_start_at: Option<DateTime<Utc>>,
+    actual_end_at: Option<DateTime<Utc>>,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    let (update_source_entity_id, source_entity_id) = source_entity_id.into_update();
-    let (update_planned_end_at, planned_end_at) = planned_end_at.into_update();
-    let (update_actual_start_at, actual_start_at) = actual_start_at.into_update();
-    let (update_actual_end_at, actual_end_at) = actual_end_at.into_update();
-
     let result = sqlx::query(
         "UPDATE calendar_entries
-         SET source_entity_id = CASE WHEN $1 THEN $2 ELSE source_entity_id END,
-             is_reminder = COALESCE($3, is_reminder),
-             planned_start_at = COALESCE($4, planned_start_at),
-             planned_end_at = CASE WHEN $5 THEN $6 ELSE planned_end_at END,
-             actual_start_at = CASE WHEN $7 THEN $8 ELSE actual_start_at END,
-             actual_end_at = CASE WHEN $9 THEN $10 ELSE actual_end_at END
-         WHERE entity_id = $11",
+         SET source_entity_id = $1,
+             is_reminder = $2,
+             planned_start_at = $3,
+             planned_end_at = $4,
+             actual_start_at = $5,
+             actual_end_at = $6
+         WHERE entity_id = $7",
     )
-    .bind(update_source_entity_id)
     .bind(source_entity_id)
     .bind(is_reminder)
     .bind(planned_start_at)
-    .bind(update_planned_end_at)
     .bind(planned_end_at)
-    .bind(update_actual_start_at)
     .bind(actual_start_at)
-    .bind(update_actual_end_at)
     .bind(actual_end_at)
     .bind(entity_id)
     .execute(&mut *tx)

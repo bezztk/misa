@@ -60,7 +60,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/tasks/{entity_id}",
             get(task_handler::get_task)
-                .patch(task_handler::update_task)
+                .put(task_handler::update_task)
                 .delete(task_handler::delete_task),
         )
         .route(
@@ -71,7 +71,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/calendar/{entity_id}",
             get(calendar_entry_handler::get_calendar_entry)
-                .patch(calendar_entry_handler::update_calendar_entry)
+                .put(calendar_entry_handler::update_calendar_entry)
                 .delete(calendar_entry_handler::delete_calendar_entry),
         )
         .route(

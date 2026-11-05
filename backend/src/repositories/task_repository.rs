@@ -106,27 +106,27 @@ pub async fn task_priority_exists(pool: &PgPool, priority_id: i32) -> Result<boo
 pub async fn update_task(
     pool: &PgPool,
     entity_id: i32,
-    group_id: Option<i32>,
-    name: Option<&str>,
+    group_id: i32,
+    name: &str,
     description: Option<&str>,
-    state_id: Option<i32>,
-    priority_id: Option<i32>,
+    state_id: i32,
+    priority_id: i32,
     due_at: Option<DateTime<Utc>>,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE tasks
-         SET group_id = COALESCE($1, group_id),
-             name = COALESCE($2, name),
-             description = COALESCE($3, description),
+         SET group_id = $1,
+             name = $2,
+             description = $3,
              completed_at = CASE
-                 WHEN $4::integer IS NULL OR $4 = state_id THEN completed_at
+                 WHEN $4 = state_id THEN completed_at
                  WHEN $4 = $8 THEN NOW()
                  ELSE NULL
              END,
-             state_id = COALESCE($4, state_id),
-             priority_id = COALESCE($5, priority_id),
-             due_at = COALESCE($6, due_at)
+             state_id = $4,
+             priority_id = $5,
+             due_at = $6
          WHERE entity_id = $7",
     )
     .bind(group_id)

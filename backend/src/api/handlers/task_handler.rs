@@ -11,11 +11,7 @@ fn valid_name(name: &str) -> bool {
     !name.trim().is_empty() && name.chars().count() <= 150
 }
 
-async fn validate_state(pool: &PgPool, state_id: Option<i32>) -> Result<(), StatusCode> {
-    let Some(state_id) = state_id else {
-        return Ok(());
-    };
-
+async fn validate_state(pool: &PgPool, state_id: i32) -> Result<(), StatusCode> {
     match task_repository::task_state_exists(pool, state_id).await {
         Ok(true) => Ok(()),
         Ok(false) => Err(StatusCode::BAD_REQUEST),
@@ -26,11 +22,7 @@ async fn validate_state(pool: &PgPool, state_id: Option<i32>) -> Result<(), Stat
     }
 }
 
-async fn validate_group(pool: &PgPool, group_id: Option<i32>) -> Result<(), StatusCode> {
-    let Some(group_id) = group_id else {
-        return Ok(());
-    };
-
+async fn validate_group(pool: &PgPool, group_id: i32) -> Result<(), StatusCode> {
     match task_repository::task_group_exists(pool, group_id).await {
         Ok(true) => Ok(()),
         Ok(false) => Err(StatusCode::BAD_REQUEST),
@@ -41,11 +33,7 @@ async fn validate_group(pool: &PgPool, group_id: Option<i32>) -> Result<(), Stat
     }
 }
 
-async fn validate_priority(pool: &PgPool, priority_id: Option<i32>) -> Result<(), StatusCode> {
-    let Some(priority_id) = priority_id else {
-        return Ok(());
-    };
-
+async fn validate_priority(pool: &PgPool, priority_id: i32) -> Result<(), StatusCode> {
     match task_repository::task_priority_exists(pool, priority_id).await {
         Ok(true) => Ok(()),
         Ok(false) => Err(StatusCode::BAD_REQUEST),
@@ -89,8 +77,8 @@ pub async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    validate_group(&pool, Some(payload.group_id)).await?;
-    validate_priority(&pool, Some(payload.priority_id)).await?;
+    validate_group(&pool, payload.group_id).await?;
+    validate_priority(&pool, payload.priority_id).await?;
 
     match task_repository::create_task(
         &pool,
@@ -115,21 +103,7 @@ pub async fn update_task(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateTask>,
 ) -> Result<StatusCode, StatusCode> {
-    if payload.name.is_none()
-        && payload.state_id.is_none()
-        && payload.group_id.is_none()
-        && payload.description.is_none()
-        && payload.priority_id.is_none()
-        && payload.due_at.is_none()
-    {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    if payload
-        .name
-        .as_deref()
-        .is_some_and(|name| !valid_name(name))
-    {
+    if !valid_name(&payload.name) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -141,7 +115,7 @@ pub async fn update_task(
         &pool,
         entity_id,
         payload.group_id,
-        payload.name.as_deref(),
+        &payload.name,
         payload.description.as_deref(),
         payload.state_id,
         payload.priority_id,

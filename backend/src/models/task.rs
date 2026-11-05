@@ -27,10 +27,10 @@ pub struct CreateTask {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateTask {
-    pub group_id: Option<i32>,
-    pub name: Option<String>,
+    pub group_id: i32,
+    pub name: String,
     pub description: Option<String>,
-    pub state_id: Option<i32>,
-    pub priority_id: Option<i32>,
+    pub state_id: i32,
+    pub priority_id: i32,
     pub due_at: Option<DateTime<Utc>>,
 }

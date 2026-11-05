@@ -68,16 +68,6 @@ pub async fn update_calendar_entry(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateCalendarEntry>,
 ) -> Result<StatusCode, StatusCode> {
-    if payload.source_entity_id.is_missing()
-        && payload.is_reminder.is_none()
-        && payload.planned_start_at.is_none()
-        && payload.planned_end_at.is_missing()
-        && payload.actual_start_at.is_missing()
-        && payload.actual_end_at.is_missing()
-    {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
     match calendar_entry_repository::update_calendar_entry(
         &pool,
         entity_id,
