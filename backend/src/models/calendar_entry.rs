@@ -11,10 +11,8 @@ pub struct CalendarEntry {
     pub title: String,
     pub note: Option<String>,
     pub is_reminder: bool,
-    pub planned_start_at: DateTime<Utc>,
-    pub planned_end_at: Option<DateTime<Utc>>,
-    pub actual_start_at: Option<DateTime<Utc>>,
-    pub actual_end_at: Option<DateTime<Utc>>,
+    pub start_at: DateTime<Utc>,
+    pub end_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -23,10 +21,8 @@ pub struct CreateCalendarEntry {
     pub title: String,
     pub note: Option<String>,
     pub is_reminder: bool,
-    pub planned_start_at: DateTime<Utc>,
-    pub planned_end_at: Option<DateTime<Utc>>,
-    pub actual_start_at: Option<DateTime<Utc>>,
-    pub actual_end_at: Option<DateTime<Utc>>,
+    pub start_at: DateTime<Utc>,
+    pub end_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,8 +31,6 @@ pub struct UpdateCalendarEntry {
     pub title: String,
     pub note: Option<String>,
     pub is_reminder: bool,
-    pub planned_start_at: DateTime<Utc>,
-    pub planned_end_at: Option<DateTime<Utc>>,
-    pub actual_start_at: Option<DateTime<Utc>>,
-    pub actual_end_at: Option<DateTime<Utc>>,
+    pub start_at: DateTime<Utc>,
+    pub end_at: Option<DateTime<Utc>>,
 }

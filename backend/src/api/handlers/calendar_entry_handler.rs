@@ -55,10 +55,8 @@ pub async fn create_calendar_entry(
         &payload.title,
         payload.note.as_deref(),
         payload.is_reminder,
-        payload.planned_start_at,
-        payload.planned_end_at,
-        payload.actual_start_at,
-        payload.actual_end_at,
+        payload.start_at,
+        payload.end_at,
     )
     .await
     {
@@ -89,10 +87,8 @@ pub async fn update_calendar_entry(
         &payload.title,
         payload.note.as_deref(),
         payload.is_reminder,
-        payload.planned_start_at,
-        payload.planned_end_at,
-        payload.actual_start_at,
-        payload.actual_end_at,
+        payload.start_at,
+        payload.end_at,
     )
     .await
     {

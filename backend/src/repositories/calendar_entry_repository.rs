@@ -10,29 +10,24 @@ pub async fn create_calendar_entry(
     title: &str,
     note: Option<&str>,
     is_reminder: bool,
-    planned_start_at: DateTime<Utc>,
-    planned_end_at: Option<DateTime<Utc>>,
-    actual_start_at: Option<DateTime<Utc>>,
-    actual_end_at: Option<DateTime<Utc>>,
+    start_at: DateTime<Utc>,
+    end_at: Option<DateTime<Utc>>,
 ) -> Result<i32, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let entity_id = entity_repository::create_entity(&mut tx, EntityType::CalendarEntry).await?;
 
     sqlx::query(
         "INSERT INTO calendar_entries
-            (entity_id, source_entity_id, title, note, is_reminder, planned_start_at,
-             planned_end_at, actual_start_at, actual_end_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+            (entity_id, source_entity_id, title, note, is_reminder, start_at, end_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
     .bind(entity_id)
     .bind(source_entity_id)
     .bind(title)
     .bind(note)
     .bind(is_reminder)
-    .bind(planned_start_at)
-    .bind(planned_end_at)
-    .bind(actual_start_at)
-    .bind(actual_end_at)
+    .bind(start_at)
+    .bind(end_at)
     .execute(&mut *tx)
     .await?;
 
@@ -54,10 +49,8 @@ pub async fn get_calendar_entry(
             c.title,
             c.note,
             c.is_reminder,
-            c.planned_start_at,
-            c.planned_end_at,
-            c.actual_start_at,
-            c.actual_end_at
+            c.start_at,
+            c.end_at
          FROM calendar_entries c
          JOIN entities e ON e.id = c.entity_id
          WHERE c.entity_id = $1",
@@ -78,13 +71,11 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
             c.title,
             c.note,
             c.is_reminder,
-            c.planned_start_at,
-            c.planned_end_at,
-            c.actual_start_at,
-            c.actual_end_at
+            c.start_at,
+            c.end_at
          FROM calendar_entries c
          JOIN entities e ON e.id = c.entity_id
-         ORDER BY c.planned_start_at, c.entity_id",
+         ORDER BY c.start_at, c.entity_id",
     )
     .fetch_all(pool)
     .await
@@ -97,10 +88,8 @@ pub async fn update_calendar_entry(
     title: &str,
     note: Option<&str>,
     is_reminder: bool,
-    planned_start_at: DateTime<Utc>,
-    planned_end_at: Option<DateTime<Utc>>,
-    actual_start_at: Option<DateTime<Utc>>,
-    actual_end_at: Option<DateTime<Utc>>,
+    start_at: DateTime<Utc>,
+    end_at: Option<DateTime<Utc>>,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let result = sqlx::query(
@@ -109,20 +98,16 @@ pub async fn update_calendar_entry(
              title = $2,
              note = $3,
              is_reminder = $4,
-             planned_start_at = $5,
-             planned_end_at = $6,
-             actual_start_at = $7,
-             actual_end_at = $8
-         WHERE entity_id = $9",
+             start_at = $5,
+             end_at = $6
+         WHERE entity_id = $7",
     )
     .bind(source_entity_id)
     .bind(title)
     .bind(note)
     .bind(is_reminder)
-    .bind(planned_start_at)
-    .bind(planned_end_at)
-    .bind(actual_start_at)
-    .bind(actual_end_at)
+    .bind(start_at)
+    .bind(end_at)
     .bind(entity_id)
     .execute(&mut *tx)
     .await?;
