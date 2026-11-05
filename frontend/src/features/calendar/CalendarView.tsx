@@ -25,8 +25,13 @@ interface SelectedTime {
   end: string
 }
 
-type CalendarFormState =
-  | { mode: 'create'; selectedTime: SelectedTime }
+export type CalendarFormState =
+  | {
+      mode: 'create'
+      selectedTime: SelectedTime
+      sourceEntityId: number | null
+      title: string
+    }
   | { mode: 'edit'; entry: CalendarEntry }
 
 interface CalendarEntryFormValues {
@@ -47,14 +52,14 @@ function toLocalDateTime(value: string | Date | null) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16)
 }
 
-function CalendarEntryModal({
+export function CalendarEntryModal({
   state,
   onClose,
   onDelete,
 }: {
   state: CalendarFormState
   onClose: () => void
-  onDelete: (entry: CalendarEntry) => void
+  onDelete?: (entry: CalendarEntry) => void
 }) {
   const entry = state.mode === 'edit' ? state.entry : null
   const selectedTime = state.mode === 'create' ? state.selectedTime : null
@@ -62,7 +67,7 @@ function CalendarEntryModal({
   const updateCalendarEntry = useUpdateCalendarEntry()
   const form = useForm<CalendarEntryFormValues>({
     initialValues: {
-      title: entry?.title ?? '',
+      title: entry?.title ?? (state.mode === 'create' ? state.title : ''),
       note: entry?.note ?? '',
       planned_start_at:
         entry === null
@@ -94,6 +99,7 @@ function CalendarEntryModal({
         return null
       },
       actual_end_at: (value, values) => {
+        if (values.is_reminder) return null
         if (value === '') return null
         if (values.actual_start_at === '') {
           return 'Für eine Endzeit ist eine Startzeit erforderlich.'
@@ -110,7 +116,9 @@ function CalendarEntryModal({
 
   const submit = (values: CalendarEntryFormValues) => {
     const calendarEntry: CreateCalendarEntry = {
-      source_entity_id: entry?.source_entity_id ?? null,
+      source_entity_id:
+        entry?.source_entity_id ??
+        (state.mode === 'create' ? state.sourceEntityId : null),
       title: values.title.trim(),
       note: values.note.trim() || null,
       is_reminder: values.is_reminder,
@@ -118,10 +126,10 @@ function CalendarEntryModal({
       planned_end_at: values.is_reminder
         ? null
         : new Date(values.planned_end_at).toISOString(),
-      actual_start_at: values.actual_start_at
+      actual_start_at: !values.is_reminder && values.actual_start_at
         ? new Date(values.actual_start_at).toISOString()
         : null,
-      actual_end_at: values.actual_end_at
+      actual_end_at: !values.is_reminder && values.actual_end_at
         ? new Date(values.actual_end_at).toISOString()
         : null,
     }
@@ -162,21 +170,25 @@ function CalendarEntryModal({
             label="Erinnerung"
             {...form.getInputProps('is_reminder', { type: 'checkbox' })}
           />
-          <TextInput
-            label="Tatsächlicher Start" type="datetime-local"
-            {...form.getInputProps('actual_start_at')}
-          />
-          <TextInput
-            label="Tatsächliches Ende" type="datetime-local"
-            {...form.getInputProps('actual_end_at')}
-          />
+          {!form.values.is_reminder && (
+            <>
+              <TextInput
+                label="Tatsächlicher Start" type="datetime-local"
+                {...form.getInputProps('actual_start_at')}
+              />
+              <TextInput
+                label="Tatsächliches Ende" type="datetime-local"
+                {...form.getInputProps('actual_end_at')}
+              />
+            </>
+          )}
           {isError && (
             <Alert color="red" title="Fehler">
               Der Kalendereintrag konnte nicht gespeichert werden.
             </Alert>
           )}
           <Group justify={entry === null ? 'flex-end' : 'space-between'}>
-            {entry !== null && (
+            {entry !== null && onDelete !== undefined && (
               <Button
                 color="red" disabled={isSaving} type="button" variant="light"
                 onClick={() => onDelete(entry)}
@@ -242,12 +254,32 @@ export function CalendarView() {
   const [entryToDelete, setEntryToDelete] = useState<CalendarEntry | null>(null)
   const events = useMemo(
     () =>
-      (calendarEntries.data ?? []).map((entry) => ({
-        id: String(entry.entity_id),
-        title: entry.title,
-        start: entry.planned_start_at,
-        end: entry.is_reminder ? undefined : (entry.planned_end_at ?? undefined),
-      })),
+      (calendarEntries.data ?? []).map((entry) => {
+        let start = entry.planned_start_at
+        let end = entry.planned_end_at ?? undefined
+
+        if (!entry.is_reminder && entry.actual_start_at !== null) {
+          start = entry.actual_start_at
+
+          if (entry.actual_end_at !== null) {
+            end = entry.actual_end_at
+          } else if (entry.planned_end_at !== null) {
+            const plannedDuration =
+              new Date(entry.planned_end_at).getTime() -
+              new Date(entry.planned_start_at).getTime()
+            end = new Date(
+              new Date(entry.actual_start_at).getTime() + plannedDuration,
+            ).toISOString()
+          }
+        }
+
+        return {
+          id: String(entry.entity_id),
+          title: entry.title,
+          start,
+          end: entry.is_reminder ? undefined : end,
+        }
+      }),
     [calendarEntries.data],
   )
 
@@ -262,6 +294,8 @@ export function CalendarView() {
 
     setFormState({
       mode: 'create',
+      sourceEntityId: null,
+      title: '',
       selectedTime: { start: toLocalDateTime(start), end: toLocalDateTime(end) },
     })
   }

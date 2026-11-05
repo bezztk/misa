@@ -38,6 +38,7 @@ import {
   useTasks,
   useUpdateTask,
 } from './api'
+import { CalendarEntryModal } from '../calendar/CalendarView'
 import type { CreateTask, Task, UpdateTask } from './types'
 
 const features = tableFeatures({
@@ -315,6 +316,7 @@ export function TasksTable() {
   const metadata = useTaskMetadata()
   const [formState, setFormState] = useState<TaskFormState | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const [taskToSchedule, setTaskToSchedule] = useState<Task | null>(null)
   const statusesById = useMemo(
     () => new Map(metadata.data?.states.map((state) => [state.id, state])),
     [metadata.data?.states],
@@ -369,6 +371,23 @@ export function TasksTable() {
           header: 'Erstellt',
           cell: ({ getValue }) => dateFormatter.format(new Date(getValue())),
           sortFn: 'basic',
+        }),
+        columnHelper.display({
+          id: 'schedule',
+          header: 'Kalender',
+          cell: ({ row }) => (
+            <Button
+              size="xs"
+              variant="light"
+              onClick={(event) => {
+                event.stopPropagation()
+                setTaskToSchedule(row.original)
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              Einplanen
+            </Button>
+          ),
         }),
       ]),
     [groupsById, statusesById],
@@ -546,6 +565,17 @@ export function TasksTable() {
         <DeleteTaskModal
           task={taskToDelete}
           onClose={() => setTaskToDelete(null)}
+        />
+      )}
+      {taskToSchedule !== null && (
+        <CalendarEntryModal
+          state={{
+            mode: 'create',
+            selectedTime: { start: '', end: '' },
+            sourceEntityId: taskToSchedule.entity_id,
+            title: taskToSchedule.name,
+          }}
+          onClose={() => setTaskToSchedule(null)}
         />
       )}
     </Stack>
