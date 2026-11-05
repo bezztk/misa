@@ -4,6 +4,8 @@ export interface CalendarEntry {
   updated_at: string
   version: number
   source_entity_id: number | null
+  title: string
+  note: string | null
   is_reminder: boolean
   planned_start_at: string
   planned_end_at: string | null
@@ -13,6 +15,8 @@ export interface CalendarEntry {
 
 export interface CreateCalendarEntry {
   source_entity_id: number | null
+  title: string
+  note: string | null
   is_reminder: boolean
   planned_start_at: string
   planned_end_at: string | null
