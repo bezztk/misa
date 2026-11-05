@@ -16,6 +16,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconListCheck,
+  IconSettings,
 } from '@tabler/icons-react'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 
@@ -52,21 +53,25 @@ export function AppLayout() {
 
       <AppShell.Navbar p={compact ? 'xs' : 'md'}>
         <AppShell.Section>
-          <Group gap={compact ? 2 : 'xs'} justify="space-between" wrap="nowrap">
-            <Title order={3}>{compact ? 'M' : 'Misa'}</Title>
+          <Group
+            gap="xs"
+            justify={compact ? 'center' : 'space-between'}
+            wrap="nowrap"
+          >
+            {!compact && <Title order={3}>Misa</Title>}
             <ActionIcon
               aria-label={
                 navbarCollapsed
                   ? 'Navigation ausklappen'
                   : 'Navigation einklappen'
               }
-              size="sm"
+              size={compact ? 'lg' : 'sm'}
               variant="subtle"
               visibleFrom="sm"
               onClick={() => setNavbarCollapsed((collapsed) => !collapsed)}
             >
               {navbarCollapsed ? (
-                <IconLayoutSidebarLeftExpand size={18} />
+                <IconLayoutSidebarLeftExpand size={20} stroke={1.5} />
               ) : (
                 <IconLayoutSidebarLeftCollapse size={18} />
               )}
@@ -117,6 +122,29 @@ export function AppLayout() {
                     : undefined
                 }
                 to="/calendar"
+                variant="light"
+                w="100%"
+                onClick={() => setMobileOpened(false)}
+              />
+            </Tooltip>
+            <Tooltip disabled={!compact} label="Einstellungen" position="right">
+              <NavLink
+                active={pathname.startsWith('/settings')}
+                aria-label="Einstellungen"
+                color="gray"
+                component={Link}
+                label={compact ? undefined : 'Einstellungen'}
+                leftSection={<IconSettings size={20} stroke={1.5} />}
+                styles={
+                  compact
+                    ? {
+                        body: { display: 'none' },
+                        root: { paddingInline: 0 },
+                        section: { marginInline: 'auto' },
+                      }
+                    : undefined
+                }
+                to="/settings"
                 variant="light"
                 w="100%"
                 onClick={() => setMobileOpened(false)}
