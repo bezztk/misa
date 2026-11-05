@@ -58,7 +58,7 @@ pub fn create_router(pool: PgPool) -> Router {
                 .post(development_area_handler::create_development_area),
         )
         .route(
-            "/tasks/{id}",
+            "/tasks/{entity_id}",
             get(task_handler::get_task)
                 .patch(task_handler::update_task)
                 .delete(task_handler::delete_task),

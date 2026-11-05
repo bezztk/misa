@@ -12,6 +12,12 @@ pub struct TaskStateRow {
     pub name: String,
 }
 
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct TaskPriority {
+    pub id: i32,
+    pub name: String,
+}
+
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState {
@@ -25,4 +31,5 @@ pub enum TaskState {
 pub struct TaskMetadata {
     pub groups: Vec<TaskGroup>,
     pub states: Vec<TaskStateRow>,
+    pub priorities: Vec<TaskPriority>,
 }

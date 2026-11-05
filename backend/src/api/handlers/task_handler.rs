@@ -1,4 +1,4 @@
-use crate::models::task::{CreateTask, TaskDetails, UpdateTask};
+use crate::models::task::{CreateTask, Task, UpdateTask};
 use crate::models::task_metadata::TaskMetadata;
 use crate::repositories::task_repository;
 use axum::Json;
@@ -41,18 +41,33 @@ async fn validate_group(pool: &PgPool, group_id: Option<i32>) -> Result<(), Stat
     }
 }
 
+async fn validate_priority(pool: &PgPool, priority_id: Option<i32>) -> Result<(), StatusCode> {
+    let Some(priority_id) = priority_id else {
+        return Ok(());
+    };
+
+    match task_repository::task_priority_exists(pool, priority_id).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(StatusCode::BAD_REQUEST),
+        Err(error) => {
+            eprintln!("Failed to validate task priority: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 pub async fn get_task(
     State(pool): State<PgPool>,
-    Path(id): Path<i64>,
-) -> Result<Json<TaskDetails>, StatusCode> {
-    match task_repository::get_task(&pool, id).await {
+    Path(entity_id): Path<i32>,
+) -> Result<Json<Task>, StatusCode> {
+    match task_repository::get_task(&pool, entity_id).await {
         Ok(Some(task)) => Ok(Json(task)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
-pub async fn get_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<TaskDetails>>, StatusCode> {
+pub async fn get_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>, StatusCode> {
     match task_repository::get_tasks(&pool).await {
         Ok(tasks) => Ok(Json(tasks)),
         Err(error) => {
@@ -64,7 +79,7 @@ pub async fn get_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<TaskDetail
 
 #[derive(Serialize)]
 pub struct CreateTaskResponse {
-    pub id: i64,
+    pub entity_id: i32,
 }
 pub async fn create_task(
     State(pool): State<PgPool>,
@@ -74,18 +89,20 @@ pub async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    validate_group(&pool, payload.group_id).await?;
+    validate_group(&pool, Some(payload.group_id)).await?;
+    validate_priority(&pool, Some(payload.priority_id)).await?;
 
     match task_repository::create_task(
         &pool,
-        &payload.name,
         payload.group_id,
-        payload.area_id,
+        &payload.name,
         payload.description.as_deref(),
+        payload.priority_id,
+        payload.due_at,
     )
     .await
     {
-        Ok(id) => Ok((StatusCode::CREATED, Json(CreateTaskResponse { id }))),
+        Ok(entity_id) => Ok((StatusCode::CREATED, Json(CreateTaskResponse { entity_id }))),
         Err(error) => {
             eprintln!("Failed to create task: {error}");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -95,13 +112,15 @@ pub async fn create_task(
 
 pub async fn update_task(
     State(pool): State<PgPool>,
-    Path(id): Path<i64>,
+    Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateTask>,
 ) -> Result<StatusCode, StatusCode> {
     if payload.name.is_none()
         && payload.state_id.is_none()
         && payload.group_id.is_none()
         && payload.description.is_none()
+        && payload.priority_id.is_none()
+        && payload.due_at.is_none()
     {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -116,14 +135,17 @@ pub async fn update_task(
 
     validate_state(&pool, payload.state_id).await?;
     validate_group(&pool, payload.group_id).await?;
+    validate_priority(&pool, payload.priority_id).await?;
 
     match task_repository::update_task(
         &pool,
-        id,
-        payload.name.as_deref(),
-        payload.state_id,
+        entity_id,
         payload.group_id,
+        payload.name.as_deref(),
         payload.description.as_deref(),
+        payload.state_id,
+        payload.priority_id,
+        payload.due_at,
     )
     .await
     {
@@ -138,9 +160,9 @@ pub async fn update_task(
 
 pub async fn delete_task(
     State(pool): State<PgPool>,
-    Path(id): Path<i64>,
+    Path(entity_id): Path<i32>,
 ) -> Result<StatusCode, StatusCode> {
-    match task_repository::delete_task(&pool, id).await {
+    match task_repository::delete_task(&pool, entity_id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(error) => {
