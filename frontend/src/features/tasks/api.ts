@@ -42,10 +42,11 @@ export function useTasks() {
   return useQuery({ queryKey: taskKeys.list, queryFn: getTasks })
 }
 
-export function useTask(entityId: number) {
+export function useTask(entityId: number, enabled = true) {
   return useQuery({
     queryKey: taskKeys.detail(entityId),
     queryFn: () => getTask(entityId),
+    enabled,
   })
 }
 

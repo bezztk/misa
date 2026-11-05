@@ -17,7 +17,7 @@ import {
   useCalendarEntries, useCreateCalendarEntry, useDeleteCalendarEntry,
   useUpdateCalendarEntry,
 } from './api'
-import { getTask, taskKeys } from '../tasks/api'
+import { getTask, taskKeys, useTask } from '../tasks/api'
 import type { CalendarEntry, CreateCalendarEntry } from './types'
 import type { Task } from '../tasks/types'
 import '@fullcalendar/react/skeleton.css'
@@ -57,18 +57,20 @@ function toLocalDateTime(value: string | Date | null) {
 
 export function CalendarEntryModal({
   state,
-  linkedTask,
   onClose,
   onDelete,
 }: {
   state: CalendarFormState
-  linkedTask?: Task
   onClose: () => void
   onDelete?: (entry: CalendarEntry) => void
 }) {
   const navigate = useNavigate()
   const entry = state.mode === 'edit' ? state.entry : null
   const selectedTime = state.mode === 'create' ? state.selectedTime : null
+  const sourceEntityId =
+    entry?.source_entity_id ??
+    (state.mode === 'create' ? state.sourceEntityId : null)
+  const linkedTask = useTask(sourceEntityId ?? 0, sourceEntityId !== null)
   const createCalendarEntry = useCreateCalendarEntry()
   const updateCalendarEntry = useUpdateCalendarEntry()
   const [defaultTime] = useState(() => {
@@ -92,6 +94,7 @@ export function CalendarEntryModal({
     },
     validate: {
       title: (value) => {
+        if (sourceEntityId !== null) return null
         const length = [...value.trim()].length
         if (length === 0) return 'Titel ist erforderlich.'
         if (length > 150) return 'Der Titel darf maximal 150 Zeichen haben.'
@@ -114,10 +117,8 @@ export function CalendarEntryModal({
 
   const submit = (values: CalendarEntryFormValues) => {
     const calendarEntry: CreateCalendarEntry = {
-      source_entity_id:
-        entry?.source_entity_id ??
-        (state.mode === 'create' ? state.sourceEntityId : null),
-      title: values.title.trim(),
+      source_entity_id: sourceEntityId,
+      title: linkedTask.data?.name ?? values.title.trim(),
       note: values.note.trim() || null,
       is_reminder: values.is_reminder,
       start_at: new Date(values.start_at).toISOString(),
@@ -146,27 +147,52 @@ export function CalendarEntryModal({
     >
       <Box component="form" onSubmit={form.onSubmit(submit)}>
         <Stack>
-          {linkedTask !== undefined && (
-            <Group justify="space-between">
-              <Text size="sm">
-                Aufgabe: <Text component="span" fw={600}>{linkedTask.name}</Text>
-              </Text>
-              <Button
-                size="xs"
-                type="button"
-                variant="light"
-                onClick={() =>
-                  void navigate({
-                    to: '/tasks',
-                    search: { taskId: linkedTask.entity_id },
-                  })
-                }
-              >
-                Aufgabe öffnen
-              </Button>
-            </Group>
+          {sourceEntityId !== null ? (
+            <>
+              <Group align="flex-end" wrap="nowrap">
+                <TextInput
+                  label="Titel"
+                  readOnly
+                  style={{ flex: 1 }}
+                  value={
+                    linkedTask.data?.name ??
+                    (state.mode === 'create' ? state.title : entry?.title ?? '')
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="light"
+                  onClick={() =>
+                    void navigate({
+                      to: '/tasks',
+                      search: { taskId: sourceEntityId },
+                    })
+                  }
+                >
+                  Aufgabe öffnen
+                </Button>
+              </Group>
+              <Textarea
+                autosize
+                label="Aufgabenbeschreibung"
+                minRows={2}
+                readOnly
+                value={linkedTask.data?.description ?? ''}
+              />
+              {linkedTask.isError && (
+                <Alert color="red" title="Fehler">
+                  Die verknüpfte Aufgabe konnte nicht geladen werden.
+                </Alert>
+              )}
+            </>
+          ) : (
+            <TextInput
+              data-autofocus
+              required
+              label="Titel"
+              {...form.getInputProps('title')}
+            />
           )}
-          <TextInput data-autofocus required label="Titel" {...form.getInputProps('title')} />
           <Textarea autosize label="Notiz" minRows={3} {...form.getInputProps('note')} />
           <TextInput
             required label="Startzeit" type="datetime-local"
@@ -200,7 +226,13 @@ export function CalendarEntryModal({
               <Button disabled={isSaving} type="button" variant="default" onClick={onClose}>
                 Abbrechen
               </Button>
-              <Button loading={isSaving} type="submit">Speichern</Button>
+              <Button
+                disabled={sourceEntityId !== null && linkedTask.data === undefined}
+                loading={isSaving}
+                type="submit"
+              >
+                Speichern
+              </Button>
             </Group>
           </Group>
         </Stack>
@@ -358,12 +390,6 @@ export function CalendarView() {
       {formState !== null && (
         <CalendarEntryModal
           state={formState}
-          linkedTask={
-            formState.mode === 'edit' &&
-            formState.entry.source_entity_id !== null
-              ? tasksById.get(formState.entry.source_entity_id)
-              : undefined
-          }
           onClose={() => setFormState(null)}
           onDelete={(entry) => {
             setFormState(null)
