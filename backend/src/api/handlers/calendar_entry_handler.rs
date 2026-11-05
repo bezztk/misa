@@ -6,6 +6,10 @@ use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
 
+fn valid_title(title: &str) -> bool {
+    !title.trim().is_empty() && title.chars().count() <= 150
+}
+
 pub async fn get_calendar_entry(
     State(pool): State<PgPool>,
     Path(entity_id): Path<i32>,
@@ -41,9 +45,15 @@ pub async fn create_calendar_entry(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateCalendarEntry>,
 ) -> Result<(StatusCode, Json<CreateCalendarEntryResponse>), StatusCode> {
+    if !valid_title(&payload.title) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     match calendar_entry_repository::create_calendar_entry(
         &pool,
         payload.source_entity_id,
+        &payload.title,
+        payload.note.as_deref(),
         payload.is_reminder,
         payload.planned_start_at,
         payload.planned_end_at,
@@ -68,10 +78,16 @@ pub async fn update_calendar_entry(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateCalendarEntry>,
 ) -> Result<StatusCode, StatusCode> {
+    if !valid_title(&payload.title) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     match calendar_entry_repository::update_calendar_entry(
         &pool,
         entity_id,
         payload.source_entity_id,
+        &payload.title,
+        payload.note.as_deref(),
         payload.is_reminder,
         payload.planned_start_at,
         payload.planned_end_at,

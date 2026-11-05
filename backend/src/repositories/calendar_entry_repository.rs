@@ -7,6 +7,8 @@ use sqlx::PgPool;
 pub async fn create_calendar_entry(
     pool: &PgPool,
     source_entity_id: Option<i32>,
+    title: &str,
+    note: Option<&str>,
     is_reminder: bool,
     planned_start_at: DateTime<Utc>,
     planned_end_at: Option<DateTime<Utc>>,
@@ -18,12 +20,14 @@ pub async fn create_calendar_entry(
 
     sqlx::query(
         "INSERT INTO calendar_entries
-            (entity_id, source_entity_id, is_reminder, planned_start_at, planned_end_at,
-             actual_start_at, actual_end_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            (entity_id, source_entity_id, title, note, is_reminder, planned_start_at,
+             planned_end_at, actual_start_at, actual_end_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(entity_id)
     .bind(source_entity_id)
+    .bind(title)
+    .bind(note)
     .bind(is_reminder)
     .bind(planned_start_at)
     .bind(planned_end_at)
@@ -47,6 +51,8 @@ pub async fn get_calendar_entry(
             e.updated_at,
             e.version,
             c.source_entity_id,
+            c.title,
+            c.note,
             c.is_reminder,
             c.planned_start_at,
             c.planned_end_at,
@@ -69,6 +75,8 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
             e.updated_at,
             e.version,
             c.source_entity_id,
+            c.title,
+            c.note,
             c.is_reminder,
             c.planned_start_at,
             c.planned_end_at,
@@ -86,6 +94,8 @@ pub async fn update_calendar_entry(
     pool: &PgPool,
     entity_id: i32,
     source_entity_id: Option<i32>,
+    title: &str,
+    note: Option<&str>,
     is_reminder: bool,
     planned_start_at: DateTime<Utc>,
     planned_end_at: Option<DateTime<Utc>>,
@@ -96,14 +106,18 @@ pub async fn update_calendar_entry(
     let result = sqlx::query(
         "UPDATE calendar_entries
          SET source_entity_id = $1,
-             is_reminder = $2,
-             planned_start_at = $3,
-             planned_end_at = $4,
-             actual_start_at = $5,
-             actual_end_at = $6
-         WHERE entity_id = $7",
+             title = $2,
+             note = $3,
+             is_reminder = $4,
+             planned_start_at = $5,
+             planned_end_at = $6,
+             actual_start_at = $7,
+             actual_end_at = $8
+         WHERE entity_id = $9",
     )
     .bind(source_entity_id)
+    .bind(title)
+    .bind(note)
     .bind(is_reminder)
     .bind(planned_start_at)
     .bind(planned_end_at)
