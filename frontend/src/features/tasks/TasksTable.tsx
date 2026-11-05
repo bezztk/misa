@@ -31,6 +31,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   useCreateTask,
   useDeleteTask,
@@ -312,11 +313,28 @@ function DeleteTaskModal({ task, onClose }: { task: Task; onClose: () => void })
 }
 
 export function TasksTable() {
+  const navigate = useNavigate()
+  const { taskId } = useSearch({ from: '/tasks' })
   const tasks = useTasks()
   const metadata = useTaskMetadata()
   const [formState, setFormState] = useState<TaskFormState | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   const [taskToSchedule, setTaskToSchedule] = useState<Task | null>(null)
+  const routedTask = tasks.data?.find(
+    (candidate) => candidate.entity_id === taskId,
+  )
+  const activeFormState =
+    formState ??
+    (routedTask === undefined
+      ? null
+      : ({ mode: 'edit', task: routedTask } as const))
+
+  const closeTaskForm = () => {
+    setFormState(null)
+    if (taskId !== undefined) {
+      void navigate({ to: '/tasks', search: {}, replace: true })
+    }
+  }
   const statusesById = useMemo(
     () => new Map(metadata.data?.states.map((state) => [state.id, state])),
     [metadata.data?.states],
@@ -551,10 +569,10 @@ export function TasksTable() {
         </>
       )}
 
-      {formState !== null && (
+      {activeFormState !== null && (
         <TaskFormModal
-          state={formState}
-          onClose={() => setFormState(null)}
+          state={activeFormState}
+          onClose={closeTaskForm}
           onDelete={(task) => {
             setFormState(null)
             setTaskToDelete(task)
@@ -564,7 +582,12 @@ export function TasksTable() {
       {taskToDelete !== null && (
         <DeleteTaskModal
           task={taskToDelete}
-          onClose={() => setTaskToDelete(null)}
+          onClose={() => {
+            setTaskToDelete(null)
+            if (taskId !== undefined) {
+              void navigate({ to: '/tasks', search: {}, replace: true })
+            }
+          }}
         />
       )}
       {taskToSchedule !== null && (

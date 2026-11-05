@@ -8,7 +8,7 @@ import type {
   UpdateTask,
 } from './types'
 
-const taskKeys = {
+export const taskKeys = {
   list: ['tasks', 'list'] as const,
   detail: (entityId: number) => ['tasks', 'detail', entityId] as const,
   metadata: ['tasks', 'metadata'] as const,

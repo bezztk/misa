@@ -3,4 +3,9 @@ import { TasksTable } from '../features/tasks/TasksTable'
 
 export const Route = createFileRoute('/tasks')({
   component: TasksTable,
+  validateSearch: (search: Record<string, unknown>): { taskId?: number } => {
+    const taskId = Number(search.taskId)
+
+    return Number.isInteger(taskId) && taskId > 0 ? { taskId } : {}
+  },
 })

@@ -4,6 +4,9 @@ import {
   Stack, Text, Textarea, TextInput, Title,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
+import { IconListCheck } from '@tabler/icons-react'
+import { useQueries } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import FullCalendar, { type DateSelectInfo, type EventClickInfo } from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/react/daygrid'
 import interactionPlugin from '@fullcalendar/react/interaction'
@@ -14,7 +17,9 @@ import {
   useCalendarEntries, useCreateCalendarEntry, useDeleteCalendarEntry,
   useUpdateCalendarEntry,
 } from './api'
+import { getTask, taskKeys } from '../tasks/api'
 import type { CalendarEntry, CreateCalendarEntry } from './types'
+import type { Task } from '../tasks/types'
 import '@fullcalendar/react/skeleton.css'
 import '@fullcalendar/react/themes/classic/theme.css'
 import '@fullcalendar/react/themes/classic/palette.css'
@@ -52,13 +57,16 @@ function toLocalDateTime(value: string | Date | null) {
 
 export function CalendarEntryModal({
   state,
+  linkedTask,
   onClose,
   onDelete,
 }: {
   state: CalendarFormState
+  linkedTask?: Task
   onClose: () => void
   onDelete?: (entry: CalendarEntry) => void
 }) {
+  const navigate = useNavigate()
   const entry = state.mode === 'edit' ? state.entry : null
   const selectedTime = state.mode === 'create' ? state.selectedTime : null
   const createCalendarEntry = useCreateCalendarEntry()
@@ -133,6 +141,26 @@ export function CalendarEntryModal({
     >
       <Box component="form" onSubmit={form.onSubmit(submit)}>
         <Stack>
+          {linkedTask !== undefined && (
+            <Group justify="space-between">
+              <Text size="sm">
+                Aufgabe: <Text component="span" fw={600}>{linkedTask.name}</Text>
+              </Text>
+              <Button
+                size="xs"
+                type="button"
+                variant="light"
+                onClick={() =>
+                  void navigate({
+                    to: '/tasks',
+                    search: { taskId: linkedTask.entity_id },
+                  })
+                }
+              >
+                Aufgabe öffnen
+              </Button>
+            </Group>
+          )}
           <TextInput data-autofocus required label="Titel" {...form.getInputProps('title')} />
           <Textarea autosize label="Notiz" minRows={3} {...form.getInputProps('note')} />
           <TextInput
@@ -217,18 +245,41 @@ function DeleteCalendarEntryModal({
 
 export function CalendarView() {
   const calendarEntries = useCalendarEntries()
-  const [formState, setFormState] = useState<CalendarFormState | null>(null)
-  const [entryToDelete, setEntryToDelete] = useState<CalendarEntry | null>(null)
-  const events = useMemo(
+  const taskIds = useMemo(
     () =>
-      (calendarEntries.data ?? []).map((entry) => ({
-        id: String(entry.entity_id),
-        title: entry.title,
-        start: entry.start_at,
-        end: entry.is_reminder ? undefined : (entry.end_at ?? undefined),
-      })),
+      [...new Set(
+        (calendarEntries.data ?? []).flatMap((entry) =>
+          entry.source_entity_id === null ? [] : [entry.source_entity_id],
+        ),
+      )],
     [calendarEntries.data],
   )
+  const taskQueries = useQueries({
+    queries: taskIds.map((entityId) => ({
+      queryKey: taskKeys.detail(entityId),
+      queryFn: () => getTask(entityId),
+    })),
+  })
+  const tasksById = new Map<number, Task>()
+  taskQueries.forEach((query, index) => {
+    if (query.data !== undefined) tasksById.set(taskIds[index], query.data)
+  })
+  const [formState, setFormState] = useState<CalendarFormState | null>(null)
+  const [entryToDelete, setEntryToDelete] = useState<CalendarEntry | null>(null)
+  const events = (calendarEntries.data ?? []).map((entry) => {
+    const task =
+      entry.source_entity_id === null
+        ? undefined
+        : tasksById.get(entry.source_entity_id)
+
+    return {
+      id: String(entry.entity_id),
+      title: task?.name ?? entry.title,
+      start: entry.start_at,
+      end: entry.is_reminder ? undefined : (entry.end_at ?? undefined),
+      extendedProps: { taskId: task?.entity_id },
+    }
+  })
 
   const openCreateForm = (selection: DateSelectInfo) => {
     const start = new Date(selection.start)
@@ -271,6 +322,15 @@ export function CalendarView() {
           <FullCalendar
             allDaySlot={false}
             eventClick={openEditForm}
+            eventContent={(event) => (
+              <Group gap={4} wrap="nowrap">
+                {event.event.extendedProps.taskId !== undefined && (
+                  <IconListCheck size={12} />
+                )}
+                {event.timeText && <Text size="xs">{event.timeText}</Text>}
+                <Text size="xs" truncate>{event.event.title}</Text>
+              </Group>
+            )}
             events={events}
             firstDay={1}
             headerToolbar={{
@@ -293,6 +353,12 @@ export function CalendarView() {
       {formState !== null && (
         <CalendarEntryModal
           state={formState}
+          linkedTask={
+            formState.mode === 'edit' &&
+            formState.entry.source_entity_id !== null
+              ? tasksById.get(formState.entry.source_entity_id)
+              : undefined
+          }
           onClose={() => setFormState(null)}
           onDelete={(entry) => {
             setFormState(null)
