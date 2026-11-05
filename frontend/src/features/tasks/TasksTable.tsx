@@ -109,9 +109,9 @@ function TaskFormModal({
     initialValues: {
       name: task?.name ?? '',
       description: task?.description ?? '',
-      group_id: optionalString(task?.group_id),
+      group_id: task === null ? '1' : optionalString(task.group_id),
       state_id: task === null ? null : String(task.state_id),
-      priority_id: optionalString(task?.priority_id),
+      priority_id: task === null ? '2' : optionalString(task.priority_id),
       due_at: toLocalDateTime(task?.due_at),
     },
     validate: {

@@ -71,17 +71,22 @@ export function CalendarEntryModal({
   const selectedTime = state.mode === 'create' ? state.selectedTime : null
   const createCalendarEntry = useCreateCalendarEntry()
   const updateCalendarEntry = useUpdateCalendarEntry()
+  const [defaultTime] = useState(() => {
+    const start = new Date()
+    const end = new Date(start.getTime() + 30 * 60 * 1000)
+    return { start: toLocalDateTime(start), end: toLocalDateTime(end) }
+  })
   const form = useForm<CalendarEntryFormValues>({
     initialValues: {
       title: entry?.title ?? (state.mode === 'create' ? state.title : ''),
       note: entry?.note ?? '',
       start_at:
         entry === null
-          ? selectedTime?.start ?? ''
+          ? selectedTime?.start || defaultTime.start
           : toLocalDateTime(entry.start_at),
       end_at:
         entry === null
-          ? selectedTime?.end ?? ''
+          ? selectedTime?.end || defaultTime.end
           : toLocalDateTime(entry.end_at),
       is_reminder: entry?.is_reminder ?? false,
     },
@@ -287,7 +292,7 @@ export function CalendarView() {
 
     if (selection.allDay) {
       start.setHours(9, 0, 0, 0)
-      end = new Date(start.getTime() + 60 * 60 * 1000)
+      end = new Date(start.getTime() + 30 * 60 * 1000)
     }
 
     setFormState({
