@@ -1,6 +1,6 @@
 use crate::api::handlers::{
-    development_area_handler, development_category_handler, goal_handler, item_handler,
-    skill_handler, task_handler,
+    calendar_entry_handler, development_area_handler, development_category_handler, goal_handler,
+    item_handler, skill_handler, task_handler,
 };
 use axum::{Router, routing::{get, patch}};
 use sqlx::PgPool;
@@ -67,7 +67,18 @@ pub fn create_router(pool: PgPool) -> Router {
             "/tasks",
             get(task_handler::get_tasks).post(task_handler::create_task),
         )
-        .route("/tasks/metadata", get(task_handler::get_task_metadata));
+        .route("/tasks/metadata", get(task_handler::get_task_metadata))
+        .route(
+            "/calendar/{entity_id}",
+            get(calendar_entry_handler::get_calendar_entry)
+                .patch(calendar_entry_handler::update_calendar_entry)
+                .delete(calendar_entry_handler::delete_calendar_entry),
+        )
+        .route(
+            "/calendar",
+            get(calendar_entry_handler::get_calendar_entries)
+                .post(calendar_entry_handler::create_calendar_entry),
+        );
 
     Router::new()
         .route("/health", get(health))

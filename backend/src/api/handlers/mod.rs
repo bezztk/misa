@@ -1,3 +1,4 @@
+pub mod calendar_entry_handler;
 pub mod development_area_handler;
 pub mod development_category_handler;
 pub mod goal_handler;
