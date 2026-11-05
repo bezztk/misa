@@ -2,6 +2,8 @@ use crate::api::router::create_router;
 
 pub mod api;
 mod database;
+#[cfg(debug_assertions)]
+mod dev_seed;
 mod models;
 pub mod repositories;
 

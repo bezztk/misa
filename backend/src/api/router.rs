@@ -27,6 +27,12 @@ pub fn create_router(pool: PgPool) -> Router {
                 .post(calendar_entry_handler::create_calendar_entry),
         );
 
+    #[cfg(debug_assertions)]
+    let api_routes = api_routes.route(
+        "/dev/seed",
+        axum::routing::post(crate::api::handlers::dev_handler::seed),
+    );
+
     Router::new()
         .route("/health", get(health))
         .nest("/api", api_routes)
