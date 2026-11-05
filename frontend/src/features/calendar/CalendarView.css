@@ -1,0 +1,16 @@
+.calendar-view {
+  --fc-border-color: var(--mantine-color-gray-3);
+  --fc-button-bg-color: var(--mantine-color-blue-6);
+  --fc-button-border-color: var(--mantine-color-blue-6);
+  --fc-button-hover-bg-color: var(--mantine-color-blue-7);
+  --fc-button-hover-border-color: var(--mantine-color-blue-7);
+  --fc-button-active-bg-color: var(--mantine-color-blue-8);
+  --fc-button-active-border-color: var(--mantine-color-blue-8);
+  --fc-event-bg-color: var(--mantine-color-blue-6);
+  --fc-event-border-color: var(--mantine-color-blue-6);
+  --fc-today-bg-color: var(--mantine-color-blue-0);
+}
+
+.calendar-view .fc-toolbar-title {
+  font-size: var(--mantine-font-size-lg);
+}

@@ -12,6 +12,7 @@ import {
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
 import {
+  IconCalendar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconListCheck,
@@ -93,6 +94,29 @@ export function AppLayout() {
                     : undefined
                 }
                 to="/tasks"
+                variant="light"
+                w="100%"
+                onClick={() => setMobileOpened(false)}
+              />
+            </Tooltip>
+            <Tooltip disabled={!compact} label="Kalender" position="right">
+              <NavLink
+                active={pathname.startsWith('/calendar')}
+                aria-label="Kalender"
+                color="gray"
+                component={Link}
+                label={compact ? undefined : 'Kalender'}
+                leftSection={<IconCalendar size={20} stroke={1.5} />}
+                styles={
+                  compact
+                    ? {
+                        body: { display: 'none' },
+                        root: { paddingInline: 0 },
+                        section: { marginInline: 'auto' },
+                      }
+                    : undefined
+                }
+                to="/calendar"
                 variant="light"
                 w="100%"
                 onClick={() => setMobileOpened(false)}
