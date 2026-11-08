@@ -73,8 +73,10 @@ pub async fn get_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::Error
     .await
 }
 
-pub async fn get_due_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::Error> {
-    sqlx::query_as::<_, Flashcard>(
+pub async fn get_due_flashcards(
+    pool: &PgPool,
+) -> Result<(Vec<Flashcard>, Vec<Flashcard>), sqlx::Error> {
+    let due = sqlx::query_as::<_, Flashcard>(
         "SELECT
             id,
             document_id,
@@ -92,11 +94,45 @@ pub async fn get_due_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::E
             is_enabled
          FROM flashcards
          WHERE is_enabled
-           AND (last_reviewed_at IS NULL OR due_at <= NOW())
-         ORDER BY due_at NULLS FIRST, id",
+           AND (due_at IS NULL OR due_at <= NOW())
+         ORDER BY
+            CASE
+                WHEN state IN (1, 3) THEN 1
+                WHEN state = 2 THEN 2
+                ELSE 3
+            END,
+            due_at NULLS LAST,
+            id",
     )
     .fetch_all(pool)
-    .await
+    .await?;
+
+    let upcoming = sqlx::query_as::<_, Flashcard>(
+        "SELECT
+            id,
+            document_id,
+            front,
+            back,
+            hint,
+            explanation,
+            state,
+            learning_step,
+            retention_levels_id,
+            stability,
+            difficulty,
+            last_reviewed_at,
+            due_at,
+            is_enabled
+         FROM flashcards
+         WHERE is_enabled
+           AND due_at > NOW()
+         ORDER BY due_at, id
+         LIMIT 10",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok((due, upcoming))
 }
 
 pub async fn get_flashcard_review_context(

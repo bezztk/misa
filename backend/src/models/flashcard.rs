@@ -19,6 +19,12 @@ pub struct Flashcard {
     pub is_enabled: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub struct FlashcardQueue {
+    pub due: Vec<Flashcard>,
+    pub upcoming: Vec<Flashcard>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateFlashcard {
     pub document_id: i32,
