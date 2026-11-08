@@ -104,6 +104,50 @@ const REMINDERS: [&str; 8] = [
     "Geburtstag nicht vergessen",
 ];
 
+type DevelopmentAreaSeed = (
+    &'static str,
+    Option<&'static str>,
+    Option<&'static str>,
+    Option<&'static str>,
+    i32,
+    usize,
+);
+
+const DEVELOPMENT_AREAS: [DevelopmentAreaSeed; 4] = [
+    (
+        "Technologie & Entwicklung",
+        Some("#E7F5FF"),
+        None,
+        Some("💻"),
+        1,
+        0,
+    ),
+    (
+        "Mathematik & Logik",
+        Some("#F3F0FF"),
+        None,
+        Some("∑"),
+        2,
+        10,
+    ),
+    (
+        "Persönliche Entwicklung",
+        Some("#EBFBEE"),
+        None,
+        Some("🌱"),
+        3,
+        20,
+    ),
+    (
+        "Finanzen & Vorsorge",
+        Some("#FFF4E6"),
+        None,
+        Some("€"),
+        4,
+        30,
+    ),
+];
+
 const TOPICS: [(&str, Option<usize>, &str); 40] = [
     (
         "Softwareentwicklung",
@@ -623,6 +667,9 @@ pub async fn seed(pool: &PgPool) -> Result<(), sqlx::Error> {
         .execute(&mut *tx)
         .await?;
     sqlx::query("DELETE FROM topics").execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM development_areas")
+        .execute(&mut *tx)
+        .await?;
 
     sqlx::query("DELETE FROM entities WHERE type IN ($1, $2, $3, $4)")
         .bind(EntityType::Task as i32)
@@ -634,25 +681,65 @@ pub async fn seed(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     let task_ids = seed_tasks(&mut tx).await?;
     seed_calendar_entries(&mut tx, &task_ids).await?;
-    seed_topics(&mut tx).await?;
+    let development_area_ids = seed_development_areas(&mut tx).await?;
+    seed_topics(&mut tx, &development_area_ids).await?;
 
     tx.commit().await
 }
 
-async fn seed_topics(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
+async fn seed_development_areas(
+    tx: &mut Transaction<'_, Postgres>,
+) -> Result<Vec<(usize, i32)>, sqlx::Error> {
+    let mut area_ids = Vec::with_capacity(DEVELOPMENT_AREAS.len());
+
+    for (name, background_color, banner_image_path, icon, sort_order, root_topic_index) in
+        DEVELOPMENT_AREAS
+    {
+        let id = sqlx::query_scalar(
+            "INSERT INTO development_areas
+                (name, background_color, banner_image_path, icon, sort_order)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id",
+        )
+        .bind(name)
+        .bind(background_color)
+        .bind(banner_image_path)
+        .bind(icon)
+        .bind(sort_order)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        area_ids.push((root_topic_index, id));
+    }
+
+    Ok(area_ids)
+}
+
+async fn seed_topics(
+    tx: &mut Transaction<'_, Postgres>,
+    development_area_ids: &[(usize, i32)],
+) -> Result<(), sqlx::Error> {
     let mut topic_ids = Vec::with_capacity(TOPICS.len());
 
     for (index, (name, parent_index, content)) in TOPICS.iter().enumerate() {
         let topic_entity_id = entity_repository::create_entity(tx, EntityType::Topic).await?;
         let parent_topic_entity_id = parent_index.map(|index| topic_ids[index]);
+        let development_area_id =
+            development_area_ids
+                .iter()
+                .find_map(|(root_topic_index, area_id)| {
+                    (*root_topic_index == index).then_some(*area_id)
+                });
 
         sqlx::query(
             "INSERT INTO topics
-                (entity_id, parent_topic_entity_id, name, understanding_level_id)
-             VALUES ($1, $2, $3, $4)",
+                (entity_id, parent_topic_entity_id, development_area_id, name,
+                 understanding_level_id)
+             VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(topic_entity_id)
         .bind(parent_topic_entity_id)
+        .bind(development_area_id)
         .bind(name)
         .bind((index % 5 + 1) as i32)
         .execute(&mut **tx)
