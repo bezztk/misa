@@ -1,9 +1,6 @@
 pub mod calendar_entry;
 pub mod document;
-pub mod document_metadata;
 pub mod entity;
 pub mod metadata;
 pub mod task;
-pub mod task_metadata;
 pub mod topic;
-pub mod topic_metadata;

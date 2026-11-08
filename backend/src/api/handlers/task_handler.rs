@@ -7,39 +7,6 @@ use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
 
-async fn validate_state(pool: &PgPool, state_id: i32) -> Result<(), StatusCode> {
-    match task_repository::task_state_exists(pool, state_id).await {
-        Ok(true) => Ok(()),
-        Ok(false) => Err(StatusCode::BAD_REQUEST),
-        Err(error) => {
-            eprintln!("Failed to validate task state: {error}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-async fn validate_group(pool: &PgPool, group_id: i32) -> Result<(), StatusCode> {
-    match task_repository::task_group_exists(pool, group_id).await {
-        Ok(true) => Ok(()),
-        Ok(false) => Err(StatusCode::BAD_REQUEST),
-        Err(error) => {
-            eprintln!("Failed to validate task group: {error}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-async fn validate_priority(pool: &PgPool, priority_id: i32) -> Result<(), StatusCode> {
-    match task_repository::task_priority_exists(pool, priority_id).await {
-        Ok(true) => Ok(()),
-        Ok(false) => Err(StatusCode::BAD_REQUEST),
-        Err(error) => {
-            eprintln!("Failed to validate task priority: {error}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
 pub async fn get_task(
     State(pool): State<PgPool>,
     Path(entity_id): Path<i32>,
@@ -73,9 +40,6 @@ pub async fn create_task(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    validate_group(&pool, payload.group_id).await?;
-    validate_priority(&pool, payload.priority_id).await?;
-
     match task_repository::create_task(
         &pool,
         payload.group_id,
@@ -102,10 +66,6 @@ pub async fn update_task(
     if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
-
-    validate_state(&pool, payload.state_id).await?;
-    validate_group(&pool, payload.group_id).await?;
-    validate_priority(&pool, payload.priority_id).await?;
 
     match task_repository::update_task(
         &pool,

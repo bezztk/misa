@@ -1,6 +1,6 @@
 use crate::models::entity::EntityType;
+use crate::models::metadata::TaskState;
 use crate::models::task::Task;
-use crate::models::task_metadata::TaskState;
 use crate::repositories::entity_repository;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -81,27 +81,6 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<Task>, sqlx::Error> {
     )
     .fetch_all(pool)
     .await
-}
-
-pub async fn task_state_exists(pool: &PgPool, state_id: i32) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM task_states WHERE id = $1)")
-        .bind(state_id)
-        .fetch_one(pool)
-        .await
-}
-
-pub async fn task_group_exists(pool: &PgPool, group_id: i32) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM task_groups WHERE id = $1)")
-        .bind(group_id)
-        .fetch_one(pool)
-        .await
-}
-
-pub async fn task_priority_exists(pool: &PgPool, priority_id: i32) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM task_priorities WHERE id = $1)")
-        .bind(priority_id)
-        .fetch_one(pool)
-        .await
 }
 
 pub async fn update_task(

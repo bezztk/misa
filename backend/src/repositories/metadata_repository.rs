@@ -1,10 +1,8 @@
-use crate::models::document_metadata::{
+use crate::models::metadata::{
     DocumentCompletenessLevel, DocumentFlashcardStatus, DocumentVerificationLevel,
-    DocumentVerificationStatus,
+    DocumentVerificationStatus, Metadata, TaskGroup, TaskPriority, TaskStateRow,
+    TopicUnderstandingLevel,
 };
-use crate::models::metadata::Metadata;
-use crate::models::task_metadata::{TaskGroup, TaskPriority, TaskStateRow};
-use crate::models::topic_metadata::TopicUnderstandingLevel;
 use sqlx::PgPool;
 
 pub async fn get_task_groups(pool: &PgPool) -> Result<Vec<TaskGroup>, sqlx::Error> {
