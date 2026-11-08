@@ -303,9 +303,319 @@ const TOPICS: [(&str, Option<usize>, &str); 40] = [
     ),
 ];
 
+type FlashcardSeed = (
+    usize,
+    &'static str,
+    &'static str,
+    Option<&'static str>,
+    Option<&'static str>,
+    i32,
+);
+
+const FLASHCARDS: [FlashcardSeed; 36] = [
+    (
+        1,
+        "Was ist die Hauptaufgabe eines Frontends?",
+        "Daten und Funktionen für Benutzer verständlich und interaktiv darzustellen.",
+        None,
+        None,
+        3,
+    ),
+    (
+        2,
+        "Warum ist semantisches HTML wichtig?",
+        "Es beschreibt die Bedeutung von Inhalten und verbessert Barrierefreiheit und SEO.",
+        Some("Denke an Elemente wie <nav>, <main> und <article>."),
+        None,
+        4,
+    ),
+    (
+        3,
+        "Welchen Vorteil bietet TypeScript in React-Komponenten?",
+        "Props und Zustände werden statisch geprüft, wodurch viele Fehler früh auffallen.",
+        None,
+        Some("Die Typprüfung findet bereits beim Entwickeln statt und nicht erst zur Laufzeit."),
+        3,
+    ),
+    (
+        4,
+        "Welche drei Kernaufgaben übernimmt ein Backend?",
+        "Geschäftslogik ausführen, Daten persistieren und Schnittstellen bereitstellen.",
+        None,
+        None,
+        4,
+    ),
+    (
+        5,
+        "Was verhindert Rusts Ownership-System?",
+        "Viele Speicherfehler und Datenrennen bereits zur Compile-Zeit.",
+        Some("Es regelt Besitz, Ausleihen und Lebenszeiten."),
+        None,
+        3,
+    ),
+    (
+        6,
+        "Welche HTTP-Methode wird typischerweise für eine partielle Aktualisierung verwendet?",
+        "PATCH.",
+        None,
+        Some(
+            "PUT ersetzt üblicherweise eine vollständige Ressource, PATCH nur ausgewählte Felder.",
+        ),
+        3,
+    ),
+    (
+        7,
+        "Was ist das Ziel einer klaren Softwarearchitektur?",
+        "Verantwortlichkeiten und Abhängigkeiten so zu ordnen, dass das System wartbar bleibt.",
+        None,
+        None,
+        4,
+    ),
+    (
+        8,
+        "Was unterscheidet einen Unit-Test von einem Integrationstest?",
+        "Ein Unit-Test prüft eine isolierte Einheit, ein Integrationstest das Zusammenspiel mehrerer Teile.",
+        None,
+        None,
+        3,
+    ),
+    (
+        9,
+        "Warum sollten Abhängigkeiten zwischen Modulen möglichst gerichtet sein?",
+        "Damit Zyklen vermieden werden und Änderungen besser lokal bleiben.",
+        Some("Denke an eine klare Schichtenarchitektur."),
+        None,
+        3,
+    ),
+    (
+        11,
+        "Was beschreibt der Grenzwert einer Funktion?",
+        "Welchem Wert sich die Funktion nähert, wenn sich die Eingabe einer Stelle nähert.",
+        None,
+        None,
+        4,
+    ),
+    (
+        12,
+        "Welche geometrische Bedeutung hat die erste Ableitung?",
+        "Sie gibt die Steigung der Tangente an den Funktionsgraphen an.",
+        Some("Gesucht ist die lokale Änderungsrate."),
+        None,
+        4,
+    ),
+    (
+        13,
+        "Was ist eine Stammfunktion von f?",
+        "Eine Funktion F, deren Ableitung f ist.",
+        None,
+        None,
+        4,
+    ),
+    (
+        14,
+        "Womit beschäftigt sich die lineare Algebra?",
+        "Mit Vektorräumen, Matrizen, linearen Gleichungen und linearen Abbildungen.",
+        None,
+        None,
+        3,
+    ),
+    (
+        15,
+        "Wann können zwei Matrizen multipliziert werden?",
+        "Wenn die Spaltenzahl der ersten Matrix der Zeilenzahl der zweiten entspricht.",
+        None,
+        Some("Bei einer m×n- und einer n×p-Matrix entsteht eine m×p-Matrix."),
+        3,
+    ),
+    (
+        16,
+        "Wann hat ein lineares Gleichungssystem genau eine Lösung?",
+        "Wenn sein Rang der Anzahl der Unbekannten entspricht und das System konsistent ist.",
+        None,
+        None,
+        3,
+    ),
+    (
+        17,
+        "Was untersucht die diskrete Mathematik?",
+        "Endliche oder abzählbare Strukturen wie Graphen, Mengen und kombinatorische Objekte.",
+        None,
+        None,
+        3,
+    ),
+    (
+        18,
+        "Was ist die Schnittmenge zweier Mengen?",
+        "Die Menge aller Elemente, die in beiden Mengen enthalten sind.",
+        None,
+        None,
+        4,
+    ),
+    (
+        19,
+        "Was kennzeichnet einen Baum in der Graphentheorie?",
+        "Er ist zusammenhängend und enthält keinen Zyklus.",
+        Some("Zwischen je zwei Knoten gibt es genau einen einfachen Weg."),
+        None,
+        4,
+    ),
+    (
+        21,
+        "Warum sollte eine Planung Pufferzeiten enthalten?",
+        "Damit Verzögerungen und unerwartete Aufgaben den gesamten Plan nicht sofort gefährden.",
+        None,
+        None,
+        3,
+    ),
+    (
+        22,
+        "Was macht ein Ziel handlungsorientiert?",
+        "Ein klarer nächster Schritt, der konkret und ausführbar formuliert ist.",
+        Some("Aus einem gewünschten Ergebnis wird eine beobachtbare Handlung."),
+        None,
+        4,
+    ),
+    (
+        23,
+        "Welche Elemente gehören in eine einfache Wochenplanung?",
+        "Feste Termine, priorisierte Aufgaben, realistische Zeitblöcke und Puffer.",
+        None,
+        None,
+        3,
+    ),
+    (
+        24,
+        "Was bedeutet Fokus beim Arbeiten?",
+        "Die Aufmerksamkeit bewusst auf eine relevante Aufgabe zu richten.",
+        None,
+        None,
+        4,
+    ),
+    (
+        25,
+        "Was ist Deep Work?",
+        "Längere, ungestörte Konzentration auf eine anspruchsvolle Aufgabe.",
+        None,
+        Some("Ziel ist hochwertige geistige Arbeit ohne häufige Kontextwechsel."),
+        3,
+    ),
+    (
+        26,
+        "Wie lassen sich digitale Ablenkungen wirksam reduzieren?",
+        "Benachrichtigungen abschalten und störende Anwendungen während Fokuszeiten schließen.",
+        None,
+        None,
+        3,
+    ),
+    (
+        27,
+        "Wozu dient regelmäßige Reflexion?",
+        "Erfahrungen auszuwerten und daraus konkrete Verbesserungen abzuleiten.",
+        None,
+        None,
+        3,
+    ),
+    (
+        28,
+        "Welche drei Bestandteile hat eine Gewohnheitsschleife?",
+        "Auslöser, Verhalten und Belohnung.",
+        Some("Cue, Routine, Reward."),
+        None,
+        3,
+    ),
+    (
+        29,
+        "Welche Frage sollte ein Wochenreview beantworten?",
+        "Was lief gut, was hinderte mich und was ändere ich in der nächsten Woche?",
+        None,
+        None,
+        3,
+    ),
+    (
+        31,
+        "Was ist der Unterschied zwischen Einnahmen und Vermögen?",
+        "Einnahmen sind laufende Zuflüsse; Vermögen ist der Bestand an Werten abzüglich Schulden.",
+        None,
+        None,
+        4,
+    ),
+    (
+        32,
+        "Welchen Zweck erfüllt ein Budget?",
+        "Es plant Einnahmen und Ausgaben und macht finanzielle Spielräume sichtbar.",
+        None,
+        None,
+        4,
+    ),
+    (
+        33,
+        "Wofür ist ein Notgroschen gedacht?",
+        "Für notwendige, unerwartete Ausgaben ohne neue Schulden.",
+        Some("Zum Beispiel eine dringende Reparatur."),
+        None,
+        4,
+    ),
+    (
+        34,
+        "Warum ist ein langer Anlagehorizont beim Investieren hilfreich?",
+        "Kurzfristige Schwankungen können sich eher ausgleichen und Erträge länger wirken.",
+        None,
+        Some(
+            "Ein langer Zeitraum beseitigt Risiken nicht, kann aber ihre kurzfristige Wirkung mindern.",
+        ),
+        3,
+    ),
+    (
+        35,
+        "Was bildet ein Index-ETF ab?",
+        "Die Wertentwicklung eines festgelegten Marktindex.",
+        None,
+        None,
+        3,
+    ),
+    (
+        36,
+        "Wie reduziert Diversifikation das Anlagerisiko?",
+        "Sie verteilt das Kapital auf verschiedene Anlagen, sodass einzelne Verluste weniger stark wirken.",
+        None,
+        None,
+        4,
+    ),
+    (
+        37,
+        "Was ist das Ziel finanzieller Vorsorge?",
+        "Künftige finanzielle Risiken und Versorgungslücken frühzeitig abzusichern.",
+        None,
+        None,
+        3,
+    ),
+    (
+        38,
+        "Welches Grundprinzip gilt bei Versicherungen?",
+        "Existenzbedrohende Risiken zuerst absichern.",
+        Some("Nicht jeder kleine Schaden muss versichert werden."),
+        None,
+        4,
+    ),
+    (
+        39,
+        "Was bezeichnet eine Versorgungslücke im Ruhestand?",
+        "Die Differenz zwischen benötigtem Einkommen und erwarteten Alterseinkünften.",
+        None,
+        Some("Sie zeigt, welcher Betrag zusätzlich durch private Vorsorge gedeckt werden sollte."),
+        3,
+    ),
+];
+
 pub async fn seed(pool: &PgPool) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    sqlx::query("DELETE FROM flashcard_reviews")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM flashcards")
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM document_revisions")
         .execute(&mut *tx)
         .await?;
@@ -358,6 +668,24 @@ async fn seed_topics(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Err
         .bind(content)
         .execute(&mut **tx)
         .await?;
+
+        for (_, front, back, hint, explanation, retention_level_id) in
+            FLASHCARDS.iter().filter(|card| card.0 == index)
+        {
+            sqlx::query(
+                "INSERT INTO flashcards
+                    (document_id, front, back, hint, explanation, retention_levels_id, is_enabled)
+                 VALUES ($1, $2, $3, $4, $5, $6, TRUE)",
+            )
+            .bind(document_entity_id)
+            .bind(front)
+            .bind(back)
+            .bind(hint)
+            .bind(explanation)
+            .bind(retention_level_id)
+            .execute(&mut **tx)
+            .await?;
+        }
 
         topic_ids.push(topic_entity_id);
     }
