@@ -1,5 +1,5 @@
-use crate::models::flashcard::{CreateFlashcard, UpdateFlashcard};
-use crate::repositories::flashcard_repository;
+use crate::models::flashcard::{CreateFlashcard, CreateFlashcardReview, UpdateFlashcard};
+use crate::repositories::flashcard_repository::{self, ReviewFlashcardError};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -78,6 +78,31 @@ pub async fn delete_flashcard(
         Ok(false) => Err(StatusCode::NOT_FOUND),
         Err(error) => {
             eprintln!("Failed to delete flashcard: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn review_flashcard(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<CreateFlashcardReview>,
+) -> Result<StatusCode, StatusCode> {
+    if !(1..=4).contains(&payload.rating) || payload.duration_ms < 0 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    match flashcard_repository::review_flashcard(&pool, id, payload.rating, payload.duration_ms)
+        .await
+    {
+        Ok(()) => Ok(StatusCode::CREATED),
+        Err(ReviewFlashcardError::NotFound) => Err(StatusCode::NOT_FOUND),
+        Err(ReviewFlashcardError::Database(error)) => {
+            eprintln!("Failed to save flashcard review: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+        Err(ReviewFlashcardError::Calculation(error)) => {
+            eprintln!("Failed to calculate flashcard review: {error}");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

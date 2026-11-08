@@ -1,5 +1,26 @@
-use crate::models::flashcard::Flashcard;
+use crate::models::flashcard::{Flashcard, FlashcardReviewContext};
+use crate::services::flashcard_review_service;
+use chrono::Utc;
 use sqlx::PgPool;
+
+#[derive(Debug)]
+pub enum ReviewFlashcardError {
+    NotFound,
+    Database(sqlx::Error),
+    Calculation(fsrs::FSRSError),
+}
+
+impl From<sqlx::Error> for ReviewFlashcardError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::Database(error)
+    }
+}
+
+impl From<fsrs::FSRSError> for ReviewFlashcardError {
+    fn from(error: fsrs::FSRSError) -> Self {
+        Self::Calculation(error)
+    }
+}
 
 pub async fn create_flashcard(
     pool: &PgPool,
@@ -91,4 +112,72 @@ pub async fn delete_flashcard(pool: &PgPool, id: i32) -> Result<bool, sqlx::Erro
         .await?;
 
     Ok(result.rows_affected() > 0)
+}
+
+pub async fn review_flashcard(
+    pool: &PgPool,
+    id: i32,
+    rating: i16,
+    duration_ms: i32,
+) -> Result<(), ReviewFlashcardError> {
+    let mut tx = pool.begin().await?;
+    let context = sqlx::query_as::<_, FlashcardReviewContext>(
+        "SELECT
+            f.stability,
+            f.difficulty,
+            f.last_reviewed_at,
+            r.desired_retention::REAL AS desired_retention
+         FROM flashcards f
+         JOIN flashcard_retention_levels r ON r.id = f.retention_levels_id
+         WHERE f.id = $1
+         FOR UPDATE OF f",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(ReviewFlashcardError::NotFound)?;
+
+    let schedule = flashcard_review_service::calculate_review_schedule(
+        context.stability,
+        context.difficulty,
+        context.last_reviewed_at,
+        context.desired_retention,
+        rating,
+        Utc::now(),
+    )?;
+
+    sqlx::query(
+        "UPDATE flashcards
+         SET stability = $1,
+             difficulty = $2,
+             last_reviewed_at = $3,
+             due_at = $4
+         WHERE id = $5",
+    )
+    .bind(schedule.stability)
+    .bind(schedule.difficulty)
+    .bind(schedule.reviewed_at)
+    .bind(schedule.due_at)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO flashcard_reviews
+            (flashcard_id, rating, reviewed_at, duration_ms, scheduled_days,
+             stability, difficulty)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(id)
+    .bind(rating)
+    .bind(schedule.reviewed_at)
+    .bind(duration_ms)
+    .bind(schedule.scheduled_days)
+    .bind(schedule.stability)
+    .bind(schedule.difficulty)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(())
 }

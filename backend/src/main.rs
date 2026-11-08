@@ -6,6 +6,7 @@ mod database;
 mod dev_seed;
 mod models;
 pub mod repositories;
+mod services;
 mod validation;
 
 #[tokio::main]

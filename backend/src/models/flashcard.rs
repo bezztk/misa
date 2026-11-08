@@ -38,3 +38,17 @@ pub struct UpdateFlashcard {
     pub retention_levels_id: i32,
     pub is_enabled: bool,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreateFlashcardReview {
+    pub rating: i16,
+    pub duration_ms: i32,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct FlashcardReviewContext {
+    pub stability: Option<f32>,
+    pub difficulty: Option<f32>,
+    pub last_reviewed_at: Option<DateTime<Utc>>,
+    pub desired_retention: f32,
+}
