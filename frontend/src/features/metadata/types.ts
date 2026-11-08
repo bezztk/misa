@@ -4,6 +4,10 @@ export interface MetadataItem {
   display_name: string | null
 }
 
+export interface FlashcardRetentionLevel extends MetadataItem {
+  desired_retention: number
+}
+
 export interface TaskGroup {
   id: number
   name: string
@@ -18,4 +22,5 @@ export interface Metadata {
   document_flashcard_statuses: MetadataItem[]
   document_verification_statuses: MetadataItem[]
   document_verification_levels: MetadataItem[]
+  flashcard_retention_levels: FlashcardRetentionLevel[]
 }

@@ -31,7 +31,40 @@ export interface Document {
   last_verified_at: string | null
 }
 
+export interface Flashcard {
+  id: number
+  document_id: number
+  front: string
+  back: string
+  hint: string | null
+  explanation: string | null
+  state: number
+  retention_levels_id: number
+  stability: number | null
+  difficulty: number | null
+  last_reviewed_at: string | null
+  due_at: string | null
+  is_enabled: boolean
+}
+
+export interface CreateFlashcard {
+  document_id: number
+  front: string
+  back: string
+  hint: string | null
+  explanation: string | null
+  retention_levels_id: number
+  is_enabled: boolean
+}
+
+export type UpdateFlashcard = Omit<CreateFlashcard, 'document_id'>
+
+export interface CreateFlashcardResponse {
+  id: number
+}
+
 export interface TopicGraphEntry {
   topic: Topic
   document: Document | null
+  flashcards: Flashcard[]
 }

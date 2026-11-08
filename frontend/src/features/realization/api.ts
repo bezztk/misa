@@ -3,8 +3,11 @@ import { apiClient } from '../../api/client'
 import type {
   CreateTopic,
   CreateTopicResponse,
+  CreateFlashcard,
+  CreateFlashcardResponse,
   Document,
   TopicGraphEntry,
+  UpdateFlashcard,
 } from './types'
 
 export const topicGraphKey = ['topic', 'graph'] as const
@@ -57,6 +60,46 @@ export function useCreateTopic() {
 
   return useMutation({
     mutationFn: createTopic,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function createFlashcard(flashcard: CreateFlashcard) {
+  return apiClient.post<CreateFlashcardResponse>('/flashcards', flashcard)
+}
+
+export function useCreateFlashcard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: createFlashcard,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function updateFlashcard(id: number, flashcard: UpdateFlashcard) {
+  return apiClient.patch<void>(`/flashcards/${id}`, flashcard)
+}
+
+export function useUpdateFlashcard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, flashcard }: { id: number; flashcard: UpdateFlashcard }) =>
+      updateFlashcard(id, flashcard),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function deleteFlashcard(id: number) {
+  return apiClient.delete(`/flashcards/${id}`)
+}
+
+export function useDeleteFlashcard() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteFlashcard,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
   })
 }

@@ -28,26 +28,47 @@ import {
   Loader,
   Modal,
   Paper,
+  Select,
+  SimpleGrid,
   Stack,
+  Switch,
   Text,
   TextInput,
+  Textarea,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useQueryClient } from '@tanstack/react-query'
-import { IconX } from '@tabler/icons-react'
+import {
+  IconCards,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+  IconX,
+} from '@tabler/icons-react'
 import { Group as PanelGroup, Panel, Separator as PanelSeparator } from 'react-resizable-panels'
+import { useMetadata } from '../metadata/api'
 import {
   topicGraphKey,
   updateDocumentContent,
+  useCreateFlashcard,
   useCreateTopic,
+  useDeleteFlashcard,
   useTopicDocument,
   useTopicGraph,
+  useUpdateFlashcard,
 } from './api'
-import type { Document, Topic } from './types'
+import type {
+  CreateFlashcard,
+  Document,
+  Flashcard,
+  Topic,
+  UpdateFlashcard,
+} from './types'
 import './RealizationView.css'
 
 interface TopicNodeData extends Record<string, unknown> {
   document: Document | null
+  flashcards: Flashcard[]
   label: string
   topic: Topic
 }
@@ -69,6 +90,15 @@ interface ContextMenuEvent {
 
 interface TopicFormValues {
   name: string
+}
+
+interface FlashcardFormValues {
+  back: string
+  explanation: string
+  front: string
+  hint: string
+  is_enabled: boolean
+  retention_levels_id: string | null
 }
 
 type SaveStatus = 'saved' | 'saving' | 'error'
@@ -273,18 +303,285 @@ function CrepeMarkdownEditor({
   return <div ref={rootRef} className="realization-crepe" />
 }
 
+function FlashcardForm({
+  documentId,
+  flashcard,
+  onClose,
+}: {
+  documentId: number
+  flashcard: Flashcard | null
+  onClose: () => void
+}) {
+  const metadata = useMetadata()
+  const createFlashcard = useCreateFlashcard()
+  const updateFlashcard = useUpdateFlashcard()
+  const form = useForm<FlashcardFormValues>({
+    initialValues: {
+      back: flashcard?.back ?? '',
+      explanation: flashcard?.explanation ?? '',
+      front: flashcard?.front ?? '',
+      hint: flashcard?.hint ?? '',
+      is_enabled: flashcard?.is_enabled ?? true,
+      retention_levels_id: String(flashcard?.retention_levels_id ?? 1),
+    },
+    validate: {
+      back: (value) => value.trim() === '' ? 'Rückseite ist erforderlich.' : null,
+      front: (value) => value.trim() === '' ? 'Vorderseite ist erforderlich.' : null,
+      retention_levels_id: (value) =>
+        value === null ? 'Erinnerungsstufe ist erforderlich.' : null,
+    },
+  })
+  const isSaving = createFlashcard.isPending || updateFlashcard.isPending
+
+  const submit = (values: FlashcardFormValues) => {
+    const card: UpdateFlashcard = {
+      back: values.back.trim(),
+      explanation: values.explanation.trim() || null,
+      front: values.front.trim(),
+      hint: values.hint.trim() || null,
+      is_enabled: values.is_enabled,
+      retention_levels_id: Number(values.retention_levels_id),
+    }
+
+    if (flashcard === null) {
+      const newCard: CreateFlashcard = { ...card, document_id: documentId }
+      createFlashcard.mutate(newCard, { onSuccess: onClose })
+      return
+    }
+
+    updateFlashcard.mutate(
+      { flashcard: card, id: flashcard.id },
+      { onSuccess: onClose },
+    )
+  }
+
+  return (
+    <Box component="form" onSubmit={form.onSubmit(submit)}>
+      <Stack gap="sm">
+        <Textarea
+          autosize
+          data-autofocus
+          required
+          label="Vorderseite"
+          minRows={2}
+          {...form.getInputProps('front')}
+        />
+        <Textarea
+          autosize
+          required
+          label="Rückseite"
+          minRows={2}
+          {...form.getInputProps('back')}
+        />
+        <Textarea
+          autosize
+          label="Hinweis"
+          minRows={2}
+          {...form.getInputProps('hint')}
+        />
+        <Textarea
+          autosize
+          label="Erklärung"
+          minRows={2}
+          {...form.getInputProps('explanation')}
+        />
+        <Select
+          required
+          data={(metadata.data?.flashcard_retention_levels ?? []).map((level) => ({
+            label: level.display_name ?? level.name,
+            value: String(level.id),
+          }))}
+          disabled={metadata.isPending || metadata.isError}
+          label="Erinnerungsstufe"
+          {...form.getInputProps('retention_levels_id')}
+        />
+        <Switch
+          label="Aktiviert"
+          {...form.getInputProps('is_enabled', { type: 'checkbox' })}
+        />
+        {metadata.isError && (
+          <Alert color="red" title="Fehler">
+            Die Erinnerungsstufen konnten nicht geladen werden.
+          </Alert>
+        )}
+        {(createFlashcard.isError || updateFlashcard.isError) && (
+          <Alert color="red" title="Fehler">
+            Die Lernkarte konnte nicht gespeichert werden.
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button
+            disabled={isSaving}
+            type="button"
+            variant="default"
+            onClick={onClose}
+          >
+            Abbrechen
+          </Button>
+          <Button loading={isSaving} type="submit">
+            Speichern
+          </Button>
+        </Group>
+      </Stack>
+    </Box>
+  )
+}
+
+function FlashcardDialog({
+  document,
+  flashcards,
+  onClose,
+}: {
+  document: Document
+  flashcards: Flashcard[]
+  onClose: () => void
+}) {
+  const [editedFlashcard, setEditedFlashcard] = useState<
+    Flashcard | null | undefined
+  >(undefined)
+  const [deletedFlashcard, setDeletedFlashcard] = useState<Flashcard | null>(null)
+  const deleteFlashcard = useDeleteFlashcard()
+  const documentFlashcards = flashcards.filter(
+    (flashcard) => flashcard.document_id === document.entity_id,
+  )
+  const closeDelete = () => {
+    deleteFlashcard.reset()
+    setDeletedFlashcard(null)
+  }
+
+  return (
+    <>
+      <Modal
+        centered
+        opened
+        size="lg"
+        title={editedFlashcard === undefined ? 'Lernkarten' : (
+          editedFlashcard === null ? 'Lernkarte erstellen' : 'Lernkarte bearbeiten'
+        )}
+        onClose={onClose}
+      >
+        {editedFlashcard !== undefined ? (
+          <FlashcardForm
+            documentId={document.entity_id}
+            flashcard={editedFlashcard}
+            onClose={() => setEditedFlashcard(undefined)}
+          />
+        ) : (
+          <Stack gap="sm">
+            <Group justify="space-between">
+              <Text c="dimmed" size="sm">
+                {documentFlashcards.length} Lernkarten
+              </Text>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                size="compact-sm"
+                onClick={() => setEditedFlashcard(null)}
+              >
+                Neu
+              </Button>
+            </Group>
+
+            {documentFlashcards.length === 0 ? (
+              <Text c="dimmed" py="lg" ta="center" size="sm">
+                Für dieses Dokument gibt es noch keine Lernkarten.
+              </Text>
+            ) : (
+              <Stack gap="xs">
+                {documentFlashcards.map((flashcard) => (
+                  <Paper key={flashcard.id} p="sm" withBorder>
+                    <Group align="flex-start" justify="space-between" wrap="nowrap">
+                      <SimpleGrid cols={2} spacing="sm" style={{ flex: 1 }}>
+                        <Box>
+                          <Text c="dimmed" size="xs">Vorderseite</Text>
+                          <Text lineClamp={3} size="sm">{flashcard.front}</Text>
+                        </Box>
+                        <Box>
+                          <Text c="dimmed" size="xs">Rückseite</Text>
+                          <Text lineClamp={3} size="sm">{flashcard.back}</Text>
+                        </Box>
+                      </SimpleGrid>
+                      <Group gap={4} wrap="nowrap">
+                        <ActionIcon
+                          aria-label="Lernkarte bearbeiten"
+                          size="sm"
+                          variant="subtle"
+                          onClick={() => setEditedFlashcard(flashcard)}
+                        >
+                          <IconPencil size={16} />
+                        </ActionIcon>
+                        <ActionIcon
+                          aria-label="Lernkarte löschen"
+                          color="red"
+                          size="sm"
+                          variant="subtle"
+                          onClick={() => setDeletedFlashcard(flashcard)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        )}
+      </Modal>
+
+      {deletedFlashcard !== null && (
+        <Modal centered opened title="Lernkarte löschen" onClose={closeDelete}>
+          <Stack>
+            <Text>Möchtest du diese Lernkarte wirklich löschen?</Text>
+            <Text c="dimmed" lineClamp={2} size="sm">
+              {deletedFlashcard.front}
+            </Text>
+            {deleteFlashcard.isError && (
+              <Alert color="red" title="Fehler">
+                Die Lernkarte konnte nicht gelöscht werden.
+              </Alert>
+            )}
+            <Group justify="flex-end">
+              <Button
+                disabled={deleteFlashcard.isPending}
+                type="button"
+                variant="default"
+                onClick={closeDelete}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                color="red"
+                loading={deleteFlashcard.isPending}
+                onClick={() => deleteFlashcard.mutate(
+                  deletedFlashcard.id,
+                  { onSuccess: closeDelete },
+                )}
+              >
+                Löschen
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 function LoadedDocumentPanel({
   topic,
   document,
+  flashcards,
   drafts,
   onClose,
 }: {
   topic: Topic
   document: Document
+  flashcards: Flashcard[]
   drafts: Map<number, string>
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
+  const [flashcardsOpened, setFlashcardsOpened] = useState(false)
   const [initialMarkdown] = useState(
     () => drafts.get(topic.entity_id) ?? document.content,
   )
@@ -365,7 +662,17 @@ function LoadedDocumentPanel({
       style={{ display: 'flex', flexDirection: 'column' }}
     >
       <Group justify="space-between" p="sm">
-        <Text fw={600}>{topic.name}</Text>
+        <Group gap="xs">
+          <Text fw={600}>{topic.name}</Text>
+          <Button
+            leftSection={<IconCards size={16} />}
+            size="compact-sm"
+            variant="subtle"
+            onClick={() => setFlashcardsOpened(true)}
+          >
+            Lernkarten
+          </Button>
+        </Group>
         <Group gap="xs">
           <Text c={saveStatus === 'error' ? 'red' : 'dimmed'} size="sm">
             {statusLabel}
@@ -387,6 +694,13 @@ function LoadedDocumentPanel({
           onChange={handleChange}
         />
       </Box>
+      {flashcardsOpened && (
+        <FlashcardDialog
+          document={document}
+          flashcards={flashcards}
+          onClose={() => setFlashcardsOpened(false)}
+        />
+      )}
     </Paper>
   )
 }
@@ -394,11 +708,13 @@ function LoadedDocumentPanel({
 function TopicDocumentPanel({
   topic,
   document,
+  flashcards,
   drafts,
   onClose,
 }: {
   topic: Topic
   document: Document | null
+  flashcards: Flashcard[]
   drafts: Map<number, string>
   onClose: () => void
 }) {
@@ -429,6 +745,7 @@ function TopicDocumentPanel({
     <LoadedDocumentPanel
       document={topicDocument.data}
       drafts={drafts}
+      flashcards={flashcards}
       onClose={onClose}
       topic={topic}
     />
@@ -459,9 +776,13 @@ export function RealizationView() {
   useEffect(() => {
     if (topicGraph.data === undefined) return
 
-    const nextNodes: TopicNode[] = topicGraph.data.map(({ topic, document }) => ({
+    const nextNodes: TopicNode[] = topicGraph.data.map(({
+      topic,
+      document,
+      flashcards,
+    }) => ({
       id: String(topic.entity_id),
-      data: { document, label: topic.name, topic },
+      data: { document, flashcards, label: topic.name, topic },
       position: { x: 0, y: 0 },
     }))
     const nodeIds = new Set(nextNodes.map((node) => node.id))
@@ -644,6 +965,7 @@ export function RealizationView() {
                 key={selectedTopic.id}
                 document={selectedTopic.data.document}
                 drafts={documentDrafts}
+                flashcards={selectedTopic.data.flashcards}
                 topic={selectedTopic.data.topic}
                 onClose={() => setSelectedTopicId(null)}
               />
