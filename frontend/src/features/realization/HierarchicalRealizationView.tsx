@@ -5,10 +5,10 @@ import {
   Box,
   Button,
   Center,
-  Collapse,
   ColorInput,
   Group,
   Loader,
+  Menu,
   Modal,
   NumberInput,
   Paper,
@@ -18,21 +18,22 @@ import {
   TextInput,
   ThemeIcon,
   Title,
-  Tooltip,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import {
   IconChevronDown,
   IconChevronRight,
+  IconCards,
+  IconDotsVertical,
   IconFileText,
   IconFolder,
-  IconFolderPlus,
   IconPencil,
   IconPlus,
   IconSparkles,
   IconTrash,
 } from '@tabler/icons-react'
 import { Group as PanelGroup, Panel, Separator as PanelSeparator } from 'react-resizable-panels'
+import { useMetadata } from '../metadata/api'
 import {
   useCreateDevelopmentArea,
   useCreateTopic,
@@ -42,7 +43,7 @@ import {
   useUpdateDevelopmentArea,
   useUpdateTopic,
 } from './api'
-import { TopicDocumentPanel } from './RealizationView'
+import { FlashcardDialog, TopicDocumentPanel } from './RealizationView'
 import type {
   CreateDevelopmentArea,
   DevelopmentArea,
@@ -318,8 +319,10 @@ function TopicTreeItem({
   onCreateChild,
   onDelete,
   onEdit,
-  onOpenDocument,
+  onManageFlashcards,
+  onSelect,
   onToggle,
+  selectedTopicId,
 }: {
   childrenByParent: Map<number, TopicGraphEntry[]>
   depth: number
@@ -328,8 +331,10 @@ function TopicTreeItem({
   onCreateChild: (topic: Topic) => void
   onDelete: (target: DeleteTarget) => void
   onEdit: (topic: Topic) => void
-  onOpenDocument: (entry: TopicGraphEntry) => void
+  onManageFlashcards: (entry: TopicGraphEntry) => void
+  onSelect: (entry: TopicGraphEntry) => void
   onToggle: (id: number) => void
+  selectedTopicId: number | null
 }) {
   const topic = entry.topic
   const children = childrenByParent.get(topic.entity_id) ?? []
@@ -339,88 +344,72 @@ function TopicTreeItem({
     <>
       <Group
         className="realization-tree-row"
+        data-selected={selectedTopicId === topic.entity_id || undefined}
         gap={6}
         justify="space-between"
         pl={8 + depth * 22}
         pr="xs"
         wrap="nowrap"
+        onClick={() => onSelect(entry)}
       >
         <Group gap={6} miw={0} wrap="nowrap">
-          <ActionIcon
-            aria-label={isExpanded ? 'Topic zuklappen' : 'Topic aufklappen'}
-            size="sm"
-            variant="subtle"
-            onClick={() => onToggle(topic.entity_id)}
-          >
-            {isExpanded ? <IconChevronDown size={15} /> : <IconChevronRight size={15} />}
-          </ActionIcon>
-          <IconFolder size={17} />
+          {children.length === 0 ? (
+            <Box w={28} />
+          ) : (
+            <ActionIcon
+              aria-label={isExpanded ? 'Topic zuklappen' : 'Topic aufklappen'}
+              size="sm"
+              variant="subtle"
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggle(topic.entity_id)
+              }}
+            >
+              {isExpanded ? <IconChevronDown size={15} /> : <IconChevronRight size={15} />}
+            </ActionIcon>
+          )}
+          {entry.document === null ? <IconFolder size={17} /> : <IconFileText size={17} />}
           <Text fw={depth === 0 ? 600 : 400} lineClamp={1} size="sm">
             {topic.name}
           </Text>
         </Group>
-        <Group gap={2} wrap="nowrap">
-          <Tooltip label="Untertopic erstellen">
-            <ActionIcon size="sm" variant="subtle" onClick={() => onCreateChild(topic)}>
-              <IconFolderPlus size={15} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Topic bearbeiten">
-            <ActionIcon size="sm" variant="subtle" onClick={() => onEdit(topic)}>
-              <IconPencil size={15} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Topic löschen">
+        <Menu position="bottom-end" withinPortal>
+          <Menu.Target>
             <ActionIcon
-              color="red"
+              aria-label="Topic-Aktionen"
               size="sm"
               variant="subtle"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <IconDotsVertical size={16} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown onClick={(event) => event.stopPropagation()}>
+            <Menu.Item leftSection={<IconPlus size={15} />} onClick={() => onCreateChild(topic)}>
+              Unterthema erstellen
+            </Menu.Item>
+            <Menu.Item leftSection={<IconPencil size={15} />} onClick={() => onEdit(topic)}>
+              Bearbeiten
+            </Menu.Item>
+            <Menu.Item
+              disabled={entry.document === null}
+              leftSection={<IconCards size={15} />}
+              onClick={() => onManageFlashcards(entry)}
+            >
+              Lernkarten verwalten
+            </Menu.Item>
+            <Menu.Item
+              color="red"
+              leftSection={<IconTrash size={15} />}
               onClick={() => onDelete({ id: topic.entity_id, kind: 'topic', name: topic.name })}
             >
-              <IconTrash size={15} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
+              Löschen
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Group>
 
-      <Collapse expanded={isExpanded}>
-        <Group
-          className="realization-tree-row realization-document-row"
-          gap={6}
-          justify="space-between"
-          pl={8 + (depth + 1) * 22}
-          pr="xs"
-          wrap="nowrap"
-        >
-          <Button
-            color="gray"
-            leftSection={entry.document === null
-              ? <IconPlus size={15} />
-              : <IconFileText size={16} />}
-            size="compact-sm"
-            variant="subtle"
-            onClick={() => onOpenDocument(entry)}
-          >
-            {entry.document === null ? 'Dokument erstellen' : 'Dokument'}
-          </Button>
-          {entry.document !== null && (
-            <Tooltip label="Dokument löschen">
-              <ActionIcon
-                color="red"
-                size="sm"
-                variant="subtle"
-                onClick={() => onDelete({
-                  id: entry.document!.entity_id,
-                  kind: 'document',
-                  name: `Dokument von ${topic.name}`,
-                })}
-              >
-                <IconTrash size={15} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-        {children.map((child) => (
+      {isExpanded && children.map((child) => (
           <TopicTreeItem
             key={child.topic.entity_id}
             childrenByParent={childrenByParent}
@@ -430,25 +419,38 @@ function TopicTreeItem({
             onCreateChild={onCreateChild}
             onDelete={onDelete}
             onEdit={onEdit}
-            onOpenDocument={onOpenDocument}
+            onManageFlashcards={onManageFlashcards}
+            onSelect={onSelect}
             onToggle={onToggle}
+            selectedTopicId={selectedTopicId}
           />
-        ))}
-      </Collapse>
+      ))}
     </>
   )
 }
 
 export function RealizationView() {
   const graph = useTopicGraph()
+  const metadata = useMetadata()
   const [areaDialog, setAreaDialog] = useState<DevelopmentArea | null | undefined>()
   const [topicDialog, setTopicDialog] = useState<TopicDialogState | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [flashcardEntry, setFlashcardEntry] = useState<TopicGraphEntry | null>(null)
   const [expanded, setExpanded] = useState(() => new Set<number>())
   const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null)
+  const [createDocumentTopicId, setCreateDocumentTopicId] = useState<number | null>(null)
   const [documentDrafts] = useState(() => new Map<number, string>())
   const entries = useMemo(() => graph.data?.topics ?? [], [graph.data?.topics])
   const selectedEntry = entries.find(({ topic }) => topic.entity_id === selectedTopicId)
+  const selectedArea = graph.data?.development_areas.find(
+    (area) => area.id === selectedEntry?.topic.development_area_id,
+  )
+  const selectedParent = entries.find(
+    (entry) => entry.topic.entity_id === selectedEntry?.topic.parent_topic_entity_id,
+  )
+  const selectedUnderstanding = metadata.data?.topic_understanding_levels.find(
+    (level) => level.id === selectedEntry?.topic.understanding_level_id,
+  )
   const unassignedRoots = entries.filter(({ topic }) =>
     topic.parent_topic_entity_id === null && topic.development_area_id === null,
   )
@@ -480,6 +482,15 @@ export function RealizationView() {
       topic: null,
     })
   }
+  const editTopic = (topic: Topic) => setTopicDialog({
+    areaId: null,
+    parentTopicId: null,
+    topic,
+  })
+  const selectTopic = (entry: TopicGraphEntry) => {
+    setSelectedTopicId(entry.topic.entity_id)
+    setCreateDocumentTopicId(null)
+  }
 
   if (graph.isPending) {
     return <Center h="100%"><Loader /></Center>
@@ -496,24 +507,21 @@ export function RealizationView() {
   return (
     <Box h="100%" w="100%">
       <PanelGroup
-        key={selectedEntry === undefined ? 'hierarchy' : 'split'}
-        defaultLayout={selectedEntry === undefined
-          ? { hierarchy: 100 }
-          : { editor: 40, hierarchy: 60 }}
+        defaultLayout={{ editor: 55, hierarchy: 25, properties: 20 }}
         orientation="horizontal"
         style={{ height: '100%', width: '100%' }}
       >
-        <Panel id="hierarchy" minSize="30%">
+        <Panel id="hierarchy" minSize="18%">
           <Box className="realization-hierarchy-scroll">
-            <Box maw={1000} mx="auto" p="md">
-              <Group justify="space-between" mb="md">
-                <Title order={2}>Verwirklichung</Title>
-                <Button leftSection={<IconPlus size={16} />} onClick={() => setAreaDialog(null)}>
-                  Bereich
-                </Button>
+            <Box p="sm">
+              <Group justify="space-between" mb="sm">
+                <Title order={3}>Verwirklichung</Title>
+                <ActionIcon aria-label="Bereich erstellen" variant="light" onClick={() => setAreaDialog(null)}>
+                  <IconPlus size={17} />
+                </ActionIcon>
               </Group>
 
-              <Stack gap="md">
+              <Stack gap="sm">
                 {graph.data.development_areas.map((area) => {
                   const roots = entries.filter(({ topic }) =>
                     topic.parent_topic_entity_id === null &&
@@ -522,7 +530,7 @@ export function RealizationView() {
                   return (
                     <Paper key={area.id} className="realization-area" withBorder>
                       <Box
-                        className="realization-area-banner"
+                        className="realization-area-banner realization-area-banner-compact"
                         style={{
                           backgroundColor: area.background_color ?? 'var(--mantine-color-gray-1)',
                           backgroundImage: area.banner_image_path === null
@@ -532,56 +540,44 @@ export function RealizationView() {
                         }}
                       >
                         <Group justify="space-between" wrap="nowrap">
-                          <Group gap="sm" miw={0} wrap="nowrap">
-                            <ThemeIcon color="gray" size="lg" variant="light">
-                              {area.icon === null ? <IconSparkles size={19} /> : (
+                          <Group gap="xs" miw={0} wrap="nowrap">
+                            <ThemeIcon color="gray" size="sm" variant="light">
+                              {area.icon === null ? <IconSparkles size={15} /> : (
                                 <Text fw={700} lineClamp={1} size="xs">{area.icon}</Text>
                               )}
                             </ThemeIcon>
-                            <Title lineClamp={1} order={3}>{area.name}</Title>
+                            <Text fw={600} lineClamp={1} size="sm">{area.name}</Text>
                           </Group>
-                          <Group gap={4} wrap="nowrap">
-                            <Tooltip label="Root-Topic erstellen">
-                              <ActionIcon
-                                color={area.banner_image_path === null ? 'blue' : 'gray'}
-                                variant="light"
-                                onClick={() => setTopicDialog({
-                                  areaId: area.id,
-                                  parentTopicId: null,
-                                  topic: null,
-                                })}
-                              >
-                                <IconFolderPlus size={17} />
+                          <Menu position="bottom-end" withinPortal>
+                            <Menu.Target>
+                              <ActionIcon aria-label="Bereich-Aktionen" size="sm" variant="subtle">
+                                <IconDotsVertical size={16} />
                               </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Bereich bearbeiten">
-                              <ActionIcon
-                                color={area.banner_image_path === null ? 'gray' : 'gray'}
-                                variant="light"
-                                onClick={() => setAreaDialog(area)}
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              <Menu.Item
+                                leftSection={<IconPlus size={15} />}
+                                onClick={() => setTopicDialog({ areaId: area.id, parentTopicId: null, topic: null })}
                               >
-                                <IconPencil size={17} />
-                              </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Bereich löschen">
-                              <ActionIcon
+                                Root-Topic erstellen
+                              </Menu.Item>
+                              <Menu.Item leftSection={<IconPencil size={15} />} onClick={() => setAreaDialog(area)}>
+                                Bearbeiten
+                              </Menu.Item>
+                              <Menu.Item
                                 color="red"
-                                variant="light"
-                                onClick={() => setDeleteTarget({
-                                  id: area.id,
-                                  kind: 'area',
-                                  name: area.name,
-                                })}
+                                leftSection={<IconTrash size={15} />}
+                                onClick={() => setDeleteTarget({ id: area.id, kind: 'area', name: area.name })}
                               >
-                                <IconTrash size={17} />
-                              </ActionIcon>
-                            </Tooltip>
-                          </Group>
+                                Löschen
+                              </Menu.Item>
+                            </Menu.Dropdown>
+                          </Menu>
                         </Group>
                       </Box>
-                      <Box py={4}>
+                      <Box py={3}>
                         {roots.length === 0 ? (
-                          <Text c="dimmed" p="sm" size="sm">Keine Root-Topics.</Text>
+                          <Text c="dimmed" px="sm" py={6} size="xs">Keine Root-Topics.</Text>
                         ) : roots.map((entry) => (
                           <TopicTreeItem
                             key={entry.topic.entity_id}
@@ -591,36 +587,27 @@ export function RealizationView() {
                             expanded={expanded}
                             onCreateChild={createChild}
                             onDelete={setDeleteTarget}
-                            onEdit={(topic) => setTopicDialog({
-                              areaId: null,
-                              parentTopicId: null,
-                              topic,
-                            })}
-                            onOpenDocument={(topicEntry) => {
-                              setSelectedTopicId(topicEntry.topic.entity_id)
-                              setExpanded((current) => new Set(current).add(topicEntry.topic.entity_id))
-                            }}
+                            onEdit={editTopic}
+                            onManageFlashcards={setFlashcardEntry}
+                            onSelect={selectTopic}
                             onToggle={toggleTopic}
+                            selectedTopicId={selectedTopicId}
                           />
                         ))}
                       </Box>
                     </Paper>
                   )
                 })}
+
                 {unassignedRoots.length > 0 && (
                   <Paper className="realization-area" withBorder>
-                    <Box
-                      className="realization-area-banner"
-                      style={{ backgroundColor: 'var(--mantine-color-gray-1)' }}
-                    >
-                      <Group gap="sm">
-                        <ThemeIcon color="gray" size="lg" variant="light">
-                          <IconFolder size={19} />
-                        </ThemeIcon>
-                        <Title order={3}>Ohne Bereich</Title>
+                    <Box className="realization-area-banner realization-area-banner-compact">
+                      <Group gap="xs">
+                        <ThemeIcon color="gray" size="sm" variant="light"><IconFolder size={15} /></ThemeIcon>
+                        <Text fw={600} size="sm">Ohne Bereich</Text>
                       </Group>
                     </Box>
-                    <Box py={4}>
+                    <Box py={3}>
                       {unassignedRoots.map((entry) => (
                         <TopicTreeItem
                           key={entry.topic.entity_id}
@@ -630,18 +617,11 @@ export function RealizationView() {
                           expanded={expanded}
                           onCreateChild={createChild}
                           onDelete={setDeleteTarget}
-                          onEdit={(topic) => setTopicDialog({
-                            areaId: null,
-                            parentTopicId: null,
-                            topic,
-                          })}
-                          onOpenDocument={(topicEntry) => {
-                            setSelectedTopicId(topicEntry.topic.entity_id)
-                            setExpanded((current) =>
-                              new Set(current).add(topicEntry.topic.entity_id),
-                            )
-                          }}
+                          onEdit={editTopic}
+                          onManageFlashcards={setFlashcardEntry}
+                          onSelect={selectTopic}
                           onToggle={toggleTopic}
+                          selectedTopicId={selectedTopicId}
                         />
                       ))}
                     </Box>
@@ -652,23 +632,75 @@ export function RealizationView() {
           </Box>
         </Panel>
 
-        {selectedEntry !== undefined && (
-          <>
-            <PanelSeparator className="realization-panel-separator" />
-            <Panel id="editor" minSize="30%">
-              <TopicDocumentPanel
-                key={selectedEntry.topic.entity_id}
-                document={selectedEntry.document}
-                drafts={documentDrafts}
-                flashcards={selectedEntry.flashcards}
-                topic={selectedEntry.topic}
-                onClose={() => setSelectedTopicId(null)}
-              />
-            </Panel>
-          </>
-        )}
+        <PanelSeparator className="realization-panel-separator" />
+        <Panel id="editor" minSize="35%">
+          {selectedEntry === undefined ? (
+            <Center h="100%"><Text c="dimmed">Wähle ein Topic aus.</Text></Center>
+          ) : selectedEntry.document === null && createDocumentTopicId !== selectedEntry.topic.entity_id ? (
+            <Center h="100%">
+              <Stack align="center" gap="sm">
+                <Text c="dimmed">Für dieses Topic gibt es noch kein Dokument.</Text>
+                <Button onClick={() => setCreateDocumentTopicId(selectedEntry.topic.entity_id)}>
+                  Dokument erstellen
+                </Button>
+              </Stack>
+            </Center>
+          ) : (
+            <TopicDocumentPanel
+              key={selectedEntry.topic.entity_id}
+              document={selectedEntry.document}
+              drafts={documentDrafts}
+              topic={selectedEntry.topic}
+              onClose={() => setSelectedTopicId(null)}
+            />
+          )}
+        </Panel>
+
+        <PanelSeparator className="realization-panel-separator" />
+        <Panel id="properties" minSize="18%">
+          <Paper h="100%" p="md" radius={0} withBorder>
+            <Title mb="md" order={4}>Eigenschaften</Title>
+            {selectedEntry === undefined ? (
+              <Text c="dimmed" size="sm">Kein Topic ausgewählt.</Text>
+            ) : (
+              <Stack gap="md">
+                <Box>
+                  <Text c="dimmed" size="xs">Name</Text>
+                  <Text size="sm">{selectedEntry.topic.name}</Text>
+                </Box>
+                <Box>
+                  <Text c="dimmed" size="xs">Übergeordnet</Text>
+                  <Text size="sm">
+                    {selectedParent?.topic.name ?? selectedArea?.name ?? 'Ohne Bereich'}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text c="dimmed" size="xs">Verständnisgrad</Text>
+                  <Text size="sm">
+                    {selectedUnderstanding?.display_name ?? selectedUnderstanding?.name ?? '–'}
+                  </Text>
+                </Box>
+                <Button
+                  leftSection={<IconPencil size={15} />}
+                  size="compact-sm"
+                  variant="default"
+                  onClick={() => editTopic(selectedEntry.topic)}
+                >
+                  Bearbeiten
+                </Button>
+              </Stack>
+            )}
+          </Paper>
+        </Panel>
       </PanelGroup>
 
+      {flashcardEntry?.document !== null && flashcardEntry !== null && (
+        <FlashcardDialog
+          document={flashcardEntry.document}
+          flashcards={flashcardEntry.flashcards}
+          onClose={() => setFlashcardEntry(null)}
+        />
+      )}
       {areaDialog !== undefined && (
         <DevelopmentAreaDialog area={areaDialog} onClose={() => setAreaDialog(undefined)} />
       )}

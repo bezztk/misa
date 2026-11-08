@@ -39,7 +39,6 @@ import {
 import { useForm } from '@mantine/form'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  IconCards,
   IconPencil,
   IconPlus,
   IconTrash,
@@ -427,7 +426,7 @@ function FlashcardForm({
   )
 }
 
-function FlashcardDialog({
+export function FlashcardDialog({
   document,
   flashcards,
   onClose,
@@ -570,18 +569,15 @@ function FlashcardDialog({
 function LoadedDocumentPanel({
   topic,
   document,
-  flashcards,
   drafts,
   onClose,
 }: {
   topic: Topic
   document: Document
-  flashcards: Flashcard[]
   drafts: Map<number, string>
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
-  const [flashcardsOpened, setFlashcardsOpened] = useState(false)
   const [initialMarkdown] = useState(
     () => drafts.get(topic.entity_id) ?? document.content,
   )
@@ -662,17 +658,7 @@ function LoadedDocumentPanel({
       style={{ display: 'flex', flexDirection: 'column' }}
     >
       <Group justify="space-between" p="sm">
-        <Group gap="xs">
-          <Text fw={600}>{topic.name}</Text>
-          <Button
-            leftSection={<IconCards size={16} />}
-            size="compact-sm"
-            variant="subtle"
-            onClick={() => setFlashcardsOpened(true)}
-          >
-            Lernkarten
-          </Button>
-        </Group>
+        <Text fw={600}>{topic.name}</Text>
         <Group gap="xs">
           <Text c={saveStatus === 'error' ? 'red' : 'dimmed'} size="sm">
             {statusLabel}
@@ -694,13 +680,6 @@ function LoadedDocumentPanel({
           onChange={handleChange}
         />
       </Box>
-      {flashcardsOpened && (
-        <FlashcardDialog
-          document={document}
-          flashcards={flashcards}
-          onClose={() => setFlashcardsOpened(false)}
-        />
-      )}
     </Paper>
   )
 }
@@ -708,13 +687,11 @@ function LoadedDocumentPanel({
 export function TopicDocumentPanel({
   topic,
   document,
-  flashcards,
   drafts,
   onClose,
 }: {
   topic: Topic
   document: Document | null
-  flashcards: Flashcard[]
   drafts: Map<number, string>
   onClose: () => void
 }) {
@@ -745,7 +722,6 @@ export function TopicDocumentPanel({
     <LoadedDocumentPanel
       document={topicDocument.data}
       drafts={drafts}
-      flashcards={flashcards}
       onClose={onClose}
       topic={topic}
     />
@@ -968,7 +944,6 @@ export function TopicGraphView() {
                 key={selectedTopic.id}
                 document={selectedTopic.data.document}
                 drafts={documentDrafts}
-                flashcards={selectedTopic.data.flashcards}
                 topic={selectedTopic.data.topic}
                 onClose={() => setSelectedTopicId(null)}
               />
