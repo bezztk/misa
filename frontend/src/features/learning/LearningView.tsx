@@ -15,7 +15,7 @@ import {
 import { Crepe } from '@milkdown/crepe'
 import '@milkdown/crepe/theme/common/style.css'
 import '@milkdown/crepe/theme/frame.css'
-import { IconBulb, IconCards } from '@tabler/icons-react'
+import { IconBulb, IconCards, IconClock } from '@tabler/icons-react'
 import { useDueFlashcards, useFlashcardPreview, useReviewFlashcard } from './api'
 import './LearningView.css'
 
@@ -47,28 +47,108 @@ function MarkdownContent({ markdown }: { markdown: string }) {
 }
 
 function intervalLabel(days: number) {
-  return days === 1 ? '1 Tag' : `${days} Tage`
+  const minutes = days * 24 * 60
+  if (minutes < 60) {
+    return `${Math.max(1, Math.round(minutes))} Min.`
+  }
+
+  const hours = minutes / 60
+  if (hours < 24) {
+    const roundedHours = Math.round(hours * 10) / 10
+    return `${roundedHours.toLocaleString('de-DE')} Std.`
+  }
+
+  const roundedDays = Math.round(days * 10) / 10
+  return roundedDays === 1
+    ? '1 Tag'
+    : `${roundedDays.toLocaleString('de-DE')} Tage`
+}
+
+function waitTimeLabel(milliseconds: number) {
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1_000))
+  if (seconds < 60) return `${seconds} Sek.`
+
+  const minutes = Math.ceil(seconds / 60)
+  if (minutes < 60) return `${minutes} Min.`
+
+  const hours = Math.ceil(minutes / 60)
+  return `${hours} Std.`
 }
 
 export function LearningView() {
   const flashcards = useDueFlashcards()
+  const refetchDueFlashcards = flashcards.refetch
   const reviewFlashcard = useReviewFlashcard()
   const [answeredCount, setAnsweredCount] = useState(0)
   const [answerVisible, setAnswerVisible] = useState(false)
   const [hintVisible, setHintVisible] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState(false)
+  const [pendingReviews, setPendingReviews] = useState(
+    () => new Map<number, number>(),
+  )
+  const [now, setNow] = useState(0)
   const startedAtRef = useRef(0)
-  const currentFlashcard = flashcards.data?.[0]
+  const currentFlashcard = sessionEnded ? undefined : flashcards.data?.[0]
   const preview = useFlashcardPreview(
     currentFlashcard?.id ?? 0,
     answerVisible && currentFlashcard !== undefined,
   )
+  const nextDueAt = pendingReviews.size === 0
+    ? undefined
+    : Math.min(...pendingReviews.values())
+  const dueFlashcardIds = new Set(
+    flashcards.data?.map((flashcard) => flashcard.id),
+  )
+  const remainingCount = new Set([
+    ...dueFlashcardIds,
+    ...pendingReviews.keys(),
+  ]).size
 
   useEffect(() => {
     startedAtRef.current = performance.now()
   }, [currentFlashcard?.id])
 
+  useEffect(() => {
+    if (nextDueAt === undefined) return
+
+    const initialTimer = setTimeout(() => setNow(Date.now()), 0)
+    const timer = setInterval(() => setNow(Date.now()), 1_000)
+    return () => {
+      clearTimeout(initialTimer)
+      clearInterval(timer)
+    }
+  }, [nextDueAt])
+
+  useEffect(() => {
+    if (
+      sessionEnded ||
+      currentFlashcard !== undefined ||
+      nextDueAt === undefined ||
+      now < nextDueAt
+    ) return
+
+    void refetchDueFlashcards()
+  }, [currentFlashcard, nextDueAt, now, refetchDueFlashcards, sessionEnded])
+
   const rate = (rating: number, ratedAt: number) => {
-    if (currentFlashcard === undefined) return
+    if (currentFlashcard === undefined || preview.data === undefined) return
+
+    const intervals = [
+      preview.data.again,
+      preview.data.hard,
+      preview.data.good,
+      preview.data.easy,
+    ]
+    const isLearning = currentFlashcard.state !== 2
+    const remainsInLearning =
+      rating === 1 ||
+      (isLearning && (
+        rating === 2 ||
+        (rating === 3 && currentFlashcard.learning_step === 0)
+      ))
+    const nextDueAt = performance.timeOrigin
+      + ratedAt
+      + intervals[rating - 1] * 24 * 60 * 60 * 1_000
 
     reviewFlashcard.mutate(
       {
@@ -78,9 +158,19 @@ export function LearningView() {
       },
       {
         onSuccess: () => {
+          setPendingReviews((currentReviews) => {
+            const nextReviews = new Map(currentReviews)
+            if (remainsInLearning) {
+              nextReviews.set(currentFlashcard.id, nextDueAt)
+            } else {
+              nextReviews.delete(currentFlashcard.id)
+            }
+            return nextReviews
+          })
           setAnsweredCount((count) => count + 1)
           setAnswerVisible(false)
           setHintVisible(false)
+          void refetchDueFlashcards()
         },
       },
     )
@@ -95,6 +185,51 @@ export function LearningView() {
       <Alert color="red" title="Fehler">
         Die fälligen Lernkarten konnten nicht geladen werden.
       </Alert>
+    )
+  }
+
+  if (sessionEnded) {
+    return (
+      <Center mih="70vh">
+        <Stack align="center" gap="xs">
+          <IconCards size={40} stroke={1.5} />
+          <Title order={2}>Lernsession beendet</Title>
+          <Text c="dimmed">
+            Du hast in dieser Sitzung {answeredCount} Lernkarten beantwortet.
+          </Text>
+          <Text c="dimmed" size="sm">
+            {nextDueAt === undefined
+              ? 'Keine kurzfristige Wiederholung ausstehend.'
+              : now === 0
+                ? 'Wartezeit wird berechnet …'
+                : now >= nextDueAt
+                ? 'Nächste Wiederholung: jetzt fällig'
+                : `Nächste Wiederholung in ${waitTimeLabel(nextDueAt - now)}`}
+          </Text>
+        </Stack>
+      </Center>
+    )
+  }
+
+  if (currentFlashcard === undefined && nextDueAt !== undefined) {
+    return (
+      <Center mih="70vh">
+        <Stack align="center" gap="xs">
+          <IconClock size={40} stroke={1.5} />
+          <Title order={2}>Kurze Pause</Title>
+          <Text c="dimmed">
+            {now === 0
+              ? 'Wartezeit wird berechnet …'
+              : now >= nextDueAt
+              ? 'Die nächste Lernkarte wird geladen …'
+              : `Nächste Lernkarte in ${waitTimeLabel(nextDueAt - now)}`}
+          </Text>
+          {flashcards.isFetching && <Loader mt="xs" size="sm" />}
+          <Button mt="md" variant="default" onClick={() => setSessionEnded(true)}>
+            Lernsession beenden
+          </Button>
+        </Stack>
+      </Center>
     )
   }
 
@@ -123,9 +258,29 @@ export function LearningView() {
     <Box maw={840} mx="auto">
       <Group justify="space-between" mb="md">
         <Title order={2}>Lernen</Title>
-        <Text c="dimmed" size="sm">
-          {flashcards.data.length} verbleibend
-        </Text>
+        <Group gap="sm">
+          <Stack align="flex-end" gap={0}>
+            <Text c="dimmed" size="sm">
+              {remainingCount} verbleibend
+            </Text>
+            {nextDueAt !== undefined && (
+              <Text c="dimmed" size="xs">
+                {now === 0
+                  ? 'Wartezeit wird berechnet …'
+                  : now >= nextDueAt
+                  ? 'Nächste Wiederholung: jetzt fällig'
+                  : `Nächste Wiederholung in ${waitTimeLabel(nextDueAt - now)}`}
+              </Text>
+            )}
+          </Stack>
+          <Button
+            size="compact-sm"
+            variant="default"
+            onClick={() => setSessionEnded(true)}
+          >
+            Beenden
+          </Button>
+        </Group>
       </Group>
 
       <Paper p={{ base: 'md', sm: 'xl' }} withBorder>

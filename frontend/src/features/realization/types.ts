@@ -39,6 +39,7 @@ export interface Flashcard {
   hint: string | null
   explanation: string | null
   state: number
+  learning_step: number
   retention_levels_id: number
   stability: number | null
   difficulty: number | null
