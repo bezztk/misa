@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Center,
@@ -16,6 +17,7 @@ import { Crepe } from '@milkdown/crepe'
 import '@milkdown/crepe/theme/common/style.css'
 import '@milkdown/crepe/theme/frame.css'
 import { IconBulb, IconCards, IconClock } from '@tabler/icons-react'
+import type { Flashcard } from '../realization/types'
 import { useDueFlashcards, useFlashcardPreview, useReviewFlashcard } from './api'
 import './LearningView.css'
 
@@ -72,40 +74,87 @@ function waitTimeLabel(milliseconds: number) {
   if (minutes < 60) return `${minutes} Min.`
 
   const hours = Math.ceil(minutes / 60)
-  return `${hours} Std.`
+  if (hours < 24) return `${hours} Std.`
+
+  const days = Math.ceil(hours / 24)
+  return days === 1 ? '1 Tag' : `${days} Tage`
+}
+
+function stateDetails(state: number) {
+  switch (state) {
+    case 1:
+      return { color: 'blue', label: 'Lernen' }
+    case 2:
+      return { color: 'grape', label: 'Wiederholung' }
+    case 3:
+      return { color: 'orange', label: 'Wiederlernen' }
+    default:
+      return { color: 'gray', label: 'Neu' }
+  }
+}
+
+function QueueCard({
+  active = false,
+  card,
+  dueLabel,
+}: {
+  active?: boolean
+  card: Flashcard
+  dueLabel?: string
+}) {
+  const state = stateDetails(card.state)
+
+  return (
+    <Group
+      className="learning-queue-card"
+      data-active={active || undefined}
+      gap="sm"
+      justify="space-between"
+      wrap="nowrap"
+    >
+      <Text className="learning-question-preview" fw={active ? 600 : 400} size="sm">
+        {card.front}
+      </Text>
+      <Group gap="xs" wrap="nowrap">
+        {dueLabel !== undefined && (
+          <Text c="dimmed" size="xs" style={{ whiteSpace: 'nowrap' }}>
+            {dueLabel}
+          </Text>
+        )}
+        <Badge color={state.color} size="sm" variant="light">
+          {state.label}
+        </Badge>
+      </Group>
+    </Group>
+  )
 }
 
 export function LearningView() {
   const flashcards = useDueFlashcards()
-  const refetchDueFlashcards = flashcards.refetch
   const reviewFlashcard = useReviewFlashcard()
-  const [answeredCount, setAnsweredCount] = useState(0)
   const [answerVisible, setAnswerVisible] = useState(false)
   const [hintVisible, setHintVisible] = useState(false)
-  const [sessionEnded, setSessionEnded] = useState(false)
-  const [pendingReviews, setPendingReviews] = useState(
-    () => new Map<number, number>(),
-  )
   const [now, setNow] = useState(0)
   const startedAtRef = useRef(0)
-  const currentFlashcard = sessionEnded ? undefined : flashcards.data?.[0]
+  const isFetching = flashcards.isFetching
+  const refetchFlashcards = flashcards.refetch
+  const currentFlashcard = flashcards.data?.due[0]
+  const nextUpcoming = flashcards.data?.upcoming[0]
+  const nextDueAt = nextUpcoming?.due_at === null || nextUpcoming === undefined
+    ? undefined
+    : new Date(nextUpcoming.due_at).getTime()
   const preview = useFlashcardPreview(
     currentFlashcard?.id ?? 0,
     answerVisible && currentFlashcard !== undefined,
   )
-  const nextDueAt = pendingReviews.size === 0
-    ? undefined
-    : Math.min(...pendingReviews.values())
-  const dueFlashcardIds = new Set(
-    flashcards.data?.map((flashcard) => flashcard.id),
-  )
-  const remainingCount = new Set([
-    ...dueFlashcardIds,
-    ...pendingReviews.keys(),
-  ]).size
 
   useEffect(() => {
-    startedAtRef.current = performance.now()
+    const timer = setTimeout(() => {
+      startedAtRef.current = performance.now()
+      setAnswerVisible(false)
+      setHintVisible(false)
+    }, 0)
+    return () => clearTimeout(timer)
   }, [currentFlashcard?.id])
 
   useEffect(() => {
@@ -121,34 +170,16 @@ export function LearningView() {
 
   useEffect(() => {
     if (
-      sessionEnded ||
-      currentFlashcard !== undefined ||
       nextDueAt === undefined ||
-      now < nextDueAt
+      now < nextDueAt ||
+      isFetching
     ) return
 
-    void refetchDueFlashcards()
-  }, [currentFlashcard, nextDueAt, now, refetchDueFlashcards, sessionEnded])
+    void refetchFlashcards()
+  }, [isFetching, nextDueAt, now, refetchFlashcards])
 
   const rate = (rating: number, ratedAt: number) => {
     if (currentFlashcard === undefined || preview.data === undefined) return
-
-    const intervals = [
-      preview.data.again,
-      preview.data.hard,
-      preview.data.good,
-      preview.data.easy,
-    ]
-    const isLearning = currentFlashcard.state !== 2
-    const remainsInLearning =
-      rating === 1 ||
-      (isLearning && (
-        rating === 2 ||
-        (rating === 3 && currentFlashcard.learning_step === 0)
-      ))
-    const nextDueAt = performance.timeOrigin
-      + ratedAt
-      + intervals[rating - 1] * 24 * 60 * 60 * 1_000
 
     reviewFlashcard.mutate(
       {
@@ -158,19 +189,8 @@ export function LearningView() {
       },
       {
         onSuccess: () => {
-          setPendingReviews((currentReviews) => {
-            const nextReviews = new Map(currentReviews)
-            if (remainsInLearning) {
-              nextReviews.set(currentFlashcard.id, nextDueAt)
-            } else {
-              nextReviews.delete(currentFlashcard.id)
-            }
-            return nextReviews
-          })
-          setAnsweredCount((count) => count + 1)
           setAnswerVisible(false)
           setHintVisible(false)
-          void refetchDueFlashcards()
         },
       },
     )
@@ -183,70 +203,13 @@ export function LearningView() {
   if (flashcards.isError) {
     return (
       <Alert color="red" title="Fehler">
-        Die fälligen Lernkarten konnten nicht geladen werden.
+        Die Lernkarten-Warteschlange konnte nicht geladen werden.
       </Alert>
     )
   }
 
-  if (sessionEnded) {
-    return (
-      <Center mih="70vh">
-        <Stack align="center" gap="xs">
-          <IconCards size={40} stroke={1.5} />
-          <Title order={2}>Lernsession beendet</Title>
-          <Text c="dimmed">
-            Du hast in dieser Sitzung {answeredCount} Lernkarten beantwortet.
-          </Text>
-          <Text c="dimmed" size="sm">
-            {nextDueAt === undefined
-              ? 'Keine kurzfristige Wiederholung ausstehend.'
-              : now === 0
-                ? 'Wartezeit wird berechnet …'
-                : now >= nextDueAt
-                ? 'Nächste Wiederholung: jetzt fällig'
-                : `Nächste Wiederholung in ${waitTimeLabel(nextDueAt - now)}`}
-          </Text>
-        </Stack>
-      </Center>
-    )
-  }
-
-  if (currentFlashcard === undefined && nextDueAt !== undefined) {
-    return (
-      <Center mih="70vh">
-        <Stack align="center" gap="xs">
-          <IconClock size={40} stroke={1.5} />
-          <Title order={2}>Kurze Pause</Title>
-          <Text c="dimmed">
-            {now === 0
-              ? 'Wartezeit wird berechnet …'
-              : now >= nextDueAt
-              ? 'Die nächste Lernkarte wird geladen …'
-              : `Nächste Lernkarte in ${waitTimeLabel(nextDueAt - now)}`}
-          </Text>
-          {flashcards.isFetching && <Loader mt="xs" size="sm" />}
-          <Button mt="md" variant="default" onClick={() => setSessionEnded(true)}>
-            Lernsession beenden
-          </Button>
-        </Stack>
-      </Center>
-    )
-  }
-
-  if (currentFlashcard === undefined) {
-    return (
-      <Center mih="70vh">
-        <Stack align="center" gap="xs">
-          <IconCards size={40} stroke={1.5} />
-          <Title order={2}>Lernen abgeschlossen</Title>
-          <Text c="dimmed">
-            Du hast in dieser Sitzung {answeredCount} Lernkarten beantwortet.
-          </Text>
-        </Stack>
-      </Center>
-    )
-  }
-
+  const due = flashcards.data.due
+  const upcoming = flashcards.data.upcoming
   const ratings = preview.data === undefined ? [] : [
     { color: 'red', interval: preview.data.again, label: 'Nicht gewusst', rating: 1 },
     { color: 'orange', interval: preview.data.hard, label: 'Schwer', rating: 2 },
@@ -258,114 +221,161 @@ export function LearningView() {
     <Box maw={840} mx="auto">
       <Group justify="space-between" mb="md">
         <Title order={2}>Lernen</Title>
-        <Group gap="sm">
-          <Stack align="flex-end" gap={0}>
-            <Text c="dimmed" size="sm">
-              {remainingCount} verbleibend
-            </Text>
-            {nextDueAt !== undefined && (
-              <Text c="dimmed" size="xs">
-                {now === 0
-                  ? 'Wartezeit wird berechnet …'
-                  : now >= nextDueAt
-                  ? 'Nächste Wiederholung: jetzt fällig'
-                  : `Nächste Wiederholung in ${waitTimeLabel(nextDueAt - now)}`}
-              </Text>
-            )}
-          </Stack>
-          <Button
-            size="compact-sm"
-            variant="default"
-            onClick={() => setSessionEnded(true)}
-          >
-            Beenden
-          </Button>
+        <Group gap="xs">
+          <Badge color="blue" variant="light">{due.length} fällig</Badge>
+          <Badge color="gray" variant="light">{upcoming.length} demnächst</Badge>
         </Group>
       </Group>
 
-      <Paper p={{ base: 'md', sm: 'xl' }} withBorder>
-        <Stack gap="lg">
-          <Box>
-            <Text c="dimmed" mb="xs" size="xs" tt="uppercase">
-              Vorderseite
-            </Text>
-            <MarkdownContent markdown={currentFlashcard.front} />
-          </Box>
-
-          {currentFlashcard.hint !== null && !hintVisible && !answerVisible && (
-            <Button
-              leftSection={<IconBulb size={16} />}
-              size="compact-sm"
-              variant="subtle"
-              w="fit-content"
-              onClick={() => setHintVisible(true)}
-            >
-              Hinweis anzeigen
-            </Button>
-          )}
-          {hintVisible && currentFlashcard.hint !== null && !answerVisible && (
-            <Paper bg="var(--mantine-color-gray-0)" p="sm" withBorder>
-              <Text c="dimmed" mb={4} size="xs">Hinweis</Text>
-              <MarkdownContent markdown={currentFlashcard.hint} />
-            </Paper>
-          )}
-
-          {!answerVisible ? (
-            <Button onClick={() => setAnswerVisible(true)}>
-              Antwort anzeigen
-            </Button>
-          ) : (
-            <Stack gap="lg">
-              <Box>
-                <Text c="dimmed" mb="xs" size="xs" tt="uppercase">
-                  Rückseite
-                </Text>
-                <MarkdownContent markdown={currentFlashcard.back} />
-              </Box>
-
-              {currentFlashcard.explanation !== null && (
-                <Paper bg="var(--mantine-color-gray-0)" p="sm" withBorder>
-                  <Text c="dimmed" mb={4} size="xs">Erklärung</Text>
-                  <MarkdownContent markdown={currentFlashcard.explanation} />
-                </Paper>
-              )}
-
-              {preview.isPending ? (
-                <Center py="sm"><Loader size="sm" /></Center>
-              ) : preview.isError ? (
-                <Alert color="red" title="Fehler">
-                  Die Wiederholungsintervalle konnten nicht geladen werden.
-                </Alert>
+      {currentFlashcard === undefined ? (
+        <Paper p="xl" withBorder>
+          <Center>
+            <Stack align="center" gap="xs">
+              {nextDueAt === undefined ? (
+                <IconCards size={40} stroke={1.5} />
               ) : (
-                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
-                  {ratings.map((rating) => (
-                    <Button
-                      key={rating.rating}
-                      color={rating.color}
-                      disabled={reviewFlashcard.isPending}
-                      h="auto"
-                      py="xs"
-                      variant="light"
-                      onClick={(event) => rate(rating.rating, event.timeStamp)}
-                    >
-                      <Stack gap={0} align="center">
-                        <Text fw={600} size="sm">{rating.label}</Text>
-                        <Text size="xs">{intervalLabel(rating.interval)}</Text>
-                      </Stack>
-                    </Button>
-                  ))}
-                </SimpleGrid>
+                <IconClock size={40} stroke={1.5} />
               )}
-
-              {reviewFlashcard.isError && (
-                <Alert color="red" title="Fehler">
-                  Die Bewertung konnte nicht gespeichert werden.
-                </Alert>
-              )}
+              <Title order={3}>
+                {nextDueAt === undefined ? 'Alles erledigt' : 'Aktuell nichts fällig'}
+              </Title>
+              <Text c="dimmed">
+                {nextDueAt === undefined
+                  ? 'Es stehen keine weiteren Lernkarten an.'
+                  : now === 0
+                    ? 'Wartezeit wird berechnet …'
+                    : now >= nextDueAt
+                    ? 'Die nächste Lernkarte wird geladen …'
+                    : `Nächste Wiederholung in ${waitTimeLabel(nextDueAt - now)}`}
+              </Text>
+              {flashcards.isFetching && <Loader mt="xs" size="sm" />}
             </Stack>
-          )}
-        </Stack>
-      </Paper>
+          </Center>
+        </Paper>
+      ) : (
+        <Paper p={{ base: 'md', sm: 'xl' }} withBorder>
+          <Stack gap="lg">
+            <Box>
+              <Text c="dimmed" mb="xs" size="xs" tt="uppercase">
+                Vorderseite
+              </Text>
+              <MarkdownContent markdown={currentFlashcard.front} />
+            </Box>
+
+            {currentFlashcard.hint !== null && !hintVisible && !answerVisible && (
+              <Button
+                leftSection={<IconBulb size={16} />}
+                size="compact-sm"
+                variant="subtle"
+                w="fit-content"
+                onClick={() => setHintVisible(true)}
+              >
+                Hinweis anzeigen
+              </Button>
+            )}
+            {hintVisible && currentFlashcard.hint !== null && !answerVisible && (
+              <Paper bg="var(--mantine-color-gray-0)" p="sm" withBorder>
+                <Text c="dimmed" mb={4} size="xs">Hinweis</Text>
+                <MarkdownContent markdown={currentFlashcard.hint} />
+              </Paper>
+            )}
+
+            {!answerVisible ? (
+              <Button onClick={() => setAnswerVisible(true)}>
+                Antwort anzeigen
+              </Button>
+            ) : (
+              <Stack gap="lg">
+                <Box>
+                  <Text c="dimmed" mb="xs" size="xs" tt="uppercase">
+                    Rückseite
+                  </Text>
+                  <MarkdownContent markdown={currentFlashcard.back} />
+                </Box>
+
+                {currentFlashcard.explanation !== null && (
+                  <Paper bg="var(--mantine-color-gray-0)" p="sm" withBorder>
+                    <Text c="dimmed" mb={4} size="xs">Erklärung</Text>
+                    <MarkdownContent markdown={currentFlashcard.explanation} />
+                  </Paper>
+                )}
+
+                {preview.isPending ? (
+                  <Center py="sm"><Loader size="sm" /></Center>
+                ) : preview.isError ? (
+                  <Alert color="red" title="Fehler">
+                    Die Wiederholungsintervalle konnten nicht geladen werden.
+                  </Alert>
+                ) : (
+                  <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
+                    {ratings.map((rating) => (
+                      <Button
+                        key={rating.rating}
+                        color={rating.color}
+                        disabled={reviewFlashcard.isPending}
+                        h="auto"
+                        py="xs"
+                        variant="light"
+                        onClick={(event) => rate(rating.rating, event.timeStamp)}
+                      >
+                        <Stack gap={0} align="center">
+                          <Text fw={600} size="sm">{rating.label}</Text>
+                          <Text size="xs">{intervalLabel(rating.interval)}</Text>
+                        </Stack>
+                      </Button>
+                    ))}
+                  </SimpleGrid>
+                )}
+
+                {reviewFlashcard.isError && (
+                  <Alert color="red" title="Fehler">
+                    Die Bewertung konnte nicht gespeichert werden.
+                  </Alert>
+                )}
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+      )}
+
+      <Stack gap="xs" mt="xl">
+        <Group justify="space-between">
+          <Title order={4}>Warteschlange</Title>
+          <Text c="dimmed" size="sm">{due.length} Karten</Text>
+        </Group>
+        <Paper className="learning-queue" withBorder>
+          {due.length === 0 ? (
+            <Text c="dimmed" p="md" size="sm">Aktuell ist keine Karte fällig.</Text>
+          ) : due.map((card, index) => (
+            <QueueCard key={card.id} active={index === 0} card={card} />
+          ))}
+        </Paper>
+      </Stack>
+
+      <Stack gap="xs" mt="xl" mb="xl">
+        <Group justify="space-between">
+          <Title order={4}>Demnächst</Title>
+          <Text c="dimmed" size="sm">Nächste {upcoming.length} Karten</Text>
+        </Group>
+        <Paper className="learning-queue" withBorder>
+          {upcoming.length === 0 ? (
+            <Text c="dimmed" p="md" size="sm">Keine weiteren Wiederholungen geplant.</Text>
+          ) : upcoming.map((card) => {
+            const dueAt = card.due_at === null ? now : new Date(card.due_at).getTime()
+            return (
+              <QueueCard
+                key={card.id}
+                card={card}
+                dueLabel={now === 0
+                  ? 'wird berechnet …'
+                  : dueAt <= now
+                    ? 'jetzt'
+                    : `in ${waitTimeLabel(dueAt - now)}`}
+              />
+            )
+          })}
+        </Paper>
+      </Stack>
     </Box>
   )
 }

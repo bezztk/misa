@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../api/client'
-import type { Flashcard } from '../realization/types'
-import type { FlashcardPreview, FlashcardReview } from './types'
+import type { FlashcardPreview, FlashcardQueue, FlashcardReview } from './types'
 
 const dueFlashcardsKey = ['flashcards', 'due'] as const
 const flashcardPreviewKey = (id: number) => ['flashcards', id, 'preview'] as const
 
 function getDueFlashcards() {
-  return apiClient.get<Flashcard[]>('/flashcards/due')
+  return apiClient.get<FlashcardQueue>('/flashcards/due')
 }
 
 export function useDueFlashcards() {
@@ -39,11 +38,9 @@ export function useReviewFlashcard() {
 
   return useMutation({
     mutationFn: reviewFlashcard,
-    onSuccess: (_, review) => {
-      queryClient.setQueryData<Flashcard[]>(dueFlashcardsKey, (flashcards) =>
-        flashcards?.filter((flashcard) => flashcard.id !== review.id),
-      )
+    onSuccess: async (_, review) => {
       queryClient.removeQueries({ queryKey: flashcardPreviewKey(review.id) })
+      await queryClient.invalidateQueries({ queryKey: dueFlashcardsKey })
     },
   })
 }
