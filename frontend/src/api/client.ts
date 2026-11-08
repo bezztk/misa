@@ -3,7 +3,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(
   '',
 )
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 async function request<T>(path: string, method: HttpMethod, body?: unknown) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -35,6 +35,9 @@ export const apiClient = {
   },
   put<T>(path: string, body: unknown) {
     return request<T>(path, 'PUT', body)
+  },
+  patch<T>(path: string, body: unknown) {
+    return request<T>(path, 'PATCH', body)
   },
   delete<T = void>(path: string) {
     return request<T>(path, 'DELETE')

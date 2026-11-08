@@ -33,5 +33,5 @@ export interface Document {
 
 export interface TopicGraphEntry {
   topic: Topic
-  document: Document
+  document: Document | null
 }

@@ -3,10 +3,12 @@ import { apiClient } from '../../api/client'
 import type {
   CreateTopic,
   CreateTopicResponse,
+  Document,
   TopicGraphEntry,
 } from './types'
 
 export const topicGraphKey = ['topic', 'graph'] as const
+const topicDocumentKey = (topicId: number) => ['topic', topicId, 'document'] as const
 
 function getTopicGraph() {
   return apiClient.get<TopicGraphEntry[]>('/topic/graph')
@@ -18,6 +20,32 @@ export function useTopicGraph() {
     queryFn: getTopicGraph,
     refetchOnMount: 'always',
   })
+}
+
+function getDocument(entityId: number) {
+  return apiClient.get<Document>(`/documents/${entityId}`)
+}
+
+function createDocumentForTopic(topicId: number) {
+  return apiClient.post<Document>(`/topics/${topicId}/document`, {})
+}
+
+export function useTopicDocument(
+  topicId: number,
+  documentEntityId: number | null,
+) {
+  return useQuery({
+    queryKey: topicDocumentKey(topicId),
+    queryFn: () =>
+      documentEntityId === null
+        ? createDocumentForTopic(topicId)
+        : getDocument(documentEntityId),
+    refetchOnMount: 'always',
+  })
+}
+
+export function updateDocumentContent(entityId: number, content: string) {
+  return apiClient.patch<void>(`/documents/${entityId}`, { content })
 }
 
 function createTopic(topic: CreateTopic) {
