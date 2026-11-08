@@ -52,7 +52,15 @@ interface TopicFormValues {
 function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
   const graph = new dagre.graphlib.Graph()
   graph.setDefaultEdgeLabel(() => ({}))
-  graph.setGraph({ rankdir: 'TB' })
+  graph.setGraph({
+    edgesep: 8,
+    marginx: 10,
+    marginy: 10,
+    nodesep: 20,
+    rankdir: 'TB',
+    ranker: 'tight-tree',
+    ranksep: 30,
+  })
 
   nodes.forEach((node) => graph.setNode(node.id, { width: 180, height: 50 }))
   edges.forEach((edge) => graph.setEdge(edge.source, edge.target))
