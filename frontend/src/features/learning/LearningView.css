@@ -1,0 +1,9 @@
+.learning-markdown {
+  overflow-wrap: anywhere;
+}
+
+.learning-markdown .milkdown,
+.learning-markdown .ProseMirror {
+  min-height: 0;
+  padding: 0;
+}

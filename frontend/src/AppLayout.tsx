@@ -13,6 +13,7 @@ import {
 import { useMediaQuery } from '@mantine/hooks'
 import {
   IconCalendar,
+  IconBrain,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconListCheck,
@@ -146,6 +147,29 @@ export function AppLayout() {
                     : undefined
                 }
                 to="/realization"
+                variant="light"
+                w="100%"
+                onClick={() => setMobileOpened(false)}
+              />
+            </Tooltip>
+            <Tooltip disabled={!compact} label="Lernen" position="right">
+              <NavLink
+                active={pathname.startsWith('/learning')}
+                aria-label="Lernen"
+                color="gray"
+                component={Link}
+                label={compact ? undefined : 'Lernen'}
+                leftSection={<IconBrain size={20} stroke={1.5} />}
+                styles={
+                  compact
+                    ? {
+                        body: { display: 'none' },
+                        root: { paddingInline: 0 },
+                        section: { marginInline: 'auto' },
+                      }
+                    : undefined
+                }
+                to="/learning"
                 variant="light"
                 w="100%"
                 onClick={() => setMobileOpened(false)}

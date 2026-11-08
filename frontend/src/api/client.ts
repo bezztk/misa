@@ -23,7 +23,10 @@ async function request<T>(path: string, method: HttpMethod, body?: unknown) {
     return undefined as T
   }
 
-  return response.json() as Promise<T>
+  const responseText = await response.text()
+  return responseText === ''
+    ? undefined as T
+    : JSON.parse(responseText) as T
 }
 
 export const apiClient = {
