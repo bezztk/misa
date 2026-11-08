@@ -1,14 +1,11 @@
 use crate::models::topic::{CreateTopic, UpdateTopic};
 use crate::repositories::topic_repository;
+use crate::validation::valid_name;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
-
-fn valid_name(name: &str) -> bool {
-    !name.trim().is_empty() && name.chars().count() <= 150
-}
 
 pub async fn get_topic_graph() -> StatusCode {
     StatusCode::NOT_IMPLEMENTED
@@ -27,7 +24,7 @@ pub async fn create_topic(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTopic>,
 ) -> Result<(StatusCode, Json<CreateTopicResponse>), StatusCode> {
-    if !valid_name(&payload.name) {
+    if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -46,7 +43,7 @@ pub async fn update_topic(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateTopic>,
 ) -> Result<StatusCode, StatusCode> {
-    if !valid_name(&payload.name) {
+    if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
 

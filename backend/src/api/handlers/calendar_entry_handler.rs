@@ -1,14 +1,11 @@
 use crate::models::calendar_entry::{CalendarEntry, CreateCalendarEntry, UpdateCalendarEntry};
 use crate::repositories::calendar_entry_repository;
+use crate::validation::valid_name;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
-
-fn valid_title(title: &str) -> bool {
-    !title.trim().is_empty() && title.chars().count() <= 150
-}
 
 pub async fn get_calendar_entry(
     State(pool): State<PgPool>,
@@ -45,14 +42,14 @@ pub async fn create_calendar_entry(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateCalendarEntry>,
 ) -> Result<(StatusCode, Json<CreateCalendarEntryResponse>), StatusCode> {
-    if !valid_title(&payload.title) {
+    if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
     match calendar_entry_repository::create_calendar_entry(
         &pool,
         payload.source_entity_id,
-        &payload.title,
+        &payload.name,
         payload.note.as_deref(),
         payload.is_reminder,
         payload.start_at,
@@ -76,7 +73,7 @@ pub async fn update_calendar_entry(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateCalendarEntry>,
 ) -> Result<StatusCode, StatusCode> {
-    if !valid_title(&payload.title) {
+    if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -84,7 +81,7 @@ pub async fn update_calendar_entry(
         &pool,
         entity_id,
         payload.source_entity_id,
-        &payload.title,
+        &payload.name,
         payload.note.as_deref(),
         payload.is_reminder,
         payload.start_at,

@@ -184,7 +184,7 @@ async fn seed_calendar_entries(
         let end_at =
             (!is_reminder).then_some(start_at + Duration::minutes(30 + (index % 4) as i64 * 30));
         let source_entity_id = (index < 42).then_some(task_ids[index % task_ids.len()]);
-        let (title, note) = if is_reminder {
+        let (name, note) = if is_reminder {
             (
                 REMINDERS[index % REMINDERS.len()].to_string(),
                 Some("Kurze Erinnerung für den Alltag".to_string()),
@@ -204,12 +204,12 @@ async fn seed_calendar_entries(
 
         sqlx::query(
             "INSERT INTO calendar_entries
-                (entity_id, source_entity_id, title, note, is_reminder, start_at, end_at)
+                (entity_id, source_entity_id, name, note, is_reminder, start_at, end_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(entity_id)
         .bind(source_entity_id)
-        .bind(title)
+        .bind(name)
         .bind(note)
         .bind(is_reminder)
         .bind(start_at)

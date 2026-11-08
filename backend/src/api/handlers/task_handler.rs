@@ -1,14 +1,11 @@
 use crate::models::task::{CreateTask, Task, UpdateTask};
 use crate::repositories::task_repository;
+use crate::validation::valid_name;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
-
-fn valid_name(name: &str) -> bool {
-    !name.trim().is_empty() && name.chars().count() <= 150
-}
 
 async fn validate_state(pool: &PgPool, state_id: i32) -> Result<(), StatusCode> {
     match task_repository::task_state_exists(pool, state_id).await {
@@ -72,7 +69,7 @@ pub async fn create_task(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTask>,
 ) -> Result<(StatusCode, Json<CreateTaskResponse>), StatusCode> {
-    if !valid_name(&payload.name) {
+    if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -102,7 +99,7 @@ pub async fn update_task(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateTask>,
 ) -> Result<StatusCode, StatusCode> {
-    if !valid_name(&payload.name) {
+    if !valid_name(&payload.name, 150) {
         return Err(StatusCode::BAD_REQUEST);
     }
 

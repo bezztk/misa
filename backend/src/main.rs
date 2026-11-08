@@ -6,6 +6,7 @@ mod database;
 mod dev_seed;
 mod models;
 pub mod repositories;
+mod validation;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

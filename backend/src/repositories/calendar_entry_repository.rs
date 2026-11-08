@@ -7,7 +7,7 @@ use sqlx::PgPool;
 pub async fn create_calendar_entry(
     pool: &PgPool,
     source_entity_id: Option<i32>,
-    title: &str,
+    name: &str,
     note: Option<&str>,
     is_reminder: bool,
     start_at: DateTime<Utc>,
@@ -18,12 +18,12 @@ pub async fn create_calendar_entry(
 
     sqlx::query(
         "INSERT INTO calendar_entries
-            (entity_id, source_entity_id, title, note, is_reminder, start_at, end_at)
+            (entity_id, source_entity_id, name, note, is_reminder, start_at, end_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
     .bind(entity_id)
     .bind(source_entity_id)
-    .bind(title)
+    .bind(name)
     .bind(note)
     .bind(is_reminder)
     .bind(start_at)
@@ -46,7 +46,7 @@ pub async fn get_calendar_entry(
             e.updated_at,
             e.version,
             c.source_entity_id,
-            c.title,
+            c.name,
             c.note,
             c.is_reminder,
             c.start_at,
@@ -70,7 +70,7 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
             e.updated_at,
             e.version,
             c.source_entity_id,
-            c.title,
+            c.name,
             c.note,
             c.is_reminder,
             c.start_at,
@@ -88,7 +88,7 @@ pub async fn update_calendar_entry(
     pool: &PgPool,
     entity_id: i32,
     source_entity_id: Option<i32>,
-    title: &str,
+    name: &str,
     note: Option<&str>,
     is_reminder: bool,
     start_at: DateTime<Utc>,
@@ -98,7 +98,7 @@ pub async fn update_calendar_entry(
     let result = sqlx::query(
         "UPDATE calendar_entries
          SET source_entity_id = $1,
-             title = $2,
+             name = $2,
              note = $3,
              is_reminder = $4,
              start_at = $5,
@@ -106,7 +106,7 @@ pub async fn update_calendar_entry(
          WHERE entity_id = $7",
     )
     .bind(source_entity_id)
-    .bind(title)
+    .bind(name)
     .bind(note)
     .bind(is_reminder)
     .bind(start_at)
