@@ -11,12 +11,13 @@ import {
   useNodesState,
   type Edge,
   type Node,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Crepe } from '@milkdown/crepe'
 import '@milkdown/crepe/theme/common/style.css'
 import '@milkdown/crepe/theme/frame.css'
-import dagre from '@dagrejs/dagre'
+import ELK from 'elkjs/lib/elk.bundled.js'
 import {
   Alert,
   ActionIcon,
@@ -72,30 +73,174 @@ interface TopicFormValues {
 
 type SaveStatus = 'saved' | 'saving' | 'error'
 
-function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
-  const graph = new dagre.graphlib.Graph()
-  graph.setDefaultEdgeLabel(() => ({}))
-  graph.setGraph({
-    edgesep: 8,
-    marginx: 10,
-    marginy: 10,
-    nodesep: 20,
-    rankdir: 'TB',
-    ranker: 'tight-tree',
-    ranksep: 30,
+const elk = new ELK()
+const layoutOptions = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'DOWN',
+  'elk.spacing.nodeNode': '15',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '30',
+  'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+  'elk.edgeRouting': 'SPLINES',
+}
+
+interface HierarchyLayout {
+  height: number
+  nodes: TopicNode[]
+  width: number
+}
+
+const hierarchyGap = 40
+
+async function layoutHierarchy(
+  nodes: TopicNode[],
+  edges: Edge[],
+): Promise<HierarchyLayout> {
+  const graph = await elk.layout({
+    id: 'root',
+    layoutOptions,
+    children: nodes.map((node) => ({
+      id: node.id,
+      height: node.measured?.height ?? node.height ?? 50,
+      width: node.measured?.width ?? node.width ?? 180,
+    })),
+    edges: edges.map((edge) => ({
+      id: edge.id,
+      sources: [edge.source],
+      targets: [edge.target],
+    })),
+  })
+  const layoutNodes = graph.children ?? []
+  const nodeSizes = new Map(nodes.map((node) => [
+    node.id,
+    {
+      height: node.measured?.height ?? node.height ?? 50,
+      width: node.measured?.width ?? node.width ?? 180,
+    },
+  ]))
+  const minX = Math.min(...layoutNodes.map((node) => node.x ?? 0))
+  const minY = Math.min(...layoutNodes.map((node) => node.y ?? 0))
+  const maxX = Math.max(...layoutNodes.map((node) =>
+    (node.x ?? 0) + (nodeSizes.get(node.id)?.width ?? 0),
+  ))
+  const maxY = Math.max(...layoutNodes.map((node) =>
+    (node.y ?? 0) + (nodeSizes.get(node.id)?.height ?? 0),
+  ))
+  const positions = new Map(layoutNodes.map((node) => [
+    node.id,
+    { x: (node.x ?? 0) - minX, y: (node.y ?? 0) - minY },
+  ]))
+
+  return {
+    height: maxY - minY,
+    nodes: nodes.map((node) => ({
+      ...node,
+      position: positions.get(node.id) ?? node.position,
+    })),
+    width: maxX - minX,
+  }
+}
+
+async function applyElkLayout(
+  nodes: TopicNode[],
+  edges: Edge[],
+  availableWidth: number,
+  availableHeight: number,
+) {
+  const outgoingEdges = new Map<string, Edge[]>()
+  edges.forEach((edge) => {
+    const outgoing = outgoingEdges.get(edge.source) ?? []
+    outgoing.push(edge)
+    outgoingEdges.set(edge.source, outgoing)
   })
 
-  nodes.forEach((node) => graph.setNode(node.id, { width: 180, height: 50 }))
-  edges.forEach((edge) => graph.setEdge(edge.source, edge.target))
-  dagre.layout(graph)
+  const assignedNodeIds = new Set<string>()
+  const collectHierarchy = (rootId: string) => {
+    const hierarchyNodeIds = new Set<string>()
+    const pendingNodeIds = [rootId]
 
-  return nodes.map((node) => {
-    const position = graph.node(node.id)
-    return {
-      ...node,
-      position: { x: position.x - 90, y: position.y - 25 },
+    while (pendingNodeIds.length > 0) {
+      const nodeId = pendingNodeIds.pop()
+      if (
+        nodeId === undefined ||
+        assignedNodeIds.has(nodeId) ||
+        hierarchyNodeIds.has(nodeId)
+      ) continue
+
+      hierarchyNodeIds.add(nodeId)
+      assignedNodeIds.add(nodeId)
+      outgoingEdges.get(nodeId)?.forEach((edge) => {
+        pendingNodeIds.push(edge.target)
+      })
+    }
+
+    return nodes.filter((node) => hierarchyNodeIds.has(node.id))
+  }
+
+  const rootNodes = nodes.filter(
+    (node) => node.data.topic.parent_topic_entity_id === null,
+  )
+  const hierarchies = rootNodes.map((rootNode) => collectHierarchy(rootNode.id))
+  nodes.forEach((node) => {
+    if (!assignedNodeIds.has(node.id)) {
+      hierarchies.push(collectHierarchy(node.id))
     }
   })
+
+  const layouts = await Promise.all(hierarchies.map((hierarchyNodes) => {
+    const hierarchyNodeIds = new Set(hierarchyNodes.map((node) => node.id))
+    const hierarchyEdges = edges.filter((edge) =>
+      hierarchyNodeIds.has(edge.source) && hierarchyNodeIds.has(edge.target),
+    )
+    return layoutHierarchy(hierarchyNodes, hierarchyEdges)
+  }))
+  layouts.sort((left, right) => right.height - left.height)
+
+  const totalArea = layouts.reduce(
+    (area, layout) =>
+      area +
+      (layout.width + hierarchyGap) * (layout.height + hierarchyGap),
+    0,
+  )
+  const widestHierarchy = Math.max(...layouts.map((layout) => layout.width))
+  const allHierarchiesWidth = layouts.reduce(
+    (width, layout) => width + layout.width,
+    hierarchyGap * Math.max(0, layouts.length - 1),
+  )
+  const panelAspectRatio = Math.max(
+    0.5,
+    Math.min(2.5, availableWidth / Math.max(availableHeight, 1)),
+  )
+  const targetWidth = Math.max(
+    widestHierarchy,
+    Math.min(
+      allHierarchiesWidth,
+      Math.max(availableWidth, Math.sqrt(totalArea * panelAspectRatio)),
+    ),
+  )
+
+  let x = 0
+  let y = 0
+  let rowHeight = 0
+  const positionedNodes: TopicNode[] = []
+  layouts.forEach((layout) => {
+    if (x > 0 && x + layout.width > targetWidth) {
+      x = 0
+      y += rowHeight + hierarchyGap
+      rowHeight = 0
+    }
+
+    positionedNodes.push(...layout.nodes.map((node) => ({
+      ...node,
+      position: {
+        x: node.position.x + x,
+        y: node.position.y + y,
+      },
+    })))
+    x += layout.width + hierarchyGap
+    rowHeight = Math.max(rowHeight, layout.height)
+  })
+
+  return positionedNodes
 }
 
 function CrepeMarkdownEditor({
@@ -300,6 +445,8 @@ export function RealizationView() {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
   const [createOpened, setCreateOpened] = useState(false)
   const flowRef = useRef<HTMLDivElement>(null)
+  const flowInstanceRef = useRef<ReactFlowInstance<TopicNode, Edge> | null>(null)
+  const layoutSignatureRef = useRef('')
   const [documentDrafts] = useState(() => new Map<number, string>())
   const form = useForm<TopicFormValues>({
     initialValues: { name: '' },
@@ -329,9 +476,64 @@ export function RealizationView() {
           }],
     )
 
+    layoutSignatureRef.current = ''
     setEdges(nextEdges)
-    setNodes(applyDagreLayout(nextNodes, nextEdges))
+    setNodes(nextNodes)
   }, [setEdges, setNodes, topicGraph.data])
+
+  useEffect(() => {
+    if (
+      nodes.length === 0 ||
+      nodes.some((node) =>
+        node.measured?.height === undefined ||
+        node.measured.width === undefined,
+      )
+    ) return
+
+    const signature = JSON.stringify({
+      edges: edges.map((edge) => [edge.id, edge.source, edge.target]),
+      nodes: nodes.map((node) => [
+        node.id,
+        node.measured?.width,
+        node.measured?.height,
+      ]),
+    })
+    if (layoutSignatureRef.current === signature) return
+
+    layoutSignatureRef.current = signature
+    const controller = new AbortController()
+    const flowBounds = flowRef.current?.getBoundingClientRect()
+    void applyElkLayout(
+      nodes,
+      edges,
+      flowBounds?.width ?? 1_000,
+      flowBounds?.height ?? 700,
+    ).then((layoutedNodes) => {
+      if (controller.signal.aborted) return
+
+      const positions = new Map(
+        layoutedNodes.map((node) => [node.id, node.position]),
+      )
+      setNodes((currentNodes) => currentNodes.map((node) => ({
+        ...node,
+        position: positions.get(node.id) ?? node.position,
+      })))
+      requestAnimationFrame(() => {
+        void flowInstanceRef.current?.fitView()
+      })
+    }).catch(() => {
+      if (
+        !controller.signal.aborted &&
+        layoutSignatureRef.current === signature
+      ) {
+        layoutSignatureRef.current = ''
+      }
+    })
+
+    return () => {
+      controller.abort()
+    }
+  }, [edges, nodes, setNodes])
 
   const openContextMenu = (event: ContextMenuEvent, topic: TopicNode | null) => {
     event.preventDefault()
@@ -395,6 +597,9 @@ export function RealizationView() {
               onNodeClick={(_, node) => setSelectedTopicId(node.id)}
               onNodeContextMenu={(event, node) => openContextMenu(event, node)}
               onNodesChange={onNodesChange}
+              onInit={(instance) => {
+                flowInstanceRef.current = instance
+              }}
               onPaneClick={() => setContextMenu(null)}
               onPaneContextMenu={(event) => openContextMenu(event, null)}
             >
