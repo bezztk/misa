@@ -16,6 +16,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconListCheck,
+  IconSitemap,
   IconSettings,
 } from '@tabler/icons-react'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
@@ -37,7 +38,7 @@ export function AppLayout() {
         breakpoint: 'sm',
         collapsed: { mobile: !mobileOpened },
       }}
-      padding={{ base: 'sm', sm: 'md' }}
+      padding={pathname.startsWith('/realization') ? 0 : { base: 'sm', sm: 'md' }}
     >
       <AppShell.Header hiddenFrom="sm">
         <Group h="100%" px="md">
@@ -127,6 +128,29 @@ export function AppLayout() {
                 onClick={() => setMobileOpened(false)}
               />
             </Tooltip>
+            <Tooltip disabled={!compact} label="Verwirklichung" position="right">
+              <NavLink
+                active={pathname.startsWith('/realization')}
+                aria-label="Verwirklichung"
+                color="gray"
+                component={Link}
+                label={compact ? undefined : 'Verwirklichung'}
+                leftSection={<IconSitemap size={20} stroke={1.5} />}
+                styles={
+                  compact
+                    ? {
+                        body: { display: 'none' },
+                        root: { paddingInline: 0 },
+                        section: { marginInline: 'auto' },
+                      }
+                    : undefined
+                }
+                to="/realization"
+                variant="light"
+                w="100%"
+                onClick={() => setMobileOpened(false)}
+              />
+            </Tooltip>
             <Tooltip disabled={!compact} label="Einstellungen" position="right">
               <NavLink
                 active={pathname.startsWith('/settings')}
@@ -155,7 +179,11 @@ export function AppLayout() {
       </AppShell.Navbar>
 
       <AppShell.Main
-        style={{ height: '100dvh', minWidth: 0, overflow: 'auto' }}
+        style={{
+          height: '100dvh',
+          minWidth: 0,
+          overflow: pathname.startsWith('/realization') ? 'hidden' : 'auto',
+        }}
       >
         <Outlet />
       </AppShell.Main>
