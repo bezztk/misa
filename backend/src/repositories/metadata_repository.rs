@@ -1,7 +1,7 @@
 use crate::models::metadata::{
     DocumentCompletenessLevel, DocumentFlashcardStatus, DocumentVerificationLevel,
-    DocumentVerificationStatus, Metadata, TaskGroup, TaskPriority, TaskStateRow,
-    TopicUnderstandingLevel,
+    DocumentVerificationStatus, FlashcardRetentionLevel, Metadata, TaskGroup, TaskPriority,
+    TaskStateRow, TopicUnderstandingLevel,
 };
 use sqlx::PgPool;
 
@@ -67,6 +67,19 @@ pub async fn get_document_verification_levels(
         .await
 }
 
+pub async fn get_flashcard_retention_levels(
+    pool: &PgPool,
+) -> Result<Vec<FlashcardRetentionLevel>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, name, display_name,
+                desired_retention::DOUBLE PRECISION AS desired_retention
+         FROM flashcard_retention_levels
+         ORDER BY id",
+    )
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn get_metadata(pool: &PgPool) -> Result<Metadata, sqlx::Error> {
     Ok(Metadata {
         task_groups: get_task_groups(pool).await?,
@@ -77,5 +90,6 @@ pub async fn get_metadata(pool: &PgPool) -> Result<Metadata, sqlx::Error> {
         document_flashcard_statuses: get_document_flashcard_statuses(pool).await?,
         document_verification_statuses: get_document_verification_statuses(pool).await?,
         document_verification_levels: get_document_verification_levels(pool).await?,
+        flashcard_retention_levels: get_flashcard_retention_levels(pool).await?,
     })
 }

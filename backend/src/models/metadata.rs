@@ -64,6 +64,14 @@ pub struct DocumentVerificationLevel {
     pub display_name: Option<String>,
 }
 
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct FlashcardRetentionLevel {
+    pub id: i32,
+    pub name: String,
+    pub display_name: Option<String>,
+    pub desired_retention: f64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Metadata {
     pub task_groups: Vec<TaskGroup>,
@@ -74,4 +82,5 @@ pub struct Metadata {
     pub document_flashcard_statuses: Vec<DocumentFlashcardStatus>,
     pub document_verification_statuses: Vec<DocumentVerificationStatus>,
     pub document_verification_levels: Vec<DocumentVerificationLevel>,
+    pub flashcard_retention_levels: Vec<FlashcardRetentionLevel>,
 }

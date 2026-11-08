@@ -1,4 +1,5 @@
 use crate::models::document::Document;
+use crate::models::flashcard::Flashcard;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -30,4 +31,5 @@ pub struct UpdateTopic {
 pub struct TopicGraphEntry {
     pub topic: Topic,
     pub document: Option<Document>,
+    pub flashcards: Vec<Flashcard>,
 }

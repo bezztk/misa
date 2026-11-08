@@ -1,7 +1,7 @@
 use crate::models::document::Document;
 use crate::models::entity::EntityType;
 use crate::models::topic::{Topic, TopicGraphEntry};
-use crate::repositories::entity_repository;
+use crate::repositories::{entity_repository, flashcard_repository};
 use sqlx::PgPool;
 use std::collections::HashMap;
 
@@ -45,11 +45,30 @@ pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx
     .map(|document| (document.topic_id, document))
     .collect::<HashMap<_, _>>();
 
+    let mut flashcards = flashcard_repository::get_flashcards(pool)
+        .await?
+        .into_iter()
+        .fold(HashMap::new(), |mut by_document, flashcard| {
+            by_document
+                .entry(flashcard.document_id)
+                .or_insert_with(Vec::new)
+                .push(flashcard);
+            by_document
+        });
+
     Ok(topics
         .into_iter()
         .map(|topic| {
             let document = documents.remove(&topic.entity_id);
-            TopicGraphEntry { topic, document }
+            let document_flashcards = document
+                .as_ref()
+                .and_then(|document| flashcards.remove(&document.entity_id))
+                .unwrap_or_default();
+            TopicGraphEntry {
+                topic,
+                document,
+                flashcards: document_flashcards,
+            }
         })
         .collect())
 }
