@@ -1,6 +1,11 @@
 export interface CreateTopic {
   parent_topic_entity_id: number | null
+  development_area_id: number | null
   name: string
+}
+
+export interface UpdateTopic extends CreateTopic {
+  understanding_level_id: number
 }
 
 export interface CreateTopicResponse {
@@ -13,6 +18,7 @@ export interface Topic {
   updated_at: string
   version: number
   parent_topic_entity_id: number | null
+  development_area_id: number | null
   name: string
   understanding_level_id: number
 }
@@ -68,4 +74,25 @@ export interface TopicGraphEntry {
   topic: Topic
   document: Document | null
   flashcards: Flashcard[]
+}
+
+export interface DevelopmentArea {
+  id: number
+  name: string
+  background_color: string | null
+  banner_image_path: string | null
+  icon: string | null
+  sort_order: number
+}
+
+export type CreateDevelopmentArea = Omit<DevelopmentArea, 'id'>
+export type UpdateDevelopmentArea = CreateDevelopmentArea
+
+export interface CreateDevelopmentAreaResponse {
+  id: number
+}
+
+export interface TopicGraph {
+  development_areas: DevelopmentArea[]
+  topics: TopicGraphEntry[]
 }

@@ -705,7 +705,7 @@ function LoadedDocumentPanel({
   )
 }
 
-function TopicDocumentPanel({
+export function TopicDocumentPanel({
   topic,
   document,
   flashcards,
@@ -752,7 +752,7 @@ function TopicDocumentPanel({
   )
 }
 
-export function RealizationView() {
+export function TopicGraphView() {
   const topicGraph = useTopicGraph()
   const createTopic = useCreateTopic()
   const [nodes, setNodes, onNodesChange] = useNodesState<TopicNode>([])
@@ -776,7 +776,7 @@ export function RealizationView() {
   useEffect(() => {
     if (topicGraph.data === undefined) return
 
-    const nextNodes: TopicNode[] = topicGraph.data.map(({
+    const nextNodes: TopicNode[] = topicGraph.data.topics.map(({
       topic,
       document,
       flashcards,
@@ -786,7 +786,7 @@ export function RealizationView() {
       position: { x: 0, y: 0 },
     }))
     const nodeIds = new Set(nextNodes.map((node) => node.id))
-    const nextEdges: Edge[] = topicGraph.data.flatMap(({ topic }) =>
+    const nextEdges: Edge[] = topicGraph.data.topics.flatMap(({ topic }) =>
       topic.parent_topic_entity_id === null ||
       !nodeIds.has(String(topic.parent_topic_entity_id))
         ? []
@@ -888,6 +888,9 @@ export function RealizationView() {
       {
         parent_topic_entity_id:
           parentTopic === null ? null : Number(parentTopic.id),
+        development_area_id: parentTopic === null
+          ? topicGraph.data?.development_areas[0]?.id ?? null
+          : null,
         name,
       },
       {

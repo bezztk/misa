@@ -2,3 +2,36 @@
   height: 100%;
   overflow: auto;
 }
+
+.realization-hierarchy-scroll {
+  height: 100%;
+  overflow: auto;
+}
+
+.realization-area {
+  overflow: hidden;
+}
+
+.realization-area-banner {
+  background-position: center;
+  background-size: cover;
+  min-height: 74px;
+  padding: 16px;
+}
+
+.realization-tree-row {
+  min-height: 38px;
+}
+
+.realization-tree-row:hover {
+  background: var(--mantine-color-gray-0);
+}
+
+.realization-document-row {
+  min-height: 34px;
+}
+
+.realization-panel-separator {
+  background: var(--mantine-color-gray-3);
+  width: 6px;
+}

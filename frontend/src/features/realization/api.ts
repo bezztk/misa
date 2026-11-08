@@ -3,18 +3,22 @@ import { apiClient } from '../../api/client'
 import type {
   CreateTopic,
   CreateTopicResponse,
+  CreateDevelopmentArea,
+  CreateDevelopmentAreaResponse,
   CreateFlashcard,
   CreateFlashcardResponse,
   Document,
-  TopicGraphEntry,
+  TopicGraph,
+  UpdateDevelopmentArea,
   UpdateFlashcard,
+  UpdateTopic,
 } from './types'
 
 export const topicGraphKey = ['topic', 'graph'] as const
 const topicDocumentKey = (topicId: number) => ['topic', topicId, 'document'] as const
 
 function getTopicGraph() {
-  return apiClient.get<TopicGraphEntry[]>('/topic/graph')
+  return apiClient.get<TopicGraph>('/topic/graph')
 }
 
 export function useTopicGraph() {
@@ -60,6 +64,73 @@ export function useCreateTopic() {
 
   return useMutation({
     mutationFn: createTopic,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function updateTopic(id: number, topic: UpdateTopic) {
+  return apiClient.put<void>(`/topics/${id}`, topic)
+}
+
+export function useUpdateTopic() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, topic }: { id: number; topic: UpdateTopic }) =>
+      updateTopic(id, topic),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function deleteEntity(id: number) {
+  return apiClient.delete(`/entities/${id}`)
+}
+
+export function useDeleteEntity() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteEntity,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function createDevelopmentArea(area: CreateDevelopmentArea) {
+  return apiClient.post<CreateDevelopmentAreaResponse>('/development-areas', area)
+}
+
+export function useCreateDevelopmentArea() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: createDevelopmentArea,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function updateDevelopmentArea(id: number, area: UpdateDevelopmentArea) {
+  return apiClient.patch<void>(`/development-areas/${id}`, area)
+}
+
+export function useUpdateDevelopmentArea() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ area, id }: { area: UpdateDevelopmentArea; id: number }) =>
+      updateDevelopmentArea(id, area),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
+  })
+}
+
+function deleteDevelopmentArea(id: number) {
+  return apiClient.delete(`/development-areas/${id}`)
+}
+
+export function useDeleteDevelopmentArea() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteDevelopmentArea,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: topicGraphKey }),
   })
 }
