@@ -4,6 +4,7 @@ use sqlx::PgPool;
 
 pub async fn create_topic(
     pool: &PgPool,
+    parent_topic_entity_id: Option<i32>,
     name: &str,
     understanding_level_id: i32,
 ) -> Result<i32, sqlx::Error> {
@@ -11,10 +12,11 @@ pub async fn create_topic(
     let entity_id = entity_repository::create_entity(&mut tx, EntityType::Topic).await?;
 
     sqlx::query(
-        "INSERT INTO topics (entity_id, name, understanding_level_id)
-         VALUES ($1, $2, $3)",
+        "INSERT INTO topics (entity_id, parent_topic_entity_id, name, understanding_level_id)
+         VALUES ($1, $2, $3, $4)",
     )
     .bind(entity_id)
+    .bind(parent_topic_entity_id)
     .bind(name)
     .bind(understanding_level_id)
     .execute(&mut *tx)
@@ -34,15 +36,17 @@ pub async fn create_topic(
 pub async fn update_topic(
     pool: &PgPool,
     entity_id: i32,
+    parent_topic_entity_id: Option<i32>,
     name: &str,
     understanding_level_id: i32,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE topics
-         SET name = $1, understanding_level_id = $2
-         WHERE entity_id = $3",
+         SET parent_topic_entity_id = $1, name = $2, understanding_level_id = $3
+         WHERE entity_id = $4",
     )
+    .bind(parent_topic_entity_id)
     .bind(name)
     .bind(understanding_level_id)
     .bind(entity_id)

@@ -28,7 +28,13 @@ pub async fn create_topic(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    match topic_repository::create_topic(&pool, &payload.name, payload.understanding_level_id).await
+    match topic_repository::create_topic(
+        &pool,
+        payload.parent_topic_entity_id,
+        &payload.name,
+        payload.understanding_level_id,
+    )
+    .await
     {
         Ok(entity_id) => Ok((StatusCode::CREATED, Json(CreateTopicResponse { entity_id }))),
         Err(error) => {
@@ -50,6 +56,7 @@ pub async fn update_topic(
     match topic_repository::update_topic(
         &pool,
         entity_id,
+        payload.parent_topic_entity_id,
         &payload.name,
         payload.understanding_level_id,
     )
