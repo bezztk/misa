@@ -341,13 +341,13 @@ export function TasksTable() {
       columnHelper.columns([
         columnHelper.accessor('name', {
           header: 'Aufgabe',
-          cell: ({ getValue }) => <Text fw={500}>{getValue()}</Text>,
+          cell: ({ getValue }) => <Text fw={500} size="xs">{getValue()}</Text>,
           sortFn: 'text',
         }),
         columnHelper.accessor('description', {
           header: 'Beschreibung',
           cell: ({ getValue }) => (
-            <Text lineClamp={1} maw={400} title={getValue() ?? undefined}>
+            <Text lineClamp={1} maw={400} size="xs" title={getValue() ?? undefined}>
               {getValue() || '–'}
             </Text>
           ),
@@ -359,9 +359,13 @@ export function TasksTable() {
             const status = statusesById.get(getValue())
 
             return status === undefined ? (
-              <Text>–</Text>
+              <Text size="xs">–</Text>
             ) : (
-              <Badge color={statusColors[status.name] ?? 'gray'} variant="light">
+              <Badge
+                color={statusColors[status.name] ?? 'gray'}
+                size="xs"
+                variant="light"
+              >
                 {status.display_name ?? status.name}
               </Badge>
             )
@@ -388,7 +392,7 @@ export function TasksTable() {
           header: 'Kalender',
           cell: ({ row }) => (
             <Button
-              size="xs"
+              size="compact-xs"
               variant="light"
               onClick={(event) => {
                 event.stopPropagation()
@@ -489,7 +493,13 @@ export function TasksTable() {
             <Text>Keine Aufgaben entsprechen den Filtern.</Text>
           ) : (
             <Table.ScrollContainer minWidth={700}>
-              <Table striped highlightOnHover>
+              <Table
+                striped
+                fz="xs"
+                highlightOnHover
+                horizontalSpacing="xs"
+                verticalSpacing={4}
+              >
                 <Table.Thead>
                   {table.getHeaderGroups().map((headerGroup) => (
                     <Table.Tr key={headerGroup.id}>

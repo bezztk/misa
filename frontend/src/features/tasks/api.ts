@@ -29,7 +29,7 @@ export function updateTask(entityId: number, task: UpdateTask) {
 }
 
 export function deleteTask(entityId: number) {
-  return apiClient.delete(`/tasks/${entityId}`)
+  return apiClient.delete(`/entities/${entityId}`)
 }
 
 export function useTasks() {

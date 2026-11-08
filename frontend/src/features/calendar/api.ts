@@ -32,7 +32,7 @@ export function updateCalendarEntry(
 }
 
 export function deleteCalendarEntry(entityId: number) {
-  return apiClient.delete(`/calendar/${entityId}`)
+  return apiClient.delete(`/entities/${entityId}`)
 }
 
 export function useCalendarEntries() {
