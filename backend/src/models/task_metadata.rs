@@ -26,10 +26,3 @@ pub enum TaskState {
     Completed = 3,
     Cancelled = 4,
 }
-
-#[derive(Debug, Serialize)]
-pub struct TaskMetadata {
-    pub groups: Vec<TaskGroup>,
-    pub states: Vec<TaskStateRow>,
-    pub priorities: Vec<TaskPriority>,
-}

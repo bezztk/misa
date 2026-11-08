@@ -1,8 +1,6 @@
 use crate::models::entity::EntityType;
 use crate::models::task::Task;
-use crate::models::task_metadata::{
-    TaskGroup, TaskMetadata, TaskPriority, TaskState, TaskStateRow,
-};
+use crate::models::task_metadata::TaskState;
 use crate::repositories::entity_repository;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -157,23 +155,4 @@ pub async fn delete_task(pool: &PgPool, entity_id: i32) -> Result<bool, sqlx::Er
         .await?;
 
     Ok(result.rows_affected() > 0)
-}
-
-pub async fn get_task_metadata(pool: &PgPool) -> Result<TaskMetadata, sqlx::Error> {
-    let groups = sqlx::query_as::<_, TaskGroup>("SELECT id, name FROM task_groups ORDER BY id")
-        .fetch_all(pool)
-        .await?;
-    let states = sqlx::query_as::<_, TaskStateRow>("SELECT id, name FROM task_states ORDER BY id")
-        .fetch_all(pool)
-        .await?;
-    let priorities =
-        sqlx::query_as::<_, TaskPriority>("SELECT id, name FROM task_priorities ORDER BY id")
-            .fetch_all(pool)
-            .await?;
-
-    Ok(TaskMetadata {
-        groups,
-        states,
-        priorities,
-    })
 }
