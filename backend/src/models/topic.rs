@@ -1,3 +1,4 @@
+use crate::models::document::Document;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -23,4 +24,10 @@ pub struct UpdateTopic {
     pub parent_topic_entity_id: Option<i32>,
     pub name: String,
     pub understanding_level_id: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TopicGraphEntry {
+    pub topic: Topic,
+    pub document: Document,
 }

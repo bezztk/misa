@@ -1,6 +1,59 @@
+use crate::models::document::Document;
 use crate::models::entity::EntityType;
+use crate::models::topic::{Topic, TopicGraphEntry};
 use crate::repositories::entity_repository;
 use sqlx::PgPool;
+use std::collections::HashMap;
+
+pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx::Error> {
+    let topics = sqlx::query_as::<_, Topic>(
+        "SELECT
+            t.entity_id,
+            e.created_at,
+            e.updated_at,
+            e.version,
+            t.parent_topic_entity_id,
+            t.name,
+            t.understanding_level_id
+         FROM topics t
+         JOIN entities e ON e.id = t.entity_id
+         WHERE NOT e.is_archived AND NOT e.is_deleted",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut documents = sqlx::query_as::<_, Document>(
+        "SELECT
+            d.entity_id,
+            e.created_at,
+            e.updated_at,
+            e.version,
+            d.topic_id,
+            d.content,
+            d.completeness_level_id,
+            d.flashcard_status_id,
+            d.verification_status_id,
+            d.verification_level_id,
+            d.last_verified_at
+         FROM documents d
+         JOIN entities e ON e.id = d.entity_id
+         WHERE NOT e.is_archived AND NOT e.is_deleted",
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|document| (document.topic_id, document))
+    .collect::<HashMap<_, _>>();
+
+    Ok(topics
+        .into_iter()
+        .filter_map(|topic| {
+            documents
+                .remove(&topic.entity_id)
+                .map(|document| TopicGraphEntry { topic, document })
+        })
+        .collect())
+}
 
 pub async fn create_topic(
     pool: &PgPool,

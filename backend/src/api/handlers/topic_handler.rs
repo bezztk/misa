@@ -1,4 +1,4 @@
-use crate::models::topic::{CreateTopic, UpdateTopic};
+use crate::models::topic::{CreateTopic, TopicGraphEntry, UpdateTopic};
 use crate::repositories::topic_repository;
 use crate::validation::valid_name;
 use axum::Json;
@@ -7,8 +7,16 @@ use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
 
-pub async fn get_topic_graph() -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+pub async fn get_topic_graph(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<TopicGraphEntry>>, StatusCode> {
+    match topic_repository::get_topic_graph(&pool).await {
+        Ok(graph) => Ok(Json(graph)),
+        Err(error) => {
+            eprintln!("Failed to retrieve topic graph: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 pub async fn get_topic_graph_by_id(Path(_entity_id): Path<i32>) -> StatusCode {
