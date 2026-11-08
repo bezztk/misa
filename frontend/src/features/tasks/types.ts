@@ -3,6 +3,7 @@ export interface Task {
   created_at: string
   updated_at: string
   version: number
+  source_entity_id: number | null
   group_id: number
   name: string
   description: string | null

@@ -7,6 +7,8 @@ export interface CalendarEntry {
   title: string
   note: string | null
   is_reminder: boolean
+  is_locked: boolean
+  estimated_duration: number | null
   start_at: string
   end_at: string | null
 }
@@ -16,6 +18,8 @@ export interface CreateCalendarEntry {
   title: string
   note: string | null
   is_reminder: boolean
+  is_locked: boolean
+  estimated_duration: number | null
   start_at: string
   end_at: string | null
 }

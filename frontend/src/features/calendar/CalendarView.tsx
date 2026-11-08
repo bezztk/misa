@@ -45,6 +45,8 @@ interface CalendarEntryFormValues {
   start_at: string
   end_at: string
   is_reminder: boolean
+  is_locked: boolean
+  estimated_duration: string
 }
 
 function toLocalDateTime(value: string | Date | null) {
@@ -91,6 +93,8 @@ export function CalendarEntryModal({
           ? selectedTime?.end || defaultTime.end
           : toLocalDateTime(entry.end_at),
       is_reminder: entry?.is_reminder ?? false,
+      is_locked: entry?.is_locked ?? false,
+      estimated_duration: entry?.estimated_duration?.toString() ?? '',
     },
     validate: {
       title: (value) => {
@@ -121,6 +125,9 @@ export function CalendarEntryModal({
       title: linkedTask.data?.name ?? values.title.trim(),
       note: values.note.trim() || null,
       is_reminder: values.is_reminder,
+      is_locked: values.is_locked,
+      estimated_duration:
+        values.estimated_duration === '' ? null : Number(values.estimated_duration),
       start_at: new Date(values.start_at).toISOString(),
       end_at: values.is_reminder
         ? null
@@ -207,6 +214,16 @@ export function CalendarEntryModal({
           <Checkbox
             label="Erinnerung"
             {...form.getInputProps('is_reminder', { type: 'checkbox' })}
+          />
+          <TextInput
+            label="Geschätzte Dauer (Minuten)"
+            min={0}
+            type="number"
+            {...form.getInputProps('estimated_duration')}
+          />
+          <Checkbox
+            label="Gesperrt"
+            {...form.getInputProps('is_locked', { type: 'checkbox' })}
           />
           {isError && (
             <Alert color="red" title="Fehler">
