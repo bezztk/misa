@@ -47,10 +47,9 @@ pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx
 
     Ok(topics
         .into_iter()
-        .filter_map(|topic| {
-            documents
-                .remove(&topic.entity_id)
-                .map(|document| TopicGraphEntry { topic, document })
+        .map(|topic| {
+            let document = documents.remove(&topic.entity_id);
+            TopicGraphEntry { topic, document }
         })
         .collect())
 }

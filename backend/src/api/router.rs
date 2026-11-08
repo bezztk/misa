@@ -38,7 +38,13 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/documents/{entity_id}",
-            axum::routing::put(document_handler::update_document),
+            get(document_handler::get_document)
+                .put(document_handler::update_document)
+                .patch(document_handler::update_document_content),
+        )
+        .route(
+            "/topics/{topic_id}/document",
+            axum::routing::post(document_handler::create_document_for_topic),
         )
         .route(
             "/entities/{entity_id}/archive",

@@ -26,6 +26,11 @@ pub struct UpdateDocument {
     pub last_verified_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateDocumentContent {
+    pub content: String,
+}
+
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct DocumentRevision {
     pub id: i32,

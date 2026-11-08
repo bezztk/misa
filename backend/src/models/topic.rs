@@ -29,5 +29,5 @@ pub struct UpdateTopic {
 #[derive(Debug, Serialize)]
 pub struct TopicGraphEntry {
     pub topic: Topic,
-    pub document: Document,
+    pub document: Option<Document>,
 }
