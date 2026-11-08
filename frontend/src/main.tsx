@@ -5,10 +5,13 @@ import '@mantine/core/styles.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import { metadataQueryOptions } from './features/metadata/api'
 
 const queryClient = new QueryClient()
 const router = createRouter({ routeTree })
 const theme = createTheme({ defaultRadius: 0 })
+
+await queryClient.query(metadataQueryOptions).catch(() => undefined)
 
 declare module '@tanstack/react-router' {
   interface Register {

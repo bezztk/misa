@@ -34,24 +34,3 @@ export interface CreateTaskResponse {
   entity_id: number
 }
 
-export interface TaskGroup {
-  id: number
-  name: string
-}
-
-export interface TaskState {
-  id: number
-  name: string
-}
-
-export interface TaskPriority {
-  id: number
-  name: string
-}
-
-export interface TaskMetadata {
-  groups: TaskGroup[]
-  states: TaskState[]
-  priorities: TaskPriority[]
-}
-

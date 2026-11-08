@@ -35,11 +35,11 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   useCreateTask,
   useDeleteTask,
-  useTaskMetadata,
   useTasks,
   useUpdateTask,
 } from './api'
 import { CalendarEntryModal } from '../calendar/CalendarView'
+import { useMetadata } from '../metadata/api'
 import type { CreateTask, Task, UpdateTask } from './types'
 
 const features = tableFeatures({
@@ -56,13 +56,6 @@ const dateFormatter = new Intl.DateTimeFormat('de-DE')
 const emptyTasks: Task[] = []
 
 type TaskFormState = { mode: 'create' } | { mode: 'edit'; task: Task }
-
-const statusLabels: Record<string, string> = {
-  open: 'Offen',
-  in_progress: 'In Bearbeitung',
-  completed: 'Abgeschlossen',
-  cancelled: 'Abgebrochen',
-}
 
 const statusColors: Record<string, string> = {
   open: 'gray',
@@ -102,7 +95,7 @@ function TaskFormModal({
   onDelete: (task: Task) => void
 }) {
   const task = state.mode === 'edit' ? state.task : null
-  const metadata = useTaskMetadata()
+  const metadata = useMetadata()
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const form = useForm<TaskFormValues>({
@@ -201,7 +194,7 @@ function TaskFormModal({
             <Select
               required
               label="Gruppe"
-              data={(metadata.data?.groups ?? []).map((group) => ({
+              data={(metadata.data?.task_groups ?? []).map((group) => ({
                 value: String(group.id),
                 label: group.name,
               }))}
@@ -211,9 +204,9 @@ function TaskFormModal({
               <Select
                 required
                 label="Status"
-                data={(metadata.data?.states ?? []).map((taskState) => ({
+                data={(metadata.data?.task_states ?? []).map((taskState) => ({
                   value: String(taskState.id),
-                  label: statusLabels[taskState.name] ?? taskState.name,
+                  label: taskState.display_name ?? taskState.name,
                 }))}
                 {...form.getInputProps('state_id')}
               />
@@ -221,9 +214,9 @@ function TaskFormModal({
             <Select
               required
               label="Priorität"
-              data={(metadata.data?.priorities ?? []).map((priority) => ({
+              data={(metadata.data?.task_priorities ?? []).map((priority) => ({
                 value: String(priority.id),
-                label: priority.name,
+                label: priority.display_name ?? priority.name,
               }))}
               {...form.getInputProps('priority_id')}
             />
@@ -316,7 +309,7 @@ export function TasksTable() {
   const navigate = useNavigate()
   const { taskId } = useSearch({ from: '/tasks' })
   const tasks = useTasks()
-  const metadata = useTaskMetadata()
+  const metadata = useMetadata()
   const [formState, setFormState] = useState<TaskFormState | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   const [taskToSchedule, setTaskToSchedule] = useState<Task | null>(null)
@@ -336,12 +329,12 @@ export function TasksTable() {
     }
   }
   const statusesById = useMemo(
-    () => new Map(metadata.data?.states.map((state) => [state.id, state])),
-    [metadata.data?.states],
+    () => new Map(metadata.data?.task_states.map((state) => [state.id, state])),
+    [metadata.data?.task_states],
   )
   const groupsById = useMemo(
-    () => new Map(metadata.data?.groups.map((group) => [group.id, group])),
-    [metadata.data?.groups],
+    () => new Map(metadata.data?.task_groups.map((group) => [group.id, group])),
+    [metadata.data?.task_groups],
   )
   const columns = useMemo(
     () =>
@@ -369,7 +362,7 @@ export function TasksTable() {
               <Text>–</Text>
             ) : (
               <Badge color={statusColors[status.name] ?? 'gray'} variant="light">
-                {statusLabels[status.name] ?? status.name}
+                {status.display_name ?? status.name}
               </Badge>
             )
           },
@@ -455,9 +448,9 @@ export function TasksTable() {
               }
               data={[
                 { value: 'all', label: 'Alle Status' },
-                ...(metadata.data?.states ?? []).map((status) => ({
+                ...(metadata.data?.task_states ?? []).map((status) => ({
                   value: String(status.id),
-                  label: statusLabels[status.name] ?? status.name,
+                  label: status.display_name ?? status.name,
                 })),
               ]}
               onChange={(value) =>
@@ -475,7 +468,7 @@ export function TasksTable() {
               value={groupFilter === undefined ? 'all' : String(groupFilter)}
               data={[
                 { value: 'all', label: 'Alle Gruppen' },
-                ...(metadata.data?.groups ?? []).map((group) => ({
+                ...(metadata.data?.task_groups ?? []).map((group) => ({
                   value: String(group.id),
                   label: group.name,
                 })),

@@ -4,14 +4,12 @@ import type {
   CreateTask,
   CreateTaskResponse,
   Task,
-  TaskMetadata,
   UpdateTask,
 } from './types'
 
 export const taskKeys = {
   list: ['tasks', 'list'] as const,
   detail: (entityId: number) => ['tasks', 'detail', entityId] as const,
-  metadata: ['tasks', 'metadata'] as const,
 }
 
 export function getTasks() {
@@ -20,10 +18,6 @@ export function getTasks() {
 
 export function getTask(entityId: number) {
   return apiClient.get<Task>(`/tasks/${entityId}`)
-}
-
-export function getTaskMetadata() {
-  return apiClient.get<TaskMetadata>('/tasks/metadata')
 }
 
 export function createTask(task: CreateTask) {
@@ -46,14 +40,6 @@ export function useTask(entityId: number, enabled = true) {
   return useQuery({
     queryKey: taskKeys.detail(entityId),
     queryFn: () => getTask(entityId),
-    enabled,
-  })
-}
-
-export function useTaskMetadata(enabled = true) {
-  return useQuery({
-    queryKey: taskKeys.metadata,
-    queryFn: getTaskMetadata,
     enabled,
   })
 }
