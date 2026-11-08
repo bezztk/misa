@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type MutableRefObject,
 } from 'react'
 import {
   Background,
@@ -14,30 +13,9 @@ import {
   type Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import {
-  BlockTypeSelect,
-  BoldItalicUnderlineToggles,
-  CodeToggle,
-  CreateLink,
-  DiffSourceToggleWrapper,
-  InsertCodeBlock,
-  InsertTable,
-  ListsToggle,
-  MDXEditor,
-  Separator,
-  UndoRedo,
-  codeBlockPlugin,
-  codeMirrorPlugin,
-  diffSourcePlugin,
-  headingsPlugin,
-  linkDialogPlugin,
-  linkPlugin,
-  listsPlugin,
-  markdownShortcutPlugin,
-  tablePlugin,
-  toolbarPlugin,
-} from '@mdxeditor/editor'
-import '@mdxeditor/editor/style.css'
+import { Crepe } from '@milkdown/crepe'
+import '@milkdown/crepe/theme/common/style.css'
+import '@milkdown/crepe/theme/frame.css'
 import dagre from '@dagrejs/dagre'
 import {
   Alert,
@@ -65,6 +43,7 @@ import {
   useTopicGraph,
 } from './api'
 import type { Document, Topic } from './types'
+import './RealizationView.css'
 
 interface TopicNodeData extends Record<string, unknown> {
   document: Document | null
@@ -93,44 +72,6 @@ interface TopicFormValues {
 
 type SaveStatus = 'saved' | 'saving' | 'error'
 
-const editorPlugins = [
-  headingsPlugin(),
-  listsPlugin(),
-  tablePlugin(),
-  linkPlugin(),
-  linkDialogPlugin(),
-  codeBlockPlugin({ defaultCodeBlockLanguage: 'txt' }),
-  codeMirrorPlugin({
-    codeBlockLanguages: {
-      css: 'CSS',
-      html: 'HTML',
-      js: 'JavaScript',
-      md: 'Markdown',
-      rust: 'Rust',
-      ts: 'TypeScript',
-      txt: 'Text',
-    },
-  }),
-  markdownShortcutPlugin(),
-  diffSourcePlugin({ viewMode: 'rich-text' }),
-  toolbarPlugin({
-    toolbarContents: () => (
-      <DiffSourceToggleWrapper options={['rich-text', 'source']}>
-        <UndoRedo />
-        <Separator />
-        <BlockTypeSelect />
-        <BoldItalicUnderlineToggles />
-        <CodeToggle />
-        <Separator />
-        <ListsToggle />
-        <CreateLink />
-        <InsertTable />
-        <InsertCodeBlock />
-      </DiffSourceToggleWrapper>
-    ),
-  }),
-]
-
 function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
   const graph = new dagre.graphlib.Graph()
   graph.setDefaultEdgeLabel(() => ({}))
@@ -157,6 +98,36 @@ function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
   })
 }
 
+function CrepeMarkdownEditor({
+  markdown,
+  onChange,
+}: {
+  markdown: string
+  onChange: (markdown: string) => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (rootRef.current === null) return
+
+    const crepe = new Crepe({
+      defaultValue: markdown,
+      features: { [Crepe.Feature.TopBar]: true },
+      root: rootRef.current,
+    })
+    crepe.on((listener) => {
+      listener.markdownUpdated((_, nextMarkdown) => onChange(nextMarkdown))
+    })
+    const createPromise = crepe.create()
+
+    return () => {
+      void createPromise.then(() => crepe.destroy())
+    }
+  }, [markdown, onChange])
+
+  return <div ref={rootRef} className="realization-crepe" />
+}
+
 function LoadedDocumentPanel({
   topic,
   document,
@@ -165,13 +136,15 @@ function LoadedDocumentPanel({
 }: {
   topic: Topic
   document: Document
-  drafts: MutableRefObject<Map<number, string>>
+  drafts: Map<number, string>
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
-  const initialMarkdown = drafts.current.get(topic.entity_id) ?? document.content
+  const [initialMarkdown] = useState(
+    () => drafts.get(topic.entity_id) ?? document.content,
+  )
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(
-    drafts.current.has(topic.entity_id) ? 'error' : 'saved',
+    drafts.has(topic.entity_id) ? 'error' : 'saved',
   )
   const draftRef = useRef(initialMarkdown)
   const savedRef = useRef(document.content)
@@ -193,8 +166,8 @@ function LoadedDocumentPanel({
 
         await updateDocumentContent(document.entity_id, content)
         savedRef.current = content
-        if (drafts.current.get(topic.entity_id) === content) {
-          drafts.current.delete(topic.entity_id)
+        if (drafts.get(topic.entity_id) === content) {
+          drafts.delete(topic.entity_id)
         }
         await queryClient.invalidateQueries({
           queryKey: topicGraphKey,
@@ -222,18 +195,13 @@ function LoadedDocumentPanel({
     }
   }, [queueSave])
 
-  const handleChange = (markdown: string, initialMarkdownNormalize: boolean) => {
-    if (initialMarkdownNormalize) {
-      draftRef.current = markdown
-      return
-    }
-
+  const handleChange = useCallback((markdown: string) => {
     draftRef.current = markdown
-    drafts.current.set(topic.entity_id, markdown)
+    drafts.set(topic.entity_id, markdown)
     setSaveStatus('saving')
     if (timerRef.current !== null) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => queueSave(markdown, true), 1_500)
-  }
+  }, [drafts, queueSave, topic.entity_id])
 
   const statusLabel =
     saveStatus === 'saved'
@@ -268,10 +236,9 @@ function LoadedDocumentPanel({
         </Group>
       </Group>
       <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-        <MDXEditor
+        <CrepeMarkdownEditor
           key={topic.entity_id}
           markdown={initialMarkdown}
-          plugins={editorPlugins}
           onChange={handleChange}
         />
       </Box>
@@ -287,7 +254,7 @@ function TopicDocumentPanel({
 }: {
   topic: Topic
   document: Document | null
-  drafts: MutableRefObject<Map<number, string>>
+  drafts: Map<number, string>
   onClose: () => void
 }) {
   const topicDocument = useTopicDocument(
@@ -333,7 +300,7 @@ export function RealizationView() {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
   const [createOpened, setCreateOpened] = useState(false)
   const flowRef = useRef<HTMLDivElement>(null)
-  const documentDraftsRef = useRef(new Map<number, string>())
+  const [documentDrafts] = useState(() => new Map<number, string>())
   const form = useForm<TopicFormValues>({
     initialValues: { name: '' },
     validate: {
@@ -471,7 +438,7 @@ export function RealizationView() {
               <TopicDocumentPanel
                 key={selectedTopic.id}
                 document={selectedTopic.data.document}
-                drafts={documentDraftsRef}
+                drafts={documentDrafts}
                 topic={selectedTopic.data.topic}
                 onClose={() => setSelectedTopicId(null)}
               />
