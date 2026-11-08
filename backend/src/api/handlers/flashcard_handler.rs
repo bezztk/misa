@@ -1,14 +1,58 @@
-use crate::models::flashcard::{CreateFlashcard, CreateFlashcardReview, UpdateFlashcard};
+use crate::models::flashcard::{
+    CreateFlashcard, CreateFlashcardReview, Flashcard, FlashcardReviewPreview, UpdateFlashcard,
+};
 use crate::repositories::flashcard_repository::{self, ReviewFlashcardError};
+use crate::services::flashcard_review_service;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use chrono::Utc;
 use serde::Serialize;
 use sqlx::PgPool;
 
 #[derive(Serialize)]
 pub struct CreateFlashcardResponse {
     pub id: i32,
+}
+
+pub async fn get_due_flashcards(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<Flashcard>>, StatusCode> {
+    match flashcard_repository::get_due_flashcards(&pool).await {
+        Ok(flashcards) => Ok(Json(flashcards)),
+        Err(error) => {
+            eprintln!("Failed to retrieve due flashcards: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn preview_flashcard(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+) -> Result<Json<FlashcardReviewPreview>, StatusCode> {
+    let context = match flashcard_repository::get_flashcard_review_context(&pool, id).await {
+        Ok(Some(context)) => context,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Err(error) => {
+            eprintln!("Failed to retrieve flashcard preview data: {error}");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    match flashcard_review_service::calculate_review_preview(
+        context.stability,
+        context.difficulty,
+        context.last_reviewed_at,
+        context.desired_retention,
+        Utc::now(),
+    ) {
+        Ok(preview) => Ok(Json(preview)),
+        Err(error) => {
+            eprintln!("Failed to calculate flashcard preview: {error}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 pub async fn create_flashcard(

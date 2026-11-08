@@ -52,3 +52,11 @@ pub struct FlashcardReviewContext {
     pub last_reviewed_at: Option<DateTime<Utc>>,
     pub desired_retention: f32,
 }
+
+#[derive(Debug, Serialize)]
+pub struct FlashcardReviewPreview {
+    pub again: i32,
+    pub hard: i32,
+    pub good: i32,
+    pub easy: i32,
+}

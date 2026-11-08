@@ -1,6 +1,8 @@
 use chrono::{DateTime, Duration, Utc};
 use fsrs::{FSRS, ItemState, MemoryState};
 
+use crate::models::flashcard::FlashcardReviewPreview;
+
 pub struct FlashcardReviewSchedule {
     pub stability: f32,
     pub difficulty: f32,
@@ -43,5 +45,52 @@ pub fn calculate_review_schedule(
         reviewed_at,
         due_at: reviewed_at + Duration::days(i64::from(scheduled_days)),
         scheduled_days,
+    })
+}
+
+pub fn calculate_review_preview(
+    stability: Option<f32>,
+    difficulty: Option<f32>,
+    last_reviewed_at: Option<DateTime<Utc>>,
+    desired_retention: f32,
+    reviewed_at: DateTime<Utc>,
+) -> fsrs::Result<FlashcardReviewPreview> {
+    Ok(FlashcardReviewPreview {
+        again: calculate_review_schedule(
+            stability,
+            difficulty,
+            last_reviewed_at,
+            desired_retention,
+            1,
+            reviewed_at,
+        )?
+        .scheduled_days,
+        hard: calculate_review_schedule(
+            stability,
+            difficulty,
+            last_reviewed_at,
+            desired_retention,
+            2,
+            reviewed_at,
+        )?
+        .scheduled_days,
+        good: calculate_review_schedule(
+            stability,
+            difficulty,
+            last_reviewed_at,
+            desired_retention,
+            3,
+            reviewed_at,
+        )?
+        .scheduled_days,
+        easy: calculate_review_schedule(
+            stability,
+            difficulty,
+            last_reviewed_at,
+            desired_retention,
+            4,
+            reviewed_at,
+        )?
+        .scheduled_days,
     })
 }

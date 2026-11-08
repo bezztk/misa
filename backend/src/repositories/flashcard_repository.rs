@@ -72,6 +72,50 @@ pub async fn get_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::Error
     .await
 }
 
+pub async fn get_due_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::Error> {
+    sqlx::query_as::<_, Flashcard>(
+        "SELECT
+            id,
+            document_id,
+            front,
+            back,
+            hint,
+            explanation,
+            state,
+            retention_levels_id,
+            stability,
+            difficulty,
+            last_reviewed_at,
+            due_at,
+            is_enabled
+         FROM flashcards
+         WHERE is_enabled
+           AND (last_reviewed_at IS NULL OR due_at <= NOW())
+         ORDER BY due_at NULLS FIRST, id",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn get_flashcard_review_context(
+    pool: &PgPool,
+    id: i32,
+) -> Result<Option<FlashcardReviewContext>, sqlx::Error> {
+    sqlx::query_as::<_, FlashcardReviewContext>(
+        "SELECT
+            f.stability,
+            f.difficulty,
+            f.last_reviewed_at,
+            r.desired_retention::REAL AS desired_retention
+         FROM flashcards f
+         JOIN flashcard_retention_levels r ON r.id = f.retention_levels_id
+         WHERE f.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn update_flashcard(
     pool: &PgPool,
     id: i32,
