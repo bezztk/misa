@@ -2,15 +2,20 @@ use crate::models::entity::EntityType;
 use crate::repositories::entity_repository;
 use sqlx::PgPool;
 
-pub async fn create_topic(pool: &PgPool, name: &str) -> Result<i32, sqlx::Error> {
+pub async fn create_topic(
+    pool: &PgPool,
+    parent_topic_entity_id: Option<i32>,
+    name: &str,
+) -> Result<i32, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let entity_id = entity_repository::create_entity(&mut tx, EntityType::Topic).await?;
 
     sqlx::query(
-        "INSERT INTO topics (entity_id, name, understanding_level_id)
-         VALUES ($1, $2, $3)",
+        "INSERT INTO topics (entity_id, parent_topic_entity_id, name, understanding_level_id)
+         VALUES ($1, $2, $3, $4)",
     )
     .bind(entity_id)
+    .bind(parent_topic_entity_id)
     .bind(name)
     .bind(1)
     .execute(&mut *tx)

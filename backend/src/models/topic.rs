@@ -14,6 +14,7 @@ pub struct Topic {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTopic {
+    pub parent_topic_entity_id: Option<i32>,
     pub name: String,
 }
 
