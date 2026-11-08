@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Background,
   ReactFlow,
@@ -21,10 +21,13 @@ import {
   TextInput,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
-import { useCreateTopic } from './api'
+import { useCreateTopic, useTopicGraph } from './api'
+import type { Document, Topic } from './types'
 
 interface TopicNodeData extends Record<string, unknown> {
+  document: Document
   label: string
+  topic: Topic
 }
 
 type TopicNode = Node<TopicNodeData>
@@ -65,6 +68,7 @@ function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
 }
 
 export function RealizationView() {
+  const topicGraph = useTopicGraph()
   const createTopic = useCreateTopic()
   const [nodes, setNodes, onNodesChange] = useNodesState<TopicNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -78,6 +82,30 @@ export function RealizationView() {
       name: (value) => value.trim() === '' ? 'Name ist erforderlich.' : null,
     },
   })
+
+  useEffect(() => {
+    if (topicGraph.data === undefined) return
+
+    const nextNodes: TopicNode[] = topicGraph.data.map(({ topic, document }) => ({
+      id: String(topic.entity_id),
+      data: { document, label: topic.name, topic },
+      position: { x: 0, y: 0 },
+    }))
+    const nodeIds = new Set(nextNodes.map((node) => node.id))
+    const nextEdges: Edge[] = topicGraph.data.flatMap(({ topic }) =>
+      topic.parent_topic_entity_id === null ||
+      !nodeIds.has(String(topic.parent_topic_entity_id))
+        ? []
+        : [{
+            id: `${topic.parent_topic_entity_id}-${topic.entity_id}`,
+            source: String(topic.parent_topic_entity_id),
+            target: String(topic.entity_id),
+          }],
+    )
+
+    setEdges(nextEdges)
+    setNodes(applyDagreLayout(nextNodes, nextEdges))
+  }, [setEdges, setNodes, topicGraph.data])
 
   const openContextMenu = (event: ContextMenuEvent, topic: TopicNode | null) => {
     event.preventDefault()
@@ -114,34 +142,7 @@ export function RealizationView() {
         name,
       },
       {
-        onSuccess: ({ entity_id }) => {
-          const nextEdges =
-            parentTopic === null
-              ? edges
-              : [
-                  ...edges,
-                  {
-                    id: `${parentTopic.id}-${entity_id}`,
-                    source: parentTopic.id,
-                    target: String(entity_id),
-                  },
-                ]
-          setEdges(nextEdges)
-          setNodes((currentNodes) =>
-            applyDagreLayout(
-              [
-                ...currentNodes,
-                {
-                  id: String(entity_id),
-                  data: { label: name },
-                  position: { x: 0, y: 0 },
-                },
-              ],
-              nextEdges,
-            ),
-          )
-          closeCreate()
-        },
+        onSuccess: closeCreate,
       },
     )
   }
