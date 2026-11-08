@@ -1,5 +1,5 @@
 use crate::models::entity::EntityType;
-use sqlx::{Postgres, Transaction};
+use sqlx::{PgPool, Postgres, Transaction};
 
 pub async fn create_entity(
     tx: &mut Transaction<'_, Postgres>,
@@ -25,4 +25,30 @@ pub async fn update_entity(
     .await?;
 
     Ok(())
+}
+
+pub async fn archive_entity(pool: &PgPool, entity_id: i32) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE entities
+         SET is_archived = TRUE, updated_at = NOW(), version = version + 1
+         WHERE id = $1",
+    )
+    .bind(entity_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn delete_entity(pool: &PgPool, entity_id: i32) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE entities
+         SET is_deleted = TRUE, updated_at = NOW(), version = version + 1
+         WHERE id = $1",
+    )
+    .bind(entity_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
 }

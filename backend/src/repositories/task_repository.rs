@@ -51,7 +51,9 @@ pub async fn get_task(pool: &PgPool, entity_id: i32) -> Result<Option<Task>, sql
             t.completed_at
          FROM tasks t
          JOIN entities e ON e.id = t.entity_id
-         WHERE t.entity_id = $1",
+         WHERE t.entity_id = $1
+           AND NOT e.is_archived
+           AND NOT e.is_deleted",
     )
     .bind(entity_id)
     .fetch_optional(pool)
@@ -74,6 +76,7 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<Task>, sqlx::Error> {
             t.completed_at
          FROM tasks t
          JOIN entities e ON e.id = t.entity_id
+         WHERE NOT e.is_archived AND NOT e.is_deleted
          ORDER BY e.created_at DESC, t.entity_id DESC",
     )
     .fetch_all(pool)
@@ -145,14 +148,4 @@ pub async fn update_task(
     entity_repository::update_entity(&mut tx, entity_id).await?;
     tx.commit().await?;
     Ok(true)
-}
-
-pub async fn delete_task(pool: &PgPool, entity_id: i32) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM entities WHERE id = $1 AND type = $2")
-        .bind(entity_id)
-        .bind(EntityType::Task as i32)
-        .execute(pool)
-        .await?;
-
-    Ok(result.rows_affected() > 0)
 }

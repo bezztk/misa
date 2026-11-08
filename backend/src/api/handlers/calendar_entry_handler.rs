@@ -100,17 +100,3 @@ pub async fn update_calendar_entry(
         }
     }
 }
-
-pub async fn delete_calendar_entry(
-    State(pool): State<PgPool>,
-    Path(entity_id): Path<i32>,
-) -> Result<StatusCode, StatusCode> {
-    match calendar_entry_repository::delete_calendar_entry(&pool, entity_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(StatusCode::NOT_FOUND),
-        Err(error) => {
-            eprintln!("Failed to delete calendar entry: {error}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}

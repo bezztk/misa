@@ -1,5 +1,6 @@
 use crate::api::handlers::{
-    calendar_entry_handler, document_handler, metadata_handler, task_handler, topic_handler,
+    calendar_entry_handler, document_handler, entity_handler, metadata_handler, task_handler,
+    topic_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -8,9 +9,7 @@ pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
         .route(
             "/tasks/{entity_id}",
-            get(task_handler::get_task)
-                .put(task_handler::update_task)
-                .delete(task_handler::delete_task),
+            get(task_handler::get_task).put(task_handler::update_task),
         )
         .route(
             "/tasks",
@@ -20,8 +19,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/calendar/{entity_id}",
             get(calendar_entry_handler::get_calendar_entry)
-                .put(calendar_entry_handler::update_calendar_entry)
-                .delete(calendar_entry_handler::delete_calendar_entry),
+                .put(calendar_entry_handler::update_calendar_entry),
         )
         .route(
             "/calendar",
@@ -30,7 +28,7 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/topics/{entity_id}",
-            axum::routing::put(topic_handler::update_topic).delete(topic_handler::delete_topic),
+            axum::routing::put(topic_handler::update_topic),
         )
         .route("/topics", axum::routing::post(topic_handler::create_topic))
         .route("/topic/graph", get(topic_handler::get_topic_graph))
@@ -41,6 +39,14 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/documents/{entity_id}",
             axum::routing::put(document_handler::update_document),
+        )
+        .route(
+            "/entities/{entity_id}/archive",
+            axum::routing::put(entity_handler::archive_entity),
+        )
+        .route(
+            "/entities/{entity_id}",
+            axum::routing::delete(entity_handler::delete_entity),
         );
 
     #[cfg(debug_assertions)]

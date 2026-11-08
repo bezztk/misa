@@ -53,7 +53,9 @@ pub async fn get_calendar_entry(
             c.end_at
          FROM calendar_entries c
          JOIN entities e ON e.id = c.entity_id
-         WHERE c.entity_id = $1",
+         WHERE c.entity_id = $1
+           AND NOT e.is_archived
+           AND NOT e.is_deleted",
     )
     .bind(entity_id)
     .fetch_optional(pool)
@@ -75,6 +77,7 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
             c.end_at
          FROM calendar_entries c
          JOIN entities e ON e.id = c.entity_id
+         WHERE NOT e.is_archived AND NOT e.is_deleted
          ORDER BY c.start_at, c.entity_id",
     )
     .fetch_all(pool)
@@ -119,14 +122,4 @@ pub async fn update_calendar_entry(
     entity_repository::update_entity(&mut tx, entity_id).await?;
     tx.commit().await?;
     Ok(true)
-}
-
-pub async fn delete_calendar_entry(pool: &PgPool, entity_id: i32) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM entities WHERE id = $1 AND type = $2")
-        .bind(entity_id)
-        .bind(EntityType::CalendarEntry as i32)
-        .execute(pool)
-        .await?;
-
-    Ok(result.rows_affected() > 0)
 }

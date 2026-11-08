@@ -130,17 +130,3 @@ pub async fn update_task(
         }
     }
 }
-
-pub async fn delete_task(
-    State(pool): State<PgPool>,
-    Path(entity_id): Path<i32>,
-) -> Result<StatusCode, StatusCode> {
-    match task_repository::delete_task(&pool, entity_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(StatusCode::NOT_FOUND),
-        Err(error) => {
-            eprintln!("Failed to delete task: {error}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}

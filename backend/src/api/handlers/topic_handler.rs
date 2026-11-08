@@ -66,17 +66,3 @@ pub async fn update_topic(
         }
     }
 }
-
-pub async fn delete_topic(
-    State(pool): State<PgPool>,
-    Path(entity_id): Path<i32>,
-) -> Result<StatusCode, StatusCode> {
-    match topic_repository::delete_topic(&pool, entity_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(StatusCode::NOT_FOUND),
-        Err(error) => {
-            eprintln!("Failed to delete topic: {error}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
