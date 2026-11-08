@@ -4,7 +4,7 @@ export interface CalendarEntry {
   updated_at: string
   version: number
   source_entity_id: number | null
-  title: string
+  name: string
   note: string | null
   is_reminder: boolean
   is_locked: boolean
@@ -15,7 +15,7 @@ export interface CalendarEntry {
 
 export interface CreateCalendarEntry {
   source_entity_id: number | null
-  title: string
+  name: string
   note: string | null
   is_reminder: boolean
   is_locked: boolean

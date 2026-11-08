@@ -82,7 +82,7 @@ export function CalendarEntryModal({
   })
   const form = useForm<CalendarEntryFormValues>({
     initialValues: {
-      title: entry?.title ?? (state.mode === 'create' ? state.title : ''),
+      title: entry?.name ?? (state.mode === 'create' ? state.title : ''),
       note: entry?.note ?? '',
       start_at:
         entry === null
@@ -122,7 +122,7 @@ export function CalendarEntryModal({
   const submit = (values: CalendarEntryFormValues) => {
     const calendarEntry: CreateCalendarEntry = {
       source_entity_id: sourceEntityId,
-      title: linkedTask.data?.name ?? values.title.trim(),
+      name: linkedTask.data?.name ?? values.title.trim(),
       note: values.note.trim() || null,
       is_reminder: values.is_reminder,
       is_locked: values.is_locked,
@@ -163,7 +163,7 @@ export function CalendarEntryModal({
                   style={{ flex: 1 }}
                   value={
                     linkedTask.data?.name ??
-                    (state.mode === 'create' ? state.title : entry?.title ?? '')
+                    (state.mode === 'create' ? state.title : entry?.name ?? '')
                   }
                 />
                 <Button
@@ -270,7 +270,7 @@ function DeleteCalendarEntryModal({
   return (
     <Modal centered opened onClose={onClose} title="Kalendereintrag löschen">
       <Stack>
-        <Text>Möchtest du „{entry.title}“ wirklich löschen?</Text>
+        <Text>Möchtest du „{entry.name}“ wirklich löschen?</Text>
         {deleteCalendarEntry.isError && (
           <Alert color="red" title="Fehler">
             Der Kalendereintrag konnte nicht gelöscht werden.
@@ -328,7 +328,7 @@ export function CalendarView() {
 
     return {
       id: String(entry.entity_id),
-      title: task?.name ?? entry.title,
+      title: task?.name ?? entry.name,
       start: entry.start_at,
       end: entry.is_reminder ? undefined : (entry.end_at ?? undefined),
       extendedProps: { taskId: task?.entity_id },
