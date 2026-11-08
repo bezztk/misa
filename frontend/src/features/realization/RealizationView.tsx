@@ -16,12 +16,10 @@ import {
   Group,
   Modal,
   Paper,
-  Select,
   Stack,
   TextInput,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
-import { useMetadata } from '../metadata/api'
 import { useCreateTopic } from './api'
 
 interface TopicNodeData extends Record<string, unknown> {
@@ -37,7 +35,6 @@ interface ContextMenuPosition {
 
 interface TopicFormValues {
   name: string
-  understanding_level_id: string | null
 }
 
 function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
@@ -59,18 +56,15 @@ function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
 }
 
 export function RealizationView() {
-  const metadata = useMetadata()
   const createTopic = useCreateTopic()
   const [nodes, setNodes, onNodesChange] = useNodesState<TopicNode>([])
   const [edges, , onEdgesChange] = useEdgesState<Edge>([])
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   const [createOpened, setCreateOpened] = useState(false)
   const form = useForm<TopicFormValues>({
-    initialValues: { name: '', understanding_level_id: null },
+    initialValues: { name: '' },
     validate: {
       name: (value) => value.trim() === '' ? 'Name ist erforderlich.' : null,
-      understanding_level_id: (value) =>
-        value === null ? 'Verständnisgrad ist erforderlich.' : null,
     },
   })
 
@@ -98,9 +92,7 @@ export function RealizationView() {
     const name = values.name.trim()
     createTopic.mutate(
       {
-        parent_topic_entity_id: null,
         name,
-        understanding_level_id: Number(values.understanding_level_id),
       },
       {
         onSuccess: ({ entity_id }) => {
@@ -162,15 +154,6 @@ export function RealizationView() {
               required
               label="Name"
               {...form.getInputProps('name')}
-            />
-            <Select
-              required
-              data={(metadata.data?.topic_understanding_levels ?? []).map((level) => ({
-                label: level.display_name ?? level.name,
-                value: String(level.id),
-              }))}
-              label="Verständnisgrad"
-              {...form.getInputProps('understanding_level_id')}
             />
             {createTopic.isError && (
               <Alert color="red" title="Fehler">
