@@ -1,4 +1,4 @@
-import { useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useRef, useState } from 'react'
 import {
   Background,
   ReactFlow,
@@ -17,6 +17,7 @@ import {
   Modal,
   Paper,
   Stack,
+  Text,
   TextInput,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
@@ -31,6 +32,14 @@ type TopicNode = Node<TopicNodeData>
 interface ContextMenuPosition {
   x: number
   y: number
+  topic: TopicNode | null
+}
+
+interface ContextMenuEvent {
+  clientX: number
+  clientY: number
+  preventDefault: () => void
+  stopPropagation: () => void
 }
 
 interface TopicFormValues {
@@ -58,9 +67,11 @@ function applyDagreLayout(nodes: TopicNode[], edges: Edge[]) {
 export function RealizationView() {
   const createTopic = useCreateTopic()
   const [nodes, setNodes, onNodesChange] = useNodesState<TopicNode>([])
-  const [edges, , onEdgesChange] = useEdgesState<Edge>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
+  const [parentTopic, setParentTopic] = useState<TopicNode | null>(null)
   const [createOpened, setCreateOpened] = useState(false)
+  const flowRef = useRef<HTMLDivElement>(null)
   const form = useForm<TopicFormValues>({
     initialValues: { name: '' },
     validate: {
@@ -68,16 +79,21 @@ export function RealizationView() {
     },
   })
 
-  const openContextMenu = (event: ReactMouseEvent) => {
+  const openContextMenu = (event: ContextMenuEvent, topic: TopicNode | null) => {
     event.preventDefault()
-    const bounds = event.currentTarget.getBoundingClientRect()
+    event.stopPropagation()
+    const bounds = flowRef.current?.getBoundingClientRect()
+    if (bounds === undefined) return
+
     setContextMenu({
       x: event.clientX - bounds.left,
       y: event.clientY - bounds.top,
+      topic,
     })
   }
 
   const openCreate = () => {
+    setParentTopic(contextMenu?.topic ?? null)
     setContextMenu(null)
     setCreateOpened(true)
   }
@@ -85,6 +101,7 @@ export function RealizationView() {
   const closeCreate = () => {
     createTopic.reset()
     form.reset()
+    setParentTopic(null)
     setCreateOpened(false)
   }
 
@@ -92,10 +109,24 @@ export function RealizationView() {
     const name = values.name.trim()
     createTopic.mutate(
       {
+        parent_topic_entity_id:
+          parentTopic === null ? null : Number(parentTopic.id),
         name,
       },
       {
         onSuccess: ({ entity_id }) => {
+          const nextEdges =
+            parentTopic === null
+              ? edges
+              : [
+                  ...edges,
+                  {
+                    id: `${parentTopic.id}-${entity_id}`,
+                    source: parentTopic.id,
+                    target: String(entity_id),
+                  },
+                ]
+          setEdges(nextEdges)
           setNodes((currentNodes) =>
             applyDagreLayout(
               [
@@ -106,7 +137,7 @@ export function RealizationView() {
                   position: { x: 0, y: 0 },
                 },
               ],
-              edges,
+              nextEdges,
             ),
           )
           closeCreate()
@@ -116,14 +147,16 @@ export function RealizationView() {
   }
 
   return (
-    <Box h="100%" pos="relative" w="100%" onContextMenu={openContextMenu}>
+    <Box ref={flowRef} h="100%" pos="relative" w="100%">
       <ReactFlow
         fitView
         edges={edges}
         nodes={nodes}
         onEdgesChange={onEdgesChange}
+        onNodeContextMenu={(event, node) => openContextMenu(event, node)}
         onNodesChange={onNodesChange}
         onPaneClick={() => setContextMenu(null)}
+        onPaneContextMenu={(event) => openContextMenu(event, null)}
       >
         <Background />
       </ReactFlow>
@@ -140,6 +173,11 @@ export function RealizationView() {
           }}
           withBorder
         >
+          {contextMenu.topic !== null && (
+            <Text fw={600} px="xs" py={4} size="sm">
+              {contextMenu.topic.data.label}
+            </Text>
+          )}
           <Button size="compact-sm" variant="subtle" onClick={openCreate}>
             Add Topic
           </Button>
