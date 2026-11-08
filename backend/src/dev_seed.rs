@@ -104,19 +104,265 @@ const REMINDERS: [&str; 8] = [
     "Geburtstag nicht vergessen",
 ];
 
+const TOPICS: [(&str, Option<usize>, &str); 40] = [
+    (
+        "Softwareentwicklung",
+        None,
+        "Überblick über die Entwicklung wartbarer Software.",
+    ),
+    (
+        "Frontend",
+        Some(0),
+        "Grundlagen moderner Benutzeroberflächen.",
+    ),
+    (
+        "HTML & CSS",
+        Some(1),
+        "Semantisches HTML und responsive Layouts.",
+    ),
+    (
+        "React & TypeScript",
+        Some(1),
+        "Typsichere Komponenten und Zustandsverwaltung.",
+    ),
+    (
+        "Backend",
+        Some(0),
+        "Serverlogik, Schnittstellen und Persistenz.",
+    ),
+    (
+        "Rust",
+        Some(4),
+        "Ownership, Typen und asynchrone Anwendungen.",
+    ),
+    (
+        "REST APIs",
+        Some(4),
+        "Ressourcen, HTTP-Methoden und Statuscodes.",
+    ),
+    (
+        "Qualität & Architektur",
+        Some(0),
+        "Strukturen für robuste Softwaresysteme.",
+    ),
+    (
+        "Testing",
+        Some(7),
+        "Unit-, Integrations- und End-to-End-Tests.",
+    ),
+    (
+        "Softwarearchitektur",
+        Some(7),
+        "Module, Abhängigkeiten und Systemgrenzen.",
+    ),
+    (
+        "Mathematik",
+        None,
+        "Mathematische Grundlagen und Problemlösungsverfahren.",
+    ),
+    (
+        "Analysis",
+        Some(10),
+        "Funktionen, Grenzwerte und Veränderungen.",
+    ),
+    (
+        "Differentialrechnung",
+        Some(11),
+        "Ableitungen und lokale Änderungsraten.",
+    ),
+    (
+        "Integralrechnung",
+        Some(11),
+        "Flächen, Stammfunktionen und Integrale.",
+    ),
+    (
+        "Lineare Algebra",
+        Some(10),
+        "Vektorräume und lineare Abbildungen.",
+    ),
+    (
+        "Vektoren & Matrizen",
+        Some(14),
+        "Rechenoperationen mit Vektoren und Matrizen.",
+    ),
+    (
+        "Lineare Gleichungssysteme",
+        Some(14),
+        "Lösungsverfahren für lineare Gleichungen.",
+    ),
+    (
+        "Diskrete Mathematik",
+        Some(10),
+        "Endliche Strukturen und formale Methoden.",
+    ),
+    (
+        "Logik & Mengenlehre",
+        Some(17),
+        "Aussagenlogik, Mengen und Relationen.",
+    ),
+    (
+        "Graphentheorie",
+        Some(17),
+        "Knoten, Kanten, Wege und Bäume.",
+    ),
+    (
+        "Persönliche Produktivität",
+        None,
+        "Methoden für bewusstes und wirksames Arbeiten.",
+    ),
+    (
+        "Planung",
+        Some(20),
+        "Aufgaben und Zeit realistisch strukturieren.",
+    ),
+    (
+        "Ziele & Prioritäten",
+        Some(21),
+        "Ziele formulieren und Wichtiges auswählen.",
+    ),
+    (
+        "Wochenplanung",
+        Some(21),
+        "Eine Woche mit Aufgaben und Terminen vorbereiten.",
+    ),
+    (
+        "Fokus",
+        Some(20),
+        "Aufmerksamkeit gezielt einsetzen und schützen.",
+    ),
+    (
+        "Deep Work",
+        Some(24),
+        "Konzentrierte Arbeit ohne Unterbrechungen.",
+    ),
+    (
+        "Ablenkungsmanagement",
+        Some(24),
+        "Störungen erkennen und systematisch reduzieren.",
+    ),
+    (
+        "Reflexion",
+        Some(20),
+        "Erfahrungen auswerten und Verhalten verbessern.",
+    ),
+    (
+        "Gewohnheiten",
+        Some(27),
+        "Hilfreiche Routinen aufbauen und festigen.",
+    ),
+    (
+        "Reviews & Journaling",
+        Some(27),
+        "Fortschritt regelmäßig schriftlich reflektieren.",
+    ),
+    (
+        "Finanzen",
+        None,
+        "Grundlagen für nachhaltige persönliche Finanzen.",
+    ),
+    (
+        "Finanzielle Grundlagen",
+        Some(30),
+        "Einnahmen, Ausgaben und Rücklagen verstehen.",
+    ),
+    (
+        "Budgetierung",
+        Some(31),
+        "Geldflüsse planen und kontrollieren.",
+    ),
+    (
+        "Notgroschen",
+        Some(31),
+        "Eine Reserve für unerwartete Ausgaben aufbauen.",
+    ),
+    (
+        "Investieren",
+        Some(30),
+        "Langfristiger Vermögensaufbau mit Wertpapieren.",
+    ),
+    ("ETFs", Some(34), "Breit gestreute Indexfonds verstehen."),
+    (
+        "Risiko & Diversifikation",
+        Some(34),
+        "Anlagerisiken verteilen und bewerten.",
+    ),
+    (
+        "Vorsorge",
+        Some(30),
+        "Langfristige finanzielle Risiken absichern.",
+    ),
+    (
+        "Versicherungen",
+        Some(37),
+        "Wichtige Risiken passend absichern.",
+    ),
+    (
+        "Altersvorsorge",
+        Some(37),
+        "Versorgungslücken erkennen und langfristig planen.",
+    ),
+];
+
 pub async fn seed(pool: &PgPool) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query("DELETE FROM entities WHERE type = $1 OR type = $2")
+    sqlx::query("DELETE FROM document_revisions")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM documents")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM topics").execute(&mut *tx).await?;
+
+    sqlx::query("DELETE FROM entities WHERE type IN ($1, $2, $3, $4)")
         .bind(EntityType::Task as i32)
         .bind(EntityType::CalendarEntry as i32)
+        .bind(EntityType::Topic as i32)
+        .bind(EntityType::Document as i32)
         .execute(&mut *tx)
         .await?;
 
     let task_ids = seed_tasks(&mut tx).await?;
     seed_calendar_entries(&mut tx, &task_ids).await?;
+    seed_topics(&mut tx).await?;
 
     tx.commit().await
+}
+
+async fn seed_topics(tx: &mut Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
+    let mut topic_ids = Vec::with_capacity(TOPICS.len());
+
+    for (index, (name, parent_index, content)) in TOPICS.iter().enumerate() {
+        let topic_entity_id = entity_repository::create_entity(tx, EntityType::Topic).await?;
+        let parent_topic_entity_id = parent_index.map(|index| topic_ids[index]);
+
+        sqlx::query(
+            "INSERT INTO topics
+                (entity_id, parent_topic_entity_id, name, understanding_level_id)
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(topic_entity_id)
+        .bind(parent_topic_entity_id)
+        .bind(name)
+        .bind((index % 5 + 1) as i32)
+        .execute(&mut **tx)
+        .await?;
+
+        let document_entity_id = entity_repository::create_entity(tx, EntityType::Document).await?;
+        sqlx::query(
+            "INSERT INTO documents (entity_id, topic_id, content)
+             VALUES ($1, $2, $3)",
+        )
+        .bind(document_entity_id)
+        .bind(topic_entity_id)
+        .bind(content)
+        .execute(&mut **tx)
+        .await?;
+
+        topic_ids.push(topic_entity_id);
+    }
+
+    Ok(())
 }
 
 async fn seed_tasks(tx: &mut Transaction<'_, Postgres>) -> Result<Vec<i32>, sqlx::Error> {
