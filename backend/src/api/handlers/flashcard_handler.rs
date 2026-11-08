@@ -41,6 +41,8 @@ pub async fn preview_flashcard(
     };
 
     match flashcard_review_service::calculate_review_preview(
+        context.state,
+        context.learning_step,
         context.stability,
         context.difficulty,
         context.last_reviewed_at,

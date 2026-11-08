@@ -10,6 +10,7 @@ pub struct Flashcard {
     pub hint: Option<String>,
     pub explanation: Option<String>,
     pub state: i16,
+    pub learning_step: i16,
     pub retention_levels_id: i32,
     pub stability: Option<f32>,
     pub difficulty: Option<f32>,
@@ -47,6 +48,8 @@ pub struct CreateFlashcardReview {
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct FlashcardReviewContext {
+    pub state: i16,
+    pub learning_step: i16,
     pub stability: Option<f32>,
     pub difficulty: Option<f32>,
     pub last_reviewed_at: Option<DateTime<Utc>>,
@@ -55,8 +58,8 @@ pub struct FlashcardReviewContext {
 
 #[derive(Debug, Serialize)]
 pub struct FlashcardReviewPreview {
-    pub again: i32,
-    pub hard: i32,
-    pub good: i32,
-    pub easy: i32,
+    pub again: f32,
+    pub hard: f32,
+    pub good: f32,
+    pub easy: f32,
 }

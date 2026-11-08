@@ -59,6 +59,7 @@ pub async fn get_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::Error
             hint,
             explanation,
             state,
+            learning_step,
             retention_levels_id,
             stability,
             difficulty,
@@ -82,6 +83,7 @@ pub async fn get_due_flashcards(pool: &PgPool) -> Result<Vec<Flashcard>, sqlx::E
             hint,
             explanation,
             state,
+            learning_step,
             retention_levels_id,
             stability,
             difficulty,
@@ -103,6 +105,8 @@ pub async fn get_flashcard_review_context(
 ) -> Result<Option<FlashcardReviewContext>, sqlx::Error> {
     sqlx::query_as::<_, FlashcardReviewContext>(
         "SELECT
+            f.state,
+            f.learning_step,
             f.stability,
             f.difficulty,
             f.last_reviewed_at,
@@ -167,6 +171,8 @@ pub async fn review_flashcard(
     let mut tx = pool.begin().await?;
     let context = sqlx::query_as::<_, FlashcardReviewContext>(
         "SELECT
+            f.state,
+            f.learning_step,
             f.stability,
             f.difficulty,
             f.last_reviewed_at,
@@ -182,6 +188,8 @@ pub async fn review_flashcard(
     .ok_or(ReviewFlashcardError::NotFound)?;
 
     let schedule = flashcard_review_service::calculate_review_schedule(
+        context.state,
+        context.learning_step,
         context.stability,
         context.difficulty,
         context.last_reviewed_at,
@@ -192,23 +200,27 @@ pub async fn review_flashcard(
 
     sqlx::query(
         "UPDATE flashcards
-         SET stability = $1,
-             difficulty = $2,
-             last_reviewed_at = $3,
-             due_at = $4
-         WHERE id = $5",
+         SET state = $1,
+             learning_step = $2,
+             stability = $3,
+             difficulty = $4,
+             last_reviewed_at = $5,
+             due_at = $6
+         WHERE id = $7",
     )
+    .bind(schedule.state)
+    .bind(schedule.learning_step)
     .bind(schedule.stability)
     .bind(schedule.difficulty)
     .bind(schedule.reviewed_at)
-    .bind(schedule.due_at)
+    .bind(schedule.next_due_at)
     .bind(id)
     .execute(&mut *tx)
     .await?;
 
     sqlx::query(
         "INSERT INTO flashcard_reviews
-            (flashcard_id, rating, reviewed_at, duration_ms, scheduled_days,
+            (flashcard_id, rating, reviewed_at, duration_ms, next_due_at,
              stability, difficulty)
          VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
@@ -216,7 +228,7 @@ pub async fn review_flashcard(
     .bind(rating)
     .bind(schedule.reviewed_at)
     .bind(duration_ms)
-    .bind(schedule.scheduled_days)
+    .bind(schedule.next_due_at)
     .bind(schedule.stability)
     .bind(schedule.difficulty)
     .execute(&mut *tx)
