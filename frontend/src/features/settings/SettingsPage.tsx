@@ -29,7 +29,7 @@ export function SettingsPage() {
       </Box>
 
       <Box>
-        <Text mb="sm">Testdaten für Aufgaben und Kalender erzeugen.</Text>
+        <Text mb="sm">Testdaten für Aufgaben, Kalender und Topics erzeugen.</Text>
         <Button onClick={openConfirmation}>Testdaten generieren</Button>
       </Box>
 
@@ -52,7 +52,7 @@ export function SettingsPage() {
       >
         <Stack>
           <Text>
-            Alle bestehenden Aufgaben und Kalendereinträge werden gelöscht.
+            Alle bestehenden Aufgaben, Kalendereinträge, Topics und Dokumente werden gelöscht.
             Möchtest du fortfahren?
           </Text>
           <Group justify="flex-end">
