@@ -19,6 +19,7 @@ import {
   BoldItalicUnderlineToggles,
   CodeToggle,
   CreateLink,
+  DiffSourceToggleWrapper,
   InsertCodeBlock,
   InsertTable,
   ListsToggle,
@@ -27,6 +28,7 @@ import {
   UndoRedo,
   codeBlockPlugin,
   codeMirrorPlugin,
+  diffSourcePlugin,
   headingsPlugin,
   linkDialogPlugin,
   linkPlugin,
@@ -39,6 +41,7 @@ import '@mdxeditor/editor/style.css'
 import dagre from '@dagrejs/dagre'
 import {
   Alert,
+  ActionIcon,
   Box,
   Button,
   Center,
@@ -52,6 +55,8 @@ import {
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useQueryClient } from '@tanstack/react-query'
+import { IconX } from '@tabler/icons-react'
+import { Group as PanelGroup, Panel, Separator as PanelSeparator } from 'react-resizable-panels'
 import {
   topicGraphKey,
   updateDocumentContent,
@@ -107,9 +112,10 @@ const editorPlugins = [
     },
   }),
   markdownShortcutPlugin(),
+  diffSourcePlugin({ viewMode: 'rich-text' }),
   toolbarPlugin({
     toolbarContents: () => (
-      <>
+      <DiffSourceToggleWrapper options={['rich-text', 'source']}>
         <UndoRedo />
         <Separator />
         <BlockTypeSelect />
@@ -120,7 +126,7 @@ const editorPlugins = [
         <CreateLink />
         <InsertTable />
         <InsertCodeBlock />
-      </>
+      </DiffSourceToggleWrapper>
     ),
   }),
 ]
@@ -155,10 +161,12 @@ function LoadedDocumentPanel({
   topic,
   document,
   drafts,
+  onClose,
 }: {
   topic: Topic
   document: Document
   drafts: MutableRefObject<Map<number, string>>
+  onClose: () => void
 }) {
   const queryClient = useQueryClient()
   const initialMarkdown = drafts.current.get(topic.entity_id) ?? document.content
@@ -236,21 +244,28 @@ function LoadedDocumentPanel({
 
   return (
     <Paper
-      bottom={0}
       className="realization-document-panel"
-      pos="absolute"
+      h="100%"
       radius={0}
-      right={0}
-      top={0}
-      w={520}
+      w="100%"
       withBorder
-      style={{ display: 'flex', flexDirection: 'column', zIndex: 5 }}
+      style={{ display: 'flex', flexDirection: 'column' }}
     >
       <Group justify="space-between" p="sm">
         <Text fw={600}>{topic.name}</Text>
-        <Text c={saveStatus === 'error' ? 'red' : 'dimmed'} size="sm">
-          {statusLabel}
-        </Text>
+        <Group gap="xs">
+          <Text c={saveStatus === 'error' ? 'red' : 'dimmed'} size="sm">
+            {statusLabel}
+          </Text>
+          <ActionIcon
+            aria-label="Editor schließen"
+            size="sm"
+            variant="subtle"
+            onClick={onClose}
+          >
+            <IconX size={16} />
+          </ActionIcon>
+        </Group>
       </Group>
       <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         <MDXEditor
@@ -268,10 +283,12 @@ function TopicDocumentPanel({
   topic,
   document,
   drafts,
+  onClose,
 }: {
   topic: Topic
   document: Document | null
   drafts: MutableRefObject<Map<number, string>>
+  onClose: () => void
 }) {
   const topicDocument = useTopicDocument(
     topic.entity_id,
@@ -280,7 +297,7 @@ function TopicDocumentPanel({
 
   if (topicDocument.isPending) {
     return (
-      <Paper bottom={0} pos="absolute" radius={0} right={0} top={0} w={520} withBorder style={{ zIndex: 5 }}>
+      <Paper h="100%" radius={0} w="100%" withBorder>
         <Center h="100%"><Loader /></Center>
       </Paper>
     )
@@ -288,7 +305,7 @@ function TopicDocumentPanel({
 
   if (topicDocument.isError) {
     return (
-      <Paper bottom={0} p="md" pos="absolute" radius={0} right={0} top={0} w={520} withBorder style={{ zIndex: 5 }}>
+      <Paper h="100%" p="md" radius={0} w="100%" withBorder>
         <Alert color="red" title="Fehler">
           Das Dokument konnte nicht geladen oder erstellt werden.
         </Alert>
@@ -300,6 +317,7 @@ function TopicDocumentPanel({
     <LoadedDocumentPanel
       document={topicDocument.data}
       drafts={drafts}
+      onClose={onClose}
       topic={topic}
     />
   )
@@ -389,52 +407,78 @@ export function RealizationView() {
   }
 
   return (
-    <Box ref={flowRef} h="100%" pos="relative" w="100%">
-      <ReactFlow
-        fitView
-        edges={edges}
-        nodes={nodes}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={(_, node) => setSelectedTopicId(node.id)}
-        onNodeContextMenu={(event, node) => openContextMenu(event, node)}
-        onNodesChange={onNodesChange}
-        onPaneClick={() => setContextMenu(null)}
-        onPaneContextMenu={(event) => openContextMenu(event, null)}
+    <Box h="100%" pos="relative" w="100%">
+      <PanelGroup
+        key={selectedTopic === undefined ? 'graph' : 'split'}
+        defaultLayout={
+          selectedTopic === undefined
+            ? { graph: 100 }
+            : { editor: 35, graph: 65 }
+        }
+        orientation="horizontal"
+        style={{ height: '100%', width: '100%' }}
       >
-        <Background />
-      </ReactFlow>
+        <Panel id="graph" minSize="25%">
+          <Box ref={flowRef} h="100%" pos="relative" w="100%">
+            <ReactFlow
+              fitView
+              edges={edges}
+              nodes={nodes}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={(_, node) => setSelectedTopicId(node.id)}
+              onNodeContextMenu={(event, node) => openContextMenu(event, node)}
+              onNodesChange={onNodesChange}
+              onPaneClick={() => setContextMenu(null)}
+              onPaneContextMenu={(event) => openContextMenu(event, null)}
+            >
+              <Background />
+            </ReactFlow>
 
-      {selectedTopic !== undefined && (
-        <TopicDocumentPanel
-          key={selectedTopic.id}
-          document={selectedTopic.data.document}
-          drafts={documentDraftsRef}
-          topic={selectedTopic.data.topic}
-        />
-      )}
+            {contextMenu !== null && (
+              <Paper
+                p={4}
+                shadow="md"
+                style={{
+                  left: contextMenu.x,
+                  position: 'absolute',
+                  top: contextMenu.y,
+                  zIndex: 10,
+                }}
+                withBorder
+              >
+                {contextMenu.topic !== null && (
+                  <Text fw={600} px="xs" py={4} size="sm">
+                    {contextMenu.topic.data.label}
+                  </Text>
+                )}
+                <Button size="compact-sm" variant="subtle" onClick={openCreate}>
+                  Add Topic
+                </Button>
+              </Paper>
+            )}
+          </Box>
+        </Panel>
 
-      {contextMenu !== null && (
-        <Paper
-          p={4}
-          shadow="md"
-          style={{
-            left: contextMenu.x,
-            position: 'absolute',
-            top: contextMenu.y,
-            zIndex: 10,
-          }}
-          withBorder
-        >
-          {contextMenu.topic !== null && (
-            <Text fw={600} px="xs" py={4} size="sm">
-              {contextMenu.topic.data.label}
-            </Text>
-          )}
-          <Button size="compact-sm" variant="subtle" onClick={openCreate}>
-            Add Topic
-          </Button>
-        </Paper>
-      )}
+        {selectedTopic !== undefined && (
+          <>
+            <PanelSeparator
+              style={{
+                background: 'var(--mantine-color-gray-3)',
+                width: 6,
+              }}
+            />
+            <Panel id="editor" minSize="25%">
+              <TopicDocumentPanel
+                key={selectedTopic.id}
+                document={selectedTopic.data.document}
+                drafts={documentDraftsRef}
+                topic={selectedTopic.data.topic}
+                onClose={() => setSelectedTopicId(null)}
+              />
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
 
       <Modal centered opened={createOpened} title="Topic erstellen" onClose={closeCreate}>
         <Box component="form" onSubmit={form.onSubmit(submit)}>
