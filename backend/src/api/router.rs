@@ -1,6 +1,6 @@
 use crate::api::handlers::{
-    calendar_entry_handler, document_handler, entity_handler, flashcard_handler, metadata_handler,
-    task_handler, topic_handler,
+    calendar_entry_handler, development_area_handler, document_handler, entity_handler,
+    flashcard_handler, metadata_handler, task_handler, topic_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -16,6 +16,15 @@ pub fn create_router(pool: PgPool) -> Router {
             get(task_handler::get_tasks).post(task_handler::create_task),
         )
         .route("/metadata", get(metadata_handler::get_metadata))
+        .route(
+            "/development-areas/{id}",
+            axum::routing::patch(development_area_handler::update_development_area)
+                .delete(development_area_handler::delete_development_area),
+        )
+        .route(
+            "/development-areas",
+            axum::routing::post(development_area_handler::create_development_area),
+        )
         .route(
             "/flashcards/due",
             get(flashcard_handler::get_due_flashcards),

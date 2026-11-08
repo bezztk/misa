@@ -1,4 +1,4 @@
-use crate::models::topic::{CreateTopic, TopicGraphEntry, UpdateTopic};
+use crate::models::topic::{CreateTopic, TopicGraph, UpdateTopic};
 use crate::repositories::topic_repository;
 use crate::validation::valid_name;
 use axum::Json;
@@ -7,9 +7,7 @@ use axum::http::StatusCode;
 use serde::Serialize;
 use sqlx::PgPool;
 
-pub async fn get_topic_graph(
-    State(pool): State<PgPool>,
-) -> Result<Json<Vec<TopicGraphEntry>>, StatusCode> {
+pub async fn get_topic_graph(State(pool): State<PgPool>) -> Result<Json<TopicGraph>, StatusCode> {
     match topic_repository::get_topic_graph(&pool).await {
         Ok(graph) => Ok(Json(graph)),
         Err(error) => {
@@ -32,11 +30,19 @@ pub async fn create_topic(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTopic>,
 ) -> Result<(StatusCode, Json<CreateTopicResponse>), StatusCode> {
-    if !valid_name(&payload.name, 150) {
+    if !valid_name(&payload.name, 150)
+        || payload.parent_topic_entity_id.is_some() == payload.development_area_id.is_some()
+    {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    match topic_repository::create_topic(&pool, payload.parent_topic_entity_id, &payload.name).await
+    match topic_repository::create_topic(
+        &pool,
+        payload.parent_topic_entity_id,
+        payload.development_area_id,
+        &payload.name,
+    )
+    .await
     {
         Ok(entity_id) => Ok((StatusCode::CREATED, Json(CreateTopicResponse { entity_id }))),
         Err(error) => {
@@ -51,7 +57,9 @@ pub async fn update_topic(
     Path(entity_id): Path<i32>,
     Json(payload): Json<UpdateTopic>,
 ) -> Result<StatusCode, StatusCode> {
-    if !valid_name(&payload.name, 150) {
+    if !valid_name(&payload.name, 150)
+        || payload.parent_topic_entity_id.is_some() == payload.development_area_id.is_some()
+    {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -59,6 +67,7 @@ pub async fn update_topic(
         &pool,
         entity_id,
         payload.parent_topic_entity_id,
+        payload.development_area_id,
         &payload.name,
         payload.understanding_level_id,
     )

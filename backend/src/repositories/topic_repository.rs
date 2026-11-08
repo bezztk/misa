@@ -1,11 +1,12 @@
 use crate::models::document::Document;
 use crate::models::entity::EntityType;
-use crate::models::topic::{Topic, TopicGraphEntry};
-use crate::repositories::{entity_repository, flashcard_repository};
+use crate::models::topic::{Topic, TopicGraph, TopicGraphEntry};
+use crate::repositories::{development_area_repository, entity_repository, flashcard_repository};
 use sqlx::PgPool;
 use std::collections::HashMap;
 
-pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx::Error> {
+pub async fn get_topic_graph(pool: &PgPool) -> Result<TopicGraph, sqlx::Error> {
+    let development_areas = development_area_repository::get_development_areas(pool).await?;
     let topics = sqlx::query_as::<_, Topic>(
         "SELECT
             t.entity_id,
@@ -13,6 +14,7 @@ pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx
             e.updated_at,
             e.version,
             t.parent_topic_entity_id,
+            t.development_area_id,
             t.name,
             t.understanding_level_id
          FROM topics t
@@ -56,7 +58,7 @@ pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx
             by_document
         });
 
-    Ok(topics
+    let topics = topics
         .into_iter()
         .map(|topic| {
             let document = documents.remove(&topic.entity_id);
@@ -70,23 +72,32 @@ pub async fn get_topic_graph(pool: &PgPool) -> Result<Vec<TopicGraphEntry>, sqlx
                 flashcards: document_flashcards,
             }
         })
-        .collect())
+        .collect();
+
+    Ok(TopicGraph {
+        development_areas,
+        topics,
+    })
 }
 
 pub async fn create_topic(
     pool: &PgPool,
     parent_topic_entity_id: Option<i32>,
+    development_area_id: Option<i32>,
     name: &str,
 ) -> Result<i32, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let entity_id = entity_repository::create_entity(&mut tx, EntityType::Topic).await?;
 
     sqlx::query(
-        "INSERT INTO topics (entity_id, parent_topic_entity_id, name, understanding_level_id)
-         VALUES ($1, $2, $3, $4)",
+        "INSERT INTO topics
+            (entity_id, parent_topic_entity_id, development_area_id, name,
+             understanding_level_id)
+         VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(entity_id)
     .bind(parent_topic_entity_id)
+    .bind(development_area_id)
     .bind(name)
     .bind(1)
     .execute(&mut *tx)
@@ -107,16 +118,21 @@ pub async fn update_topic(
     pool: &PgPool,
     entity_id: i32,
     parent_topic_entity_id: Option<i32>,
+    development_area_id: Option<i32>,
     name: &str,
     understanding_level_id: i32,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE topics
-         SET parent_topic_entity_id = $1, name = $2, understanding_level_id = $3
-         WHERE entity_id = $4",
+         SET parent_topic_entity_id = $1,
+             development_area_id = $2,
+             name = $3,
+             understanding_level_id = $4
+         WHERE entity_id = $5",
     )
     .bind(parent_topic_entity_id)
+    .bind(development_area_id)
     .bind(name)
     .bind(understanding_level_id)
     .bind(entity_id)
