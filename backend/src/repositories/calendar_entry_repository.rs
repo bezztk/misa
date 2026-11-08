@@ -10,6 +10,8 @@ pub async fn create_calendar_entry(
     name: &str,
     note: Option<&str>,
     is_reminder: bool,
+    is_locked: bool,
+    estimated_duration: Option<i32>,
     start_at: DateTime<Utc>,
     end_at: Option<DateTime<Utc>>,
 ) -> Result<i32, sqlx::Error> {
@@ -18,14 +20,17 @@ pub async fn create_calendar_entry(
 
     sqlx::query(
         "INSERT INTO calendar_entries
-            (entity_id, source_entity_id, name, note, is_reminder, start_at, end_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            (entity_id, source_entity_id, name, note, is_reminder, is_locked,
+             estimated_duration, start_at, end_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(entity_id)
     .bind(source_entity_id)
     .bind(name)
     .bind(note)
     .bind(is_reminder)
+    .bind(is_locked)
+    .bind(estimated_duration)
     .bind(start_at)
     .bind(end_at)
     .execute(&mut *tx)
@@ -49,6 +54,8 @@ pub async fn get_calendar_entry(
             c.name,
             c.note,
             c.is_reminder,
+            c.is_locked,
+            c.estimated_duration,
             c.start_at,
             c.end_at
          FROM calendar_entries c
@@ -73,6 +80,8 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
             c.name,
             c.note,
             c.is_reminder,
+            c.is_locked,
+            c.estimated_duration,
             c.start_at,
             c.end_at
          FROM calendar_entries c
@@ -87,28 +96,31 @@ pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, s
 pub async fn update_calendar_entry(
     pool: &PgPool,
     entity_id: i32,
-    source_entity_id: Option<i32>,
     name: &str,
     note: Option<&str>,
     is_reminder: bool,
+    is_locked: bool,
+    estimated_duration: Option<i32>,
     start_at: DateTime<Utc>,
     end_at: Option<DateTime<Utc>>,
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE calendar_entries
-         SET source_entity_id = $1,
-             name = $2,
-             note = $3,
-             is_reminder = $4,
-             start_at = $5,
-             end_at = $6
-         WHERE entity_id = $7",
+         SET name = $1,
+             note = $2,
+             is_reminder = $3,
+             is_locked = $4,
+             estimated_duration = $5,
+             start_at = $6,
+             end_at = $7
+         WHERE entity_id = $8",
     )
-    .bind(source_entity_id)
     .bind(name)
     .bind(note)
     .bind(is_reminder)
+    .bind(is_locked)
+    .bind(estimated_duration)
     .bind(start_at)
     .bind(end_at)
     .bind(entity_id)

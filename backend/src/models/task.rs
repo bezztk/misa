@@ -7,6 +7,7 @@ pub struct Task {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub version: i32,
+    pub source_entity_id: Option<i32>,
     pub group_id: i32,
     pub name: String,
     pub description: Option<String>,
@@ -18,6 +19,7 @@ pub struct Task {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTask {
+    pub source_entity_id: Option<i32>,
     pub group_id: i32,
     pub name: String,
     pub description: Option<String>,

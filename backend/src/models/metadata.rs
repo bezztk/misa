@@ -10,12 +10,14 @@ pub struct TaskGroup {
 pub struct TaskStateRow {
     pub id: i32,
     pub name: String,
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct TaskPriority {
     pub id: i32,
     pub name: String,
+    pub display_name: Option<String>,
 }
 
 #[repr(i32)]

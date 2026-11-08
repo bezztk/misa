@@ -12,13 +12,13 @@ pub async fn get_task_groups(pool: &PgPool) -> Result<Vec<TaskGroup>, sqlx::Erro
 }
 
 pub async fn get_task_states(pool: &PgPool) -> Result<Vec<TaskStateRow>, sqlx::Error> {
-    sqlx::query_as("SELECT id, name FROM task_states ORDER BY id")
+    sqlx::query_as("SELECT id, name, display_name FROM task_states ORDER BY id")
         .fetch_all(pool)
         .await
 }
 
 pub async fn get_task_priorities(pool: &PgPool) -> Result<Vec<TaskPriority>, sqlx::Error> {
-    sqlx::query_as("SELECT id, name FROM task_priorities ORDER BY id")
+    sqlx::query_as("SELECT id, name, display_name FROM task_priorities ORDER BY id")
         .fetch_all(pool)
         .await
 }

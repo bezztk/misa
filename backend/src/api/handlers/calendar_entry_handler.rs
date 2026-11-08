@@ -52,6 +52,8 @@ pub async fn create_calendar_entry(
         &payload.name,
         payload.note.as_deref(),
         payload.is_reminder,
+        payload.is_locked,
+        payload.estimated_duration,
         payload.start_at,
         payload.end_at,
     )
@@ -80,10 +82,11 @@ pub async fn update_calendar_entry(
     match calendar_entry_repository::update_calendar_entry(
         &pool,
         entity_id,
-        payload.source_entity_id,
         &payload.name,
         payload.note.as_deref(),
         payload.is_reminder,
+        payload.is_locked,
+        payload.estimated_duration,
         payload.start_at,
         payload.end_at,
     )

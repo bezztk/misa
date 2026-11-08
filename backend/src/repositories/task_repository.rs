@@ -7,6 +7,7 @@ use sqlx::PgPool;
 
 pub async fn create_task(
     pool: &PgPool,
+    source_entity_id: Option<i32>,
     group_id: i32,
     name: &str,
     description: Option<&str>,
@@ -18,10 +19,11 @@ pub async fn create_task(
 
     sqlx::query(
         "INSERT INTO tasks
-            (entity_id, group_id, name, description, state_id, priority_id, due_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            (entity_id, source_entity_id, group_id, name, description, state_id, priority_id, due_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(entity_id)
+    .bind(source_entity_id)
     .bind(group_id)
     .bind(name)
     .bind(description)
@@ -42,6 +44,7 @@ pub async fn get_task(pool: &PgPool, entity_id: i32) -> Result<Option<Task>, sql
             e.created_at,
             e.updated_at,
             e.version,
+            t.source_entity_id,
             t.group_id,
             t.name,
             t.description,
@@ -67,6 +70,7 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<Task>, sqlx::Error> {
             e.created_at,
             e.updated_at,
             e.version,
+            t.source_entity_id,
             t.group_id,
             t.name,
             t.description,

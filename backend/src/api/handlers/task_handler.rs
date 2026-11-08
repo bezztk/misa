@@ -42,6 +42,7 @@ pub async fn create_task(
 
     match task_repository::create_task(
         &pool,
+        payload.source_entity_id,
         payload.group_id,
         &payload.name,
         payload.description.as_deref(),

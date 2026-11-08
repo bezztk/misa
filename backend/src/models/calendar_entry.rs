@@ -11,6 +11,8 @@ pub struct CalendarEntry {
     pub name: String,
     pub note: Option<String>,
     pub is_reminder: bool,
+    pub is_locked: bool,
+    pub estimated_duration: Option<i32>,
     pub start_at: DateTime<Utc>,
     pub end_at: Option<DateTime<Utc>>,
 }
@@ -21,16 +23,19 @@ pub struct CreateCalendarEntry {
     pub name: String,
     pub note: Option<String>,
     pub is_reminder: bool,
+    pub is_locked: bool,
+    pub estimated_duration: Option<i32>,
     pub start_at: DateTime<Utc>,
     pub end_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCalendarEntry {
-    pub source_entity_id: Option<i32>,
     pub name: String,
     pub note: Option<String>,
     pub is_reminder: bool,
+    pub is_locked: bool,
+    pub estimated_duration: Option<i32>,
     pub start_at: DateTime<Utc>,
     pub end_at: Option<DateTime<Utc>>,
 }
