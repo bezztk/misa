@@ -11,17 +11,20 @@ find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
+        Network
         REQUIRED)
 
-add_executable(frontend main.cpp)
+add_executable(frontend
+    main.cpp
+)
 target_link_libraries(frontend
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
 )
 
 if (WIN32)
-    # Qt-DLLs kopieren
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:Qt6::Core>"
@@ -30,7 +33,6 @@ if (WIN32)
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
     )
 
-    # Qt-Plattform-Plugin kopieren
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms"
