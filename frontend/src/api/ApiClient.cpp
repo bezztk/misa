@@ -19,24 +19,91 @@ QUrl ApiClient::buildUrl(const QString &path) {
     return url;
 }
 
+void ApiClient::getDueFlashcards() {
+    const QNetworkRequest networkRequest(buildUrl(PATH_FLASHCARDS));
+
+    QNetworkReply *reply = manager.get(networkRequest);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        std::vector<FlashcardReviewQueueItem> flashcards;
+
+        const QByteArray data = reply->readAll();
+        const QJsonArray jsonArray = QJsonDocument::fromJson(data).array();
+
+        for (const QJsonValue &value: jsonArray) {
+            FlashcardReviewQueueItem flashcard;
+            QJsonObject object = value.toObject();
+
+            flashcard.id = object["id"].toInt();
+            flashcard.front = object["front"].toString();
+            flashcard.back = object["back"].toString();
+
+            flashcards.push_back(flashcard);
+        }
+
+        emit flashcardsReceived(flashcards);
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::rateFlashcard(const int id, const ReviewFlashcard reviewFlashcard) {
+    QNetworkRequest networkRequest(buildUrl("/flashcards/" + QString::number(id) + "/reviews"));
+    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["rating"] = reviewFlashcard.rating;
+    json["duration_ms"] = reviewFlashcard.duration_ms;
+
+    QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+            emit flashcardRated();
+        } else {
+            qWarning() << "Flashcard review failed: " << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::getFlashcardPreview(const int id) {
+    const QNetworkRequest networkRequest(buildUrl("/flashcards/" + QString::number(id) + "/preview"));
+
+    QNetworkReply *reply = manager.get(networkRequest);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        FlashcardReviewPreview preview{};
+        const QByteArray data = reply->readAll();
+        const QJsonObject jsonObject = QJsonDocument::fromJson(data).object();
+
+        preview.again = static_cast<float>(jsonObject["again"].toDouble());
+        preview.hard = static_cast<float>(jsonObject["hard"].toDouble());
+        preview.good = static_cast<float>(jsonObject["good"].toDouble());
+        preview.easy = static_cast<float>(jsonObject["easy"].toDouble());
+
+        emit flashcardPreviewCalculated(preview);
+
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::getTasks() {
     const QNetworkRequest networkRequest(buildUrl(PATH_TASKS));
 
     QNetworkReply *reply = manager.get(networkRequest);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        const QByteArray data = reply->readAll();
-
-        QJsonParseError error;
-        QJsonDocument jsonDoc = QJsonDocument::fromJson(data, &error);
-
-        QJsonArray jsonArray = jsonDoc.array();
         std::vector<Task> tasks;
 
-        for (const QJsonValue &value: jsonArray) {
-            QJsonObject object = value.toObject();
+        const QByteArray data = reply->readAll();
+        const QJsonArray jsonArray = QJsonDocument::fromJson(data).array();
 
+        for (const QJsonValue &value: jsonArray) {
             Task task;
+            QJsonObject object = value.toObject();
 
             task.entity_id = object["entity_id"].toInt();
             task.name = object["name"].toString();

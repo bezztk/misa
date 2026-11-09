@@ -1,6 +1,7 @@
 ﻿#ifndef FRONTEND_APICLIENT_H
 #define FRONTEND_APICLIENT_H
 #include "../models/Task.h"
+#include "../models/Flashcard.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -8,10 +9,17 @@ class ApiClient : public QObject {
 
 signals:
     void taskReceived(const std::vector<Task>& tasks);
+    void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
+    void flashcardRated();
+    void flashcardPreviewCalculated(const FlashcardReviewPreview& preview);
 
 public:
     ApiClient();
     void getTasks();
+
+    void getDueFlashcards();
+    void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
+    void getFlashcardPreview(int id);
 
 private:
     static constexpr auto SCHEME = "http";
@@ -19,6 +27,7 @@ private:
     static constexpr int PORT = 3000;
     static constexpr auto BASE_PATH = "/api";
     static constexpr auto PATH_TASKS = "/tasks";
+    static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
 
     static QUrl buildUrl(const QString& path);
 

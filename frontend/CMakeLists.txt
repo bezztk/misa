@@ -23,6 +23,9 @@ add_executable(frontend
         src/ui/TaskView.cpp
         src/ui/TaskView.h
         src/models/Task.h
+        src/ui/LearningView.cpp
+        src/ui/LearningView.h
+        src/models/Flashcard.h
 )
 target_link_libraries(frontend
         Qt6::Core

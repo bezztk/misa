@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <QWidget>
+#include <QTableWidget>
 
 class TaskView : public QWidget {
 public:
@@ -14,6 +15,7 @@ public:
 private:
     std::vector<Task> tasks;
     ApiClient apiClient;
+    QTableWidget* table;
 };
 
 
