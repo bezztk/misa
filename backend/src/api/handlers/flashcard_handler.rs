@@ -1,6 +1,4 @@
-use crate::models::flashcard::{
-    CreateFlashcard, CreateFlashcardReview, FlashcardQueue, FlashcardReviewPreview, UpdateFlashcard,
-};
+use crate::models::flashcard::{CreateFlashcard, CreateFlashcardReview, FlashcardQueueItem, Flashcard, FlashcardReviewPreview, UpdateFlashcard};
 use crate::repositories::flashcard_repository::{self, ReviewFlashcardError};
 use crate::services::flashcard_review_service;
 use axum::Json;
@@ -17,9 +15,9 @@ pub struct CreateFlashcardResponse {
 
 pub async fn get_due_flashcards(
     State(pool): State<PgPool>,
-) -> Result<Json<FlashcardQueue>, StatusCode> {
+) -> Result<Json<Vec<FlashcardQueueItem>>, StatusCode> {
     match flashcard_repository::get_due_flashcards(&pool).await {
-        Ok((due, upcoming)) => Ok(Json(FlashcardQueue { due, upcoming })),
+        Ok(flashcards) => Ok(Json(flashcards)),
         Err(error) => {
             eprintln!("Failed to retrieve due flashcards: {error}");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
