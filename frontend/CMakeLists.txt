@@ -16,6 +16,13 @@ find_package(Qt6 COMPONENTS
 
 add_executable(frontend
     main.cpp
+        src/api/ApiClient.cpp
+        src/api/ApiClient.h
+        src/ui/MainWindow.cpp
+        src/ui/MainWindow.h
+        src/ui/TaskView.cpp
+        src/ui/TaskView.h
+        src/models/Task.h
 )
 target_link_libraries(frontend
         Qt6::Core
@@ -30,6 +37,7 @@ if (WIN32)
             "$<TARGET_FILE:Qt6::Core>"
             "$<TARGET_FILE:Qt6::Gui>"
             "$<TARGET_FILE:Qt6::Widgets>"
+            "$<TARGET_FILE:Qt6::Network>"
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
     )
 
