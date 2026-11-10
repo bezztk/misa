@@ -9,6 +9,7 @@ class ApiClient : public QObject {
     Q_OBJECT
 
 signals:
+    void metadataReceived();
     void taskReceived(const std::vector<Task>& tasks);
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();

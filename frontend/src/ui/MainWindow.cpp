@@ -71,6 +71,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     auto *taskView = new TaskView();
     auto *learningView = new LearningView();
 
+    connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::renderTasks);
+
     stack->addWidget(taskView);
     stack->addWidget(learningView);
 

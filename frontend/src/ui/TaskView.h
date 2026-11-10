@@ -6,16 +6,18 @@
 
 #include <vector>
 #include <QWidget>
-#include <QTableWidget>
+
+class QVBoxLayout;
 
 class TaskView : public QWidget {
 public:
     explicit TaskView(QWidget* parent = nullptr);
+    void renderTasks();
 
 private:
     std::vector<Task> tasks;
     ApiClient apiClient;
-    QTableWidget* table;
+    QVBoxLayout* cardsLayout;
 };
 
 

@@ -47,7 +47,7 @@ void ApiClient::getMetadata() {
     const QNetworkRequest networkRequest(buildUrl(PATH_METADATA));
     QNetworkReply *reply = manager.get(networkRequest);
 
-    connect(reply, &QNetworkReply::finished, this, [reply] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
         const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
         Metadata metadata;
 
@@ -84,6 +84,7 @@ void ApiClient::getMetadata() {
 
         AppState::metadata = metadata;
         AppState::metadataLoaded = true;
+        emit metadataReceived();
         reply->deleteLater();
     });
 }
