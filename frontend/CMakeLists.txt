@@ -53,3 +53,11 @@ if (WIN32)
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms"
     )
 endif()
+
+qt_add_resources(frontend "icons"
+        PREFIX "/"
+        FILES
+        assets/icons/task.png
+        assets/icons/clipboard.png
+        assets/icons/flash-cards.png
+)

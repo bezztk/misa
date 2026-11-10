@@ -20,15 +20,32 @@ static QString formatInterval(const float days) {
 
 LearningView::LearningView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto* refreshButton = new QPushButton(this);
 
     remainingLabel = new QLabel(this);
+    remainingLabel->setStyleSheet(R"(
+    color: #666666;
+    font-size: 11px;
+    font-weight: 300;
+)");
     layout->addWidget(remainingLabel);
+    layout->addSpacing(6);
 
     front = new QLabel(this);
+    front->setText("Lernkarten werden geladen");
+    backLabel = new QLabel("Antwort:");
+    backLabel->hide();
     back = new QLabel(this);
+
     showAnswerButton = new QPushButton("Antwort anzeigen", this);
+    showAnswerButton->hide();
 
     layout->addWidget(front);
+    layout->addSpacing(20);
+    layout->addWidget(backLabel);
     layout->addWidget(back);
     layout->addWidget(showAnswerButton);
 
@@ -107,12 +124,13 @@ void LearningView::showCurrentFlashcard() {
 
     flashcard_shown_at = QDateTime::currentDateTime();
     front->setText(flashcards[currentIndex].front);
+    backLabel->hide();
     back->clear();
     ratingWidget->hide();
     showAnswerButton->show();
 
     remainingLabel->setText(
-    "Verbleibend: " + QString::number(flashcards.size() - currentIndex)
+    "Verbleibende Karten in der Warteschlange: " + QString::number(flashcards.size() - currentIndex)
 );
 
     apiClient.getFlashcardPreview(flashcards[currentIndex].id);
@@ -123,4 +141,5 @@ void LearningView::showAnswer() {
     back->setText(flashcards[currentIndex].back);
     ratingWidget->show();
     showAnswerButton->hide();
+    backLabel->show();
 }

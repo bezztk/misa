@@ -16,6 +16,7 @@ private:
     std::size_t currentIndex = 0;
     QLabel* remainingLabel;
     QLabel* front;
+    QLabel* backLabel;
     QLabel* back;
     QWidget* ratingWidget;
     QPushButton* againButton;

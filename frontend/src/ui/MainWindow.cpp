@@ -5,6 +5,7 @@
 #include <QWidget>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QStyle>
 
 #include "LearningView.h"
 
@@ -19,15 +20,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     mainLayout->setSpacing(0);
 
     auto *navbar = new QWidget(central);
-    navbar->setFixedWidth(100);
+    navbar->setFixedWidth(40);
 
     auto *navLayout = new QVBoxLayout(navbar);
+    navLayout->setContentsMargins(0, 0, 0, 0);
+    navLayout->setSpacing(0);
 
-    auto *taskButton = new QPushButton("Aufgaben", navbar);
-    navLayout->addWidget(taskButton);
+    auto *taskButton = new QPushButton(navbar);
+    taskButton->setFixedSize(40, 40);
+    taskButton->setIcon(QIcon(":/assets/icons/clipboard.png"));
+    taskButton->setIconSize(QSize(24, 24));
+    navLayout->addWidget(taskButton, 0, Qt::AlignCenter);
 
-    auto *learningButton = new QPushButton("Learning", navbar);
-    navLayout->addWidget(learningButton);
+    auto *learningButton = new QPushButton(navbar);
+    learningButton->setFixedSize(40, 40);
+    learningButton->setIcon(QIcon(":/assets/icons/flash-cards.png"));
+    learningButton->setIconSize(QSize(24, 24));
+    navLayout->addWidget(learningButton, 0, Qt::AlignCenter);
 
     navLayout->addStretch();
 
@@ -42,7 +51,28 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     stack->setCurrentIndex(0);
 
     mainLayout->addWidget(navbar);
-    mainLayout->addWidget(stack, 1);
+
+    auto *content = new QWidget(central);
+    content->setObjectName("content");
+
+    content->setStyleSheet(R"(
+    QWidget#content {
+        background-color: #40202B2D;
+border: none;
+border-top: 1px solid #ffffff;
+border-left: 1px solid #ffffff;
+border-style: solid;
+border-color: #20ffffff;
+    }
+)");
+
+    auto *contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(12, 12, 12, 12);
+    contentLayout->setSpacing(0);
+    contentLayout->addWidget(stack);
+
+    mainLayout->addWidget(content, 1);
+
 
     setCentralWidget(central);
 
