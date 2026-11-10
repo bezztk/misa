@@ -1,10 +1,35 @@
 #include "TaskView.h"
 
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDateTimeEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
+#include <QMouseEvent>
 #include <QScrollArea>
+#include <QTextEdit>
 #include <QVBoxLayout>
+
+#include <functional>
+
+class ClickableFrame : public QFrame {
+public:
+    std::function<void()> clicked;
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && rect().contains(event->position().toPoint())) {
+            clicked();
+        }
+
+        QFrame::mouseReleaseEvent(event);
+    }
+};
 
 static QString taskGroupName(const int id) {
     for (const TaskGroupMetadata &group : AppState::metadata.task_groups) {
@@ -65,6 +90,9 @@ TaskView::TaskView(QWidget *parent) : QWidget(parent) {
                 tasks = receivedTasks;
                 renderTasks();
             });
+    connect(&apiClient, &ApiClient::taskUpdated, this, [this] {
+        apiClient.getTasks();
+    });
 
     apiClient.getTasks();
 }
@@ -77,9 +105,11 @@ void TaskView::renderTasks() {
 
     for (std::size_t i = 0; i < tasks.size(); ++i) {
         const Task &task = tasks[i];
-        auto *card = new QFrame(this);
+        auto *card = new ClickableFrame();
+        card->setCursor(Qt::PointingHandCursor);
         card->setStyleSheet(
             "QFrame { border: none; background: transparent; }"
+            "QFrame:hover { background: rgba(255, 255, 255, 0.03); }"
             "QLabel { border: none; background: transparent; }"
         );
 
@@ -91,23 +121,26 @@ void TaskView::renderTasks() {
         topRow->setContentsMargins(0, 0, 0, 0);
         topRow->setSpacing(6);
         const QString deadline = task.due_at
-            ? task.due_at->toLocalTime().toString("dd.MM.yyyy HH:mm")
-            : "Keine Deadline";
+            ? QString("<span style='color: #EF5350'>[%1]</span> ").arg(
+                task.due_at->toLocalTime().toString("dd.MM.yyyy HH:mm").toHtmlEscaped()
+            )
+            : "";
         auto *title = new QLabel(QString(
-            "<span style='color: #EF5350'>[%1]</span> "
-            "<span style='color: #777777; font-size: 11px; font-weight: 400'>%2::</span>"
+            "%1<span style='color: #777777; font-size: 11px; font-weight: 400'>%2::</span>"
             "<span style='color: %3'>%4</span>"
         ).arg(
-            deadline.toHtmlEscaped(),
+            deadline,
             taskGroupName(task.group_id).toHtmlEscaped(),
             priorityColor(task.priority_id),
             task.name.toHtmlEscaped()
         ), card);
         title->setTextFormat(Qt::RichText);
+        title->setAttribute(Qt::WA_TransparentForMouseEvents);
 
         auto *status = new QLabel(taskStateName(task.state_id), card);
         status->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         status->setStyleSheet("color: " + taskStateColor(task.state_id) + ";");
+        status->setAttribute(Qt::WA_TransparentForMouseEvents);
 
         topRow->addWidget(title, 1);
         topRow->addWidget(status);
@@ -117,8 +150,13 @@ void TaskView::renderTasks() {
             auto *description = new QLabel(*task.description, card);
             description->setWordWrap(true);
             description->setStyleSheet("color: #909090; font-size: 11px;");
+            description->setAttribute(Qt::WA_TransparentForMouseEvents);
             cardLayout->addWidget(description);
         }
+
+        card->clicked = [this, task] {
+            openEditDialog(task);
+        };
 
         cardsLayout->addWidget(card);
 
@@ -131,4 +169,83 @@ void TaskView::renderTasks() {
     }
 
     cardsLayout->addStretch();
+}
+
+void TaskView::openEditDialog(const Task &task) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("Task bearbeiten");
+
+    auto *layout = new QFormLayout(&dialog);
+
+    auto *nameEdit = new QLineEdit(task.name, &dialog);
+    layout->addRow("Name", nameEdit);
+
+    auto *stateEdit = new QComboBox(&dialog);
+    for (const MetadataItem &state : AppState::metadata.task_states) {
+        stateEdit->addItem(state.display_name.value_or(state.name), state.id);
+    }
+    stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
+    layout->addRow("Status", stateEdit);
+
+    auto *groupEdit = new QComboBox(&dialog);
+    for (const TaskGroupMetadata &group : AppState::metadata.task_groups) {
+        groupEdit->addItem(group.name, group.id);
+    }
+    groupEdit->setCurrentIndex(groupEdit->findData(task.group_id));
+    layout->addRow("Gruppe", groupEdit);
+
+    auto *priorityEdit = new QComboBox(&dialog);
+    for (const MetadataItem &priority : AppState::metadata.task_priorities) {
+        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    }
+    priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));
+    layout->addRow("Priorität", priorityEdit);
+
+    auto *dueWidget = new QWidget(&dialog);
+    auto *dueLayout = new QHBoxLayout(dueWidget);
+    dueLayout->setContentsMargins(0, 0, 0, 0);
+    auto *dueEnabled = new QCheckBox("Aktiv", dueWidget);
+    auto *dueEdit = new QDateTimeEdit(dueWidget);
+    dueEdit->setCalendarPopup(true);
+    dueEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
+    dueEnabled->setChecked(task.due_at.has_value());
+    dueEdit->setEnabled(task.due_at.has_value());
+    dueEdit->setDateTime(task.due_at
+        ? task.due_at->toLocalTime()
+        : QDateTime::currentDateTime());
+    connect(dueEnabled, &QCheckBox::toggled, dueEdit, &QDateTimeEdit::setEnabled);
+    dueLayout->addWidget(dueEnabled);
+    dueLayout->addWidget(dueEdit, 1);
+    layout->addRow("Due at", dueWidget);
+
+    auto *descriptionEdit = new QTextEdit(&dialog);
+    descriptionEdit->setPlainText(task.description.value_or(""));
+    descriptionEdit->setFixedHeight(90);
+    layout->addRow("Beschreibung", descriptionEdit);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    const QString description = descriptionEdit->toPlainText().trimmed();
+    apiClient.updateTask(task.entity_id, UpdateTask{
+        .group_id = groupEdit->currentData().toInt(),
+        .name = nameEdit->text().trimmed(),
+        .description = description.isEmpty()
+            ? std::nullopt
+            : std::optional<QString>(description),
+        .state_id = stateEdit->currentData().toInt(),
+        .priority_id = priorityEdit->currentData().toInt(),
+        .due_at = dueEnabled->isChecked()
+            ? std::optional<QDateTime>(dueEdit->dateTime())
+            : std::nullopt
+    });
 }

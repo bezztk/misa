@@ -15,6 +15,8 @@ public:
     void renderTasks();
 
 private:
+    void openEditDialog(const Task& task);
+
     std::vector<Task> tasks;
     ApiClient apiClient;
     QVBoxLayout* cardsLayout;

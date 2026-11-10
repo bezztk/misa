@@ -205,3 +205,33 @@ void ApiClient::getTasks() {
         reply->deleteLater();
     });
 }
+
+void ApiClient::updateTask(const int id, const UpdateTask &task) {
+    QNetworkRequest networkRequest(buildUrl("/tasks/" + QString::number(id)));
+    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["group_id"] = task.group_id;
+    json["name"] = task.name;
+    json["description"] = task.description
+        ? QJsonValue(*task.description)
+        : QJsonValue(QJsonValue::Null);
+    json["state_id"] = task.state_id;
+    json["priority_id"] = task.priority_id;
+    json["due_at"] = task.due_at
+        ? QJsonValue(task.due_at->toUTC().toString(Qt::ISODateWithMs))
+        : QJsonValue(QJsonValue::Null);
+
+    QNetworkReply *reply = manager.put(networkRequest, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
+            emit taskUpdated();
+        } else {
+            qWarning() << "Task update failed:" << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}
