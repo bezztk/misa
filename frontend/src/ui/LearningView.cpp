@@ -124,14 +124,7 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
 void LearningView::reloadFlashcards() {
     flashcards.clear();
     currentIndex = 0;
-    remainingLabel->setText("Lernkarten werden neu geladen");
-    front->setText("Lernkarten werden geladen");
-    startButton->hide();
-    pauseButton->hide();
-    showAnswerButton->hide();
-    backLabel->hide();
-    back->clear();
-    ratingWidget->hide();
+    showStartScreen();
     apiClient.getDueFlashcards();
 }
 

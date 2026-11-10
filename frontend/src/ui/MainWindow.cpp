@@ -20,22 +20,46 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     mainLayout->setSpacing(0);
 
     auto *navbar = new QWidget(central);
-    navbar->setFixedWidth(40);
+    navbar->setFixedWidth(48);
 
     auto *navLayout = new QVBoxLayout(navbar);
-    navLayout->setContentsMargins(0, 0, 0, 0);
-    navLayout->setSpacing(0);
+    navLayout->setContentsMargins(6, 6, 6, 6);
+    navLayout->setSpacing(4);
+
+    const auto navButtonStyle = R"(
+        QPushButton {
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+        }
+        QPushButton:hover {
+            background: rgba(255, 255, 255, 0.10);
+        }
+        QPushButton:checked {
+            background: rgba(255, 255, 255, 0.18);
+        }
+        QPushButton:pressed {
+            background: rgba(255, 255, 255, 0.25);
+        }
+    )";
 
     auto *taskButton = new QPushButton(navbar);
-    taskButton->setFixedSize(40, 40);
-    taskButton->setIcon(QIcon(":/assets/icons/clipboard.png"));
+    taskButton->setFixedSize(36,36);
+    taskButton->setIcon(QIcon(":/assets/icons/task-white.png"));
     taskButton->setIconSize(QSize(24, 24));
+    taskButton->setCheckable(true);
+    taskButton->setAutoExclusive(true);
+    taskButton->setChecked(true);
+    taskButton->setStyleSheet(navButtonStyle);
     navLayout->addWidget(taskButton, 0, Qt::AlignCenter);
 
     auto *learningButton = new QPushButton(navbar);
-    learningButton->setFixedSize(40, 40);
-    learningButton->setIcon(QIcon(":/assets/icons/flash-cards.png"));
+    learningButton->setFixedSize(36,36);
+    learningButton->setIcon(QIcon(":/assets/icons/flashcards-white.png"));
     learningButton->setIconSize(QSize(24, 24));
+    learningButton->setCheckable(true);
+    learningButton->setAutoExclusive(true);
+    learningButton->setStyleSheet(navButtonStyle);
     navLayout->addWidget(learningButton, 0, Qt::AlignCenter);
 
     navLayout->addStretch();
