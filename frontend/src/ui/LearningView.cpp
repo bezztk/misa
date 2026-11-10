@@ -1,5 +1,7 @@
 ﻿#include "LearningView.h"
 
+#include <QHideEvent>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -23,7 +25,10 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto* refreshButton = new QPushButton(this);
+    auto* headerLayout = new QHBoxLayout();
+    auto* refreshButton = new QPushButton("Neu laden", this);
+    pauseButton = new QPushButton("Pause", this);
+    pauseButton->hide();
 
     remainingLabel = new QLabel(this);
     remainingLabel->setStyleSheet(R"(
@@ -31,7 +36,11 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
     font-size: 11px;
     font-weight: 300;
 )");
-    layout->addWidget(remainingLabel);
+    headerLayout->addWidget(remainingLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(pauseButton);
+    headerLayout->addWidget(refreshButton);
+    layout->addLayout(headerLayout);
     layout->addSpacing(6);
 
     front = new QLabel(this);
@@ -42,9 +51,12 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
 
     showAnswerButton = new QPushButton("Antwort anzeigen", this);
     showAnswerButton->hide();
+    startButton = new QPushButton("Starten", this);
+    startButton->hide();
 
     layout->addWidget(front);
     layout->addSpacing(20);
+    layout->addWidget(startButton);
     layout->addWidget(backLabel);
     layout->addWidget(back);
     layout->addWidget(showAnswerButton);
@@ -68,12 +80,17 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
             [this](const std::vector<FlashcardReviewQueueItem> &receivedFlashcards) {
                 flashcards = receivedFlashcards;
                 currentIndex = 0;
-                showCurrentFlashcard();
+                showStartScreen();
             });
+
+    connect(startButton, &QPushButton::clicked, this, &LearningView::showCurrentFlashcard);
+    connect(pauseButton, &QPushButton::clicked, this, &LearningView::showStartScreen);
 
     connect(showAnswerButton, &QPushButton::clicked, this, [this] {
         showAnswer();
     });
+
+    connect(refreshButton, &QPushButton::clicked, this, &LearningView::reloadFlashcards);
 
     connect(&apiClient, &ApiClient::flashcardRated, this, [this] {
         ++currentIndex;
@@ -101,8 +118,37 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
         easyButton->setText("Einfach\n" + formatInterval(preview.easy));
     });
 
-    apiClient.getDueFlashcards();
+    reloadFlashcards();
 };
+
+void LearningView::reloadFlashcards() {
+    flashcards.clear();
+    currentIndex = 0;
+    remainingLabel->setText("Lernkarten werden neu geladen");
+    front->setText("Lernkarten werden geladen");
+    startButton->hide();
+    pauseButton->hide();
+    showAnswerButton->hide();
+    backLabel->hide();
+    back->clear();
+    ratingWidget->hide();
+    apiClient.getDueFlashcards();
+}
+
+void LearningView::showStartScreen() {
+    const bool hasRemainingFlashcards = currentIndex < flashcards.size();
+    remainingLabel->setText(
+        "Verbleibende Karten in der Warteschlange: "
+        + QString::number(hasRemainingFlashcards ? flashcards.size() - currentIndex : 0)
+    );
+    front->setText(hasRemainingFlashcards ? "Bereit zum Lernen?" : "Keine weiteren Lernkarten");
+    startButton->setVisible(hasRemainingFlashcards);
+    pauseButton->hide();
+    showAnswerButton->hide();
+    backLabel->hide();
+    back->clear();
+    ratingWidget->hide();
+}
 
 void LearningView::rateFlashcard(FlashcardRating rating) {
     const auto ms = static_cast<int>(flashcard_shown_at.msecsTo(opened_answer_at));
@@ -117,13 +163,14 @@ void LearningView::rateFlashcard(FlashcardRating rating) {
 
 void LearningView::showCurrentFlashcard() {
     if (currentIndex >= flashcards.size()) {
-        front->setText("Keine weiteren Lernkarten");
-        back->clear();
+        showStartScreen();
         return;
     }
 
     flashcard_shown_at = QDateTime::currentDateTime();
     front->setText(flashcards[currentIndex].front);
+    startButton->hide();
+    pauseButton->show();
     backLabel->hide();
     back->clear();
     ratingWidget->hide();
@@ -142,4 +189,9 @@ void LearningView::showAnswer() {
     ratingWidget->show();
     showAnswerButton->hide();
     backLabel->show();
+}
+
+void LearningView::hideEvent(QHideEvent* event) {
+    showStartScreen();
+    QWidget::hideEvent(event);
 }

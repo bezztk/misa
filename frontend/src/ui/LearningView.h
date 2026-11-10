@@ -7,9 +7,14 @@
 
 #include "../api/ApiClient.h"
 
+class QHideEvent;
+
 class LearningView : public QWidget {
 public:
     explicit LearningView(QWidget* parent = nullptr);
+
+protected:
+    void hideEvent(QHideEvent* event) override;
 
 private:
     std::vector<FlashcardReviewQueueItem> flashcards;
@@ -24,7 +29,11 @@ private:
     QPushButton* goodButton;
     QPushButton* easyButton;
     QPushButton* showAnswerButton;
+    QPushButton* startButton;
+    QPushButton* pauseButton;
 
+    void reloadFlashcards();
+    void showStartScreen();
     void showCurrentFlashcard();
     void showAnswer();
     void rateFlashcard(FlashcardRating);
