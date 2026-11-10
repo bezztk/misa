@@ -1,6 +1,7 @@
 ﻿#include "LearningView.h"
 
 #include <QHideEvent>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -18,6 +19,31 @@ static QString formatInterval(const float days) {
     }
 
     return QString::number(qRound(days)) + " Tage";
+}
+
+static QString flashcardStateName(const int state) {
+    switch (state) {
+        case 1: return "Lernen";
+        case 2: return "Wiederholen";
+        case 3: return "Erneut lernen";
+        default: return "Neu";
+    }
+}
+
+static QString retentionLevelText(const int id) {
+    for (const FlashcardRetentionLevel &level : AppState::metadata.flashcard_retention_levels) {
+        if (level.id == id) {
+            return QString("%1 (%2 %)")
+                .arg(level.display_name.value_or(level.name))
+                .arg(qRound(level.desired_retention * 100));
+        }
+    }
+
+    return "#" + QString::number(id);
+}
+
+static QString metricText(const std::optional<float> value) {
+    return value ? QString::number(*value, 'f', 2) : "–";
 }
 
 LearningView::LearningView(QWidget *parent) : QWidget(parent) {
@@ -72,7 +98,29 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
     ratingLayout->addWidget(goodButton);
     ratingLayout->addWidget(easyButton);
 
+    metadataWidget = new QFrame(this);
+    metadataWidget->setObjectName("flashcardMetadata");
+    metadataWidget->setFixedWidth(260);
+    metadataWidget->setStyleSheet(R"(
+        QFrame#flashcardMetadata {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #64B5F6;
+        }
+        QFrame#flashcardMetadata QLabel {
+            background: transparent;
+        }
+    )");
+    auto *metadataLayout = new QVBoxLayout(metadataWidget);
+    metadataLayout->setContentsMargins(10, 7, 10, 7);
+    metadataLabel = new QLabel(metadataWidget);
+    metadataLabel->setTextFormat(Qt::RichText);
+    metadataLabel->setStyleSheet("color: #D0D0D0;");
+    metadataLayout->addWidget(metadataLabel);
+    metadataWidget->hide();
+
     layout->addStretch();
+    layout->addWidget(metadataWidget, 0, Qt::AlignRight);
+    layout->addSpacing(6);
     layout->addWidget(ratingWidget);
     ratingWidget->hide();
 
@@ -140,6 +188,7 @@ void LearningView::showStartScreen() {
     showAnswerButton->hide();
     backLabel->hide();
     back->clear();
+    metadataWidget->hide();
     ratingWidget->hide();
 }
 
@@ -162,6 +211,8 @@ void LearningView::showCurrentFlashcard() {
 
     flashcard_shown_at = QDateTime::currentDateTime();
     front->setText(flashcards[currentIndex].front);
+    updateMetadataBanner();
+    metadataWidget->show();
     startButton->hide();
     pauseButton->show();
     backLabel->hide();
@@ -187,4 +238,29 @@ void LearningView::showAnswer() {
 void LearningView::hideEvent(QHideEvent* event) {
     showStartScreen();
     QWidget::hideEvent(event);
+}
+
+void LearningView::refreshMetadata() {
+    if (currentIndex < flashcards.size() && metadataWidget->isVisible()) {
+        updateMetadataBanner();
+    }
+}
+
+void LearningView::updateMetadataBanner() {
+    const FlashcardReviewQueueItem &flashcard = flashcards[currentIndex];
+    metadataLabel->setText(QString(
+        "<table cellspacing='0' cellpadding='1'>"
+        "<tr><td style='color:#777777'>Zustand</td><td style='color:#D0D0D0; padding-left:12px'>%1</td></tr>"
+        "<tr><td style='color:#777777'>Retention</td><td style='color:#D0D0D0; padding-left:12px'>%2</td></tr>"
+        "<tr><td style='color:#777777'>Stabilität</td><td style='color:#D0D0D0; padding-left:12px'>%3</td></tr>"
+        "<tr><td style='color:#777777'>Schwierigkeit</td><td style='color:#D0D0D0; padding-left:12px'>%4</td></tr>"
+        "<tr><td style='color:#777777'>Lernschritt</td><td style='color:#D0D0D0; padding-left:12px'>%5</td></tr>"
+        "</table>"
+    ).arg(
+        flashcardStateName(flashcard.state).toHtmlEscaped(),
+        retentionLevelText(flashcard.retention_levels_id).toHtmlEscaped(),
+        metricText(flashcard.stability),
+        metricText(flashcard.difficulty),
+        QString::number(flashcard.learning_step)
+    ));
 }

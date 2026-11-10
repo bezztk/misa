@@ -12,6 +12,7 @@ class QHideEvent;
 class LearningView : public QWidget {
 public:
     explicit LearningView(QWidget* parent = nullptr);
+    void refreshMetadata();
 
 protected:
     void hideEvent(QHideEvent* event) override;
@@ -23,6 +24,8 @@ private:
     QLabel* front;
     QLabel* backLabel;
     QLabel* back;
+    QWidget* metadataWidget;
+    QLabel* metadataLabel;
     QWidget* ratingWidget;
     QPushButton* againButton;
     QPushButton* hardButton;
@@ -37,6 +40,7 @@ private:
     void showCurrentFlashcard();
     void showAnswer();
     void rateFlashcard(FlashcardRating);
+    void updateMetadataBanner();
 
     ApiClient apiClient;
 

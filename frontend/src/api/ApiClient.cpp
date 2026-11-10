@@ -107,6 +107,17 @@ void ApiClient::getDueFlashcards() {
             flashcard.id = object["id"].toInt();
             flashcard.front = object["front"].toString();
             flashcard.back = object["back"].toString();
+            flashcard.state = static_cast<int16_t>(object["state"].toInt());
+            flashcard.learning_step = static_cast<int16_t>(object["learning_step"].toInt());
+            flashcard.retention_levels_id = object["retention_levels_id"].toInt();
+
+            if (!object["stability"].isNull()) {
+                flashcard.stability = static_cast<float>(object["stability"].toDouble());
+            }
+
+            if (!object["difficulty"].isNull()) {
+                flashcard.difficulty = static_cast<float>(object["difficulty"].toDouble());
+            }
 
             flashcards.push_back(flashcard);
         }
