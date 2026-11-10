@@ -2,6 +2,7 @@
 #define FRONTEND_APICLIENT_H
 #include "../models/Task.h"
 #include "../models/Flashcard.h"
+#include "../models/Metadata.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -15,6 +16,7 @@ signals:
 
 public:
     ApiClient();
+    void getMetadata();
     void getTasks();
 
     void getDueFlashcards();
@@ -27,6 +29,7 @@ private:
     static constexpr int PORT = 3000;
     static constexpr auto BASE_PATH = "/api";
     static constexpr auto PATH_TASKS = "/tasks";
+    static constexpr auto PATH_METADATA = "/metadata";
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
 
     static QUrl buildUrl(const QString& path);

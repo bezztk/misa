@@ -10,6 +10,8 @@
 #include "LearningView.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    apiClient.getMetadata();
+
     setWindowTitle("Misa");
     resize(600, 400);
 
@@ -26,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     navLayout->setContentsMargins(6, 6, 6, 6);
     navLayout->setSpacing(4);
 
-    const auto navButtonStyle = R"(
+    constexpr auto navButtonStyle = R"(
         QPushButton {
             background: transparent;
             border: none;
