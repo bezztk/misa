@@ -80,7 +80,12 @@ pub async fn get_due_flashcards(
         "SELECT
             id,
             front,
-            back
+            back,
+            state,
+            learning_step,
+            retention_levels_id,
+            stability,
+            difficulty
          FROM flashcards
          WHERE is_enabled
            AND (due_at IS NULL OR due_at <= NOW())

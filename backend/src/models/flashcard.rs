@@ -24,6 +24,11 @@ pub struct FlashcardQueueItem {
     pub id: i32,
     pub front: String,
     pub back: String,
+    pub state: i16,
+    pub learning_step: i16,
+    pub retention_levels_id: i32,
+    pub stability: Option<f32>,
+    pub difficulty: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]
