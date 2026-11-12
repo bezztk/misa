@@ -58,6 +58,6 @@ endif()
 qt_add_resources(frontend "icons"
         PREFIX "/"
         FILES
+        assets/icons/task.png
         assets/icons/flashcards-white.png
-        assets/icons/task-white.png
 )
