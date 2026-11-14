@@ -15,6 +15,7 @@ public:
     void renderTasks();
 
 private:
+    void openCreateDialog();
     void openEditDialog(const Task& task);
 
     std::vector<Task> tasks;

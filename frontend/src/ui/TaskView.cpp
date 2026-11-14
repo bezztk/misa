@@ -1,9 +1,7 @@
 #include "TaskView.h"
 #include "../models/AppState.h"
 
-#include <QCheckBox>
 #include <QComboBox>
-#include <QDateTimeEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -12,8 +10,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QPushButton>
 #include <QScrollArea>
-#include <QTextEdit>
 #include <QVBoxLayout>
 
 #include <functional>
@@ -54,9 +52,9 @@ static QString taskStateName(const int id) {
 
 static QString priorityColor(const int id) {
     switch (id) {
-        case 4: return "#BA68C8";
-        case 3: return "#EF5350";
-        case 2: return "#64B5F6";
+        case 4: return "#F02D63";
+        case 3: return "#FF633F";
+        case 2: return "#66BB6A";
         default: return "#78909C";
     }
 }
@@ -73,7 +71,13 @@ static QString taskStateColor(const int id) {
 TaskView::TaskView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setSpacing(8);
+
+    auto *createButton = new QPushButton("Neue Aufgabe", this);
+    connect(createButton, &QPushButton::clicked, this, [this] {
+        openCreateDialog();
+    });
+    layout->addWidget(createButton, 0, Qt::AlignRight);
 
     auto *scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
@@ -92,6 +96,12 @@ TaskView::TaskView(QWidget *parent) : QWidget(parent) {
                 renderTasks();
             });
     connect(&apiClient, &ApiClient::taskUpdated, this, [this] {
+        apiClient.getTasks();
+    });
+    connect(&apiClient, &ApiClient::taskCreated, this, [this] {
+        apiClient.getTasks();
+    });
+    connect(&apiClient, &ApiClient::taskDeleted, this, [this] {
         apiClient.getTasks();
     });
 
@@ -121,16 +131,10 @@ void TaskView::renderTasks() {
         auto *topRow = new QHBoxLayout();
         topRow->setContentsMargins(0, 0, 0, 0);
         topRow->setSpacing(6);
-        const QString deadline = task.due_at
-            ? QString("<span style='color: #EF5350'>[%1]</span> ").arg(
-                task.due_at->toLocalTime().toString("dd.MM.yyyy HH:mm").toHtmlEscaped()
-            )
-            : "";
         auto *title = new QLabel(QString(
-            "%1<span style='color: #777777; font-size: 11px; font-weight: 400'>%2::</span>"
-            "<span style='color: %3'>%4</span>"
+            "<span style='color: #777777; font-size: 11px; font-weight: 400'>%1::</span>"
+            "<span style='color: %2'>%3</span>"
         ).arg(
-            deadline,
             taskGroupName(task.group_id).toHtmlEscaped(),
             priorityColor(task.priority_id),
             task.name.toHtmlEscaped()
@@ -146,14 +150,6 @@ void TaskView::renderTasks() {
         topRow->addWidget(title, 1);
         topRow->addWidget(status);
         cardLayout->addLayout(topRow);
-
-        if (task.description && !task.description->isEmpty()) {
-            auto *description = new QLabel(*task.description, card);
-            description->setWordWrap(true);
-            description->setStyleSheet("color: #909090; font-size: 11px;");
-            description->setAttribute(Qt::WA_TransparentForMouseEvents);
-            cardLayout->addWidget(description);
-        }
 
         card->clicked = [this, task] {
             openEditDialog(task);
@@ -172,6 +168,46 @@ void TaskView::renderTasks() {
     cardsLayout->addStretch();
 }
 
+void TaskView::openCreateDialog() {
+    QDialog dialog(this);
+    dialog.setWindowTitle("Task erstellen");
+
+    auto *layout = new QFormLayout(&dialog);
+
+    auto *nameEdit = new QLineEdit(&dialog);
+    layout->addRow("Name", nameEdit);
+
+    auto *groupEdit = new QComboBox(&dialog);
+    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
+        groupEdit->addItem(group.name, group.id);
+    }
+    layout->addRow("Gruppe", groupEdit);
+
+    auto *priorityEdit = new QComboBox(&dialog);
+    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
+        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    }
+    layout->addRow("Priorität", priorityEdit);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    apiClient.createTask(CreateTask{
+        .name = nameEdit->text().trimmed(),
+        .group_id = groupEdit->currentData().toInt(),
+        .priority_id = priorityEdit->currentData().toInt()
+    });
+}
+
 void TaskView::openEditDialog(const Task &task) {
     QDialog dialog(this);
     dialog.setWindowTitle("Task bearbeiten");
@@ -188,13 +224,6 @@ void TaskView::openEditDialog(const Task &task) {
     stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
     layout->addRow("Status", stateEdit);
 
-    auto *groupEdit = new QComboBox(&dialog);
-    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
-        groupEdit->addItem(group.name, group.id);
-    }
-    groupEdit->setCurrentIndex(groupEdit->findData(task.group_id));
-    layout->addRow("Gruppe", groupEdit);
-
     auto *priorityEdit = new QComboBox(&dialog);
     for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
@@ -202,51 +231,36 @@ void TaskView::openEditDialog(const Task &task) {
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));
     layout->addRow("Priorität", priorityEdit);
 
-    auto *dueWidget = new QWidget(&dialog);
-    auto *dueLayout = new QHBoxLayout(dueWidget);
-    dueLayout->setContentsMargins(0, 0, 0, 0);
-    auto *dueEnabled = new QCheckBox("Aktiv", dueWidget);
-    auto *dueEdit = new QDateTimeEdit(dueWidget);
-    dueEdit->setCalendarPopup(true);
-    dueEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    dueEnabled->setChecked(task.due_at.has_value());
-    dueEdit->setEnabled(task.due_at.has_value());
-    dueEdit->setDateTime(task.due_at
-        ? task.due_at->toLocalTime()
-        : QDateTime::currentDateTime());
-    connect(dueEnabled, &QCheckBox::toggled, dueEdit, &QDateTimeEdit::setEnabled);
-    dueLayout->addWidget(dueEnabled);
-    dueLayout->addWidget(dueEdit, 1);
-    layout->addRow("Due at", dueWidget);
-
-    auto *descriptionEdit = new QTextEdit(&dialog);
-    descriptionEdit->setPlainText(task.description.value_or(""));
-    descriptionEdit->setFixedHeight(90);
-    layout->addRow("Beschreibung", descriptionEdit);
-
     auto *buttons = new QDialogButtonBox(
         QDialogButtonBox::Save | QDialogButtonBox::Cancel,
         &dialog
     );
+    auto *deleteButton = buttons->addButton("Löschen", QDialogButtonBox::DestructiveRole);
+    bool deleteRequested = false;
+    connect(deleteButton, &QPushButton::clicked, &dialog, [&dialog, &deleteRequested] {
+        deleteRequested = true;
+        dialog.accept();
+    });
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addRow(buttons);
 
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+    if (dialog.exec() != QDialog::Accepted) {
         return;
     }
 
-    const QString description = descriptionEdit->toPlainText().trimmed();
-    apiClient.updateTask(task.entity_id, UpdateTask{
-        .group_id = groupEdit->currentData().toInt(),
+    if (deleteRequested) {
+        apiClient.deleteTask(task.id);
+        return;
+    }
+
+    if (nameEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    apiClient.updateTask(task.id, UpdateTask{
         .name = nameEdit->text().trimmed(),
-        .description = description.isEmpty()
-            ? std::nullopt
-            : std::optional<QString>(description),
         .state_id = stateEdit->currentData().toInt(),
-        .priority_id = priorityEdit->currentData().toInt(),
-        .due_at = dueEnabled->isChecked()
-            ? std::optional<QDateTime>(dueEdit->dateTime())
-            : std::nullopt
+        .priority_id = priorityEdit->currentData().toInt()
     });
 }

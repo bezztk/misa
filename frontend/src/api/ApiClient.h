@@ -11,7 +11,9 @@ class ApiClient : public QObject {
 signals:
     void metadataReceived();
     void taskReceived(const std::vector<Task>& tasks);
+    void taskCreated();
     void taskUpdated();
+    void taskDeleted();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
     void flashcardPreviewCalculated(const FlashcardReviewPreview& preview);
@@ -20,7 +22,9 @@ public:
     ApiClient();
     void getMetadata();
     void getTasks();
+    void createTask(const CreateTask& task);
     void updateTask(int id, const UpdateTask& task);
+    void deleteTask(int id);
 
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);

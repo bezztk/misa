@@ -197,27 +197,11 @@ void ApiClient::getTasks() {
             Task task;
             QJsonObject object = value.toObject();
 
-            task.entity_id = object["entity_id"].toInt();
+            task.id = object["id"].toInt();
             task.name = object["name"].toString();
             task.group_id = object["group_id"].toInt();
             task.state_id = object["state_id"].toInt();
             task.priority_id = object["priority_id"].toInt();
-
-            if (!object["description"].isNull()) {
-                task.description = object["description"].toString();
-            }
-
-            task.created_at = QDateTime::fromString(
-                object["created_at"].toString(),
-                Qt::ISODateWithMs
-            );
-
-            if (!object["due_at"].isNull()) {
-                task.due_at = QDateTime::fromString(
-                    object["due_at"].toString(),
-                    Qt::ISODateWithMs
-                );
-            }
 
             tasks.push_back(task);
         }
@@ -228,23 +212,43 @@ void ApiClient::getTasks() {
     });
 }
 
+void ApiClient::createTask(const CreateTask &task) {
+    QNetworkRequest networkRequest(buildUrl(PATH_TASKS));
+    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["name"] = task.name;
+    json["group_id"] = task.group_id;
+    json["priority_id"] = task.priority_id;
+
+    QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+            emit taskCreated();
+        } else {
+            qWarning() << "Task creation failed:" << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::updateTask(const int id, const UpdateTask &task) {
     QNetworkRequest networkRequest(buildUrl("/tasks/" + QString::number(id)));
     networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject json;
-    json["group_id"] = task.group_id;
     json["name"] = task.name;
-    json["description"] = task.description
-        ? QJsonValue(*task.description)
-        : QJsonValue(QJsonValue::Null);
     json["state_id"] = task.state_id;
     json["priority_id"] = task.priority_id;
-    json["due_at"] = task.due_at
-        ? QJsonValue(task.due_at->toUTC().toString(Qt::ISODateWithMs))
-        : QJsonValue(QJsonValue::Null);
 
-    QNetworkReply *reply = manager.put(networkRequest, QJsonDocument(json).toJson());
+    QNetworkReply *reply = manager.sendCustomRequest(
+        networkRequest,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (reply->error() == QNetworkReply::NoError
@@ -252,6 +256,22 @@ void ApiClient::updateTask(const int id, const UpdateTask &task) {
             emit taskUpdated();
         } else {
             qWarning() << "Task update failed:" << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::deleteTask(const int id) {
+    const QNetworkRequest networkRequest(buildUrl("/tasks/" + QString::number(id)));
+    QNetworkReply *reply = manager.deleteResource(networkRequest);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
+            emit taskDeleted();
+        } else {
+            qWarning() << "Task deletion failed:" << reply->errorString();
         }
 
         reply->deleteLater();
