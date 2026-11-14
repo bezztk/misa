@@ -9,13 +9,19 @@
 
 class QEvent;
 class QFrame;
+class QHBoxLayout;
 class QResizeEvent;
 class QScrollArea;
+class QShowEvent;
+class QStandardItemModel;
+class QTreeView;
 class QVBoxLayout;
 
 struct DomainCard {
     MetadataItem domain;
     QFrame *frame;
+    QTreeView *treeView;
+    QStandardItemModel *model;
     bool isLoaded;
 };
 
@@ -27,14 +33,20 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void renderDomainNodes(int domainId, const std::vector<DomainNode> &nodes);
-    void updateCardWidths();
+    void updateTreeHeight(QTreeView *treeView);
+    void updateCardLayout();
 
     ApiClient apiClient;
     QScrollArea *scrollArea;
-    QVBoxLayout *cardsLayout;
+    QWidget *cardsWidget;
+    QWidget *secondColumn;
+    QHBoxLayout *cardsLayout;
+    QVBoxLayout *firstColumnLayout;
+    QVBoxLayout *secondColumnLayout;
     QHash<int, DomainCard> domainCards;
 };
 

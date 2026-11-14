@@ -4,6 +4,7 @@
 
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QFrame>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QStyle>
@@ -17,12 +18,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     resize(600, 400);
 
     auto *central = new QWidget(this);
-    auto *mainLayout = new QHBoxLayout(central);
+    auto *mainLayout = new QVBoxLayout(central);
 
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    auto *navbar = new QWidget(central);
+    auto *chromeSeparator = new QFrame(central);
+    chromeSeparator->setFixedHeight(1);
+    chromeSeparator->setStyleSheet("background: rgba(255, 255, 255, 0.20); border: none;");
+    mainLayout->addWidget(chromeSeparator);
+
+    auto *body = new QWidget(central);
+    auto *bodyLayout = new QHBoxLayout(body);
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+    bodyLayout->setSpacing(0);
+
+    auto *navbar = new QWidget(body);
     navbar->setFixedWidth(48);
 
     auto *navLayout = new QVBoxLayout(navbar);
@@ -65,9 +76,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     learningButton->setStyleSheet(navButtonStyle);
     navLayout->addWidget(learningButton, 0, Qt::AlignCenter);
 
-    auto *domainButton = new QPushButton("V", navbar);
+    auto *domainButton = new QPushButton(navbar);
     domainButton->setToolTip("Verwirklichung");
     domainButton->setFixedSize(36,36);
+    domainButton->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+    domainButton->setIconSize(QSize(24, 24));
     domainButton->setCheckable(true);
     domainButton->setAutoExclusive(true);
     domainButton->setStyleSheet(navButtonStyle);
@@ -75,7 +88,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     navLayout->addStretch();
 
-    auto *stack = new QStackedWidget(central);
+    auto *stack = new QStackedWidget(body);
 
     auto *taskView = new TaskView();
     auto *learningView = new LearningView();
@@ -91,28 +104,30 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     stack->setCurrentIndex(0);
 
-    mainLayout->addWidget(navbar);
+    bodyLayout->addWidget(navbar);
 
-    auto *content = new QWidget(central);
+    auto *navigationSeparator = new QFrame(body);
+    navigationSeparator->setFixedWidth(1);
+    navigationSeparator->setStyleSheet("background: rgba(255, 255, 255, 0.20); border: none;");
+    bodyLayout->addWidget(navigationSeparator);
+
+    auto *content = new QWidget(body);
     content->setObjectName("content");
 
     content->setStyleSheet(R"(
     QWidget#content {
         background-color: #40202B2D;
-border: none;
-border-top: 1px solid #ffffff;
-border-left: 1px solid #ffffff;
-border-style: solid;
-border-color: #20ffffff;
+        border: none;
     }
 )");
 
     auto *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(12, 12, 12, 12);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(0);
     contentLayout->addWidget(stack);
 
-    mainLayout->addWidget(content, 1);
+    bodyLayout->addWidget(content, 1);
+    mainLayout->addWidget(body, 1);
 
 
     setCentralWidget(central);

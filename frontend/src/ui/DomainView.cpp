@@ -2,10 +2,14 @@
 #include "../models/AppState.h"
 
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QShowEvent>
+#include <QStandardItemModel>
+#include <QTreeView>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -18,38 +22,59 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
 
-    auto *cards = new QWidget(scrollArea);
-    cardsLayout = new QVBoxLayout(cards);
+    cardsWidget = new QWidget(scrollArea);
+    cardsLayout = new QHBoxLayout(cardsWidget);
     cardsLayout->setContentsMargins(20, 20, 20, 20);
     cardsLayout->setSpacing(12);
     cardsLayout->setAlignment(Qt::AlignTop);
 
-    scrollArea->setWidget(cards);
+    auto *firstColumn = new QWidget(cardsWidget);
+    firstColumnLayout = new QVBoxLayout(firstColumn);
+    firstColumnLayout->setContentsMargins(0, 0, 0, 0);
+    firstColumnLayout->setSpacing(12);
+    firstColumnLayout->setAlignment(Qt::AlignTop);
+
+    secondColumn = new QWidget(cardsWidget);
+    secondColumnLayout = new QVBoxLayout(secondColumn);
+    secondColumnLayout->setContentsMargins(0, 0, 0, 0);
+    secondColumnLayout->setSpacing(12);
+    secondColumnLayout->setAlignment(Qt::AlignTop);
+
+    cardsLayout->addWidget(firstColumn);
+    cardsLayout->addWidget(secondColumn);
+
+    scrollArea->setWidget(cardsWidget);
     layout->addWidget(scrollArea);
 
     connect(&apiClient, &ApiClient::domainNodesReceived, this,
-            [this](const int domainId, const std::vector<DomainNode> &nodes) {
-                renderDomainNodes(domainId, nodes);
+            [this](const std::vector<DomainNode> &nodes) {
+                for (const MetadataItem &domain : AppState::metadata.domains) {
+                    renderDomainNodes(domain.id, nodes);
+                }
             });
 }
 
 void DomainView::renderDomains() {
     domainCards.clear();
 
-    while (QLayoutItem *item = cardsLayout->takeAt(0)) {
-        delete item->widget();
-        delete item;
+    for (QVBoxLayout *columnLayout : {firstColumnLayout, secondColumnLayout}) {
+        while (QLayoutItem *item = columnLayout->takeAt(0)) {
+            delete item->widget();
+            delete item;
+        }
     }
 
     for (const MetadataItem &domain : AppState::metadata.domains) {
         auto *card = new QFrame(this);
+        card->setObjectName("domainCard");
         card->setCursor(Qt::PointingHandCursor);
         card->installEventFilter(this);
-        card->setMaximumWidth(1000);
+        card->setMaximumWidth(600);
         card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         card->setStyleSheet(R"(
-            QFrame {
+            QFrame#domainCard {
                 background: rgba(255, 255, 255, 0.05);
                 border: 1px solid rgba(255, 255, 255, 0.10);
                 border-radius: 6px;
@@ -72,15 +97,17 @@ void DomainView::renderDomains() {
         title->setFont(titleFont);
         cardLayout->addWidget(title);
 
-        cardsLayout->addWidget(card, 0, Qt::AlignHCenter);
         domainCards.insert(domain.id, DomainCard{
             .domain = domain,
             .frame = card,
+            .treeView = nullptr,
+            .model = nullptr,
             .isLoaded = false
         });
     }
 
-    updateCardWidths();
+    updateCardLayout();
+    apiClient.getDomainNodes();
 }
 
 bool DomainView::eventFilter(QObject *watched, QEvent *event) {
@@ -89,9 +116,8 @@ bool DomainView::eventFilter(QObject *watched, QEvent *event) {
         for (auto it = domainCards.begin(); it != domainCards.end(); ++it) {
             DomainCard &card = it.value();
 
-            if (card.frame == watched && !card.isLoaded) {
-                card.isLoaded = true;
-                apiClient.getDomainNodes(card.domain.id);
+            if (card.frame == watched && card.isLoaded) {
+                card.treeView->setVisible(!card.treeView->isVisible());
                 return true;
             }
         }
@@ -104,35 +130,89 @@ void DomainView::renderDomainNodes(
     const int domainId,
     const std::vector<DomainNode> &nodes
 ) {
-    QVBoxLayout *layout = qobject_cast<QVBoxLayout *>(domainCards[domainId].frame->layout());
+    DomainCard &card = domainCards[domainId];
+    auto *layout = qobject_cast<QVBoxLayout *>(card.frame->layout());
 
-    std::function<void(std::optional<int>, int)> addNodes;
-    addNodes = [&](const std::optional<int> parentId, const int depth) {
+    card.treeView = new QTreeView(card.frame);
+    card.model = new QStandardItemModel(card.treeView);
+    card.treeView->setHeaderHidden(true);
+    card.treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    card.treeView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    card.treeView->setModel(card.model);
+
+    std::function<void(std::optional<int>, QStandardItem *)> addNodes;
+    addNodes = [&](const std::optional<int> parentId, QStandardItem *parentItem) {
         for (const DomainNode &node : nodes) {
-            if (node.parentId != parentId) {
+            if (node.domainId != domainId || node.parentId != parentId) {
                 continue;
             }
 
-            auto *label = new QLabel(node.name, domainCards[domainId].frame);
-            label->setContentsMargins(depth * 18, 0, 0, 0);
-            label->setAttribute(Qt::WA_TransparentForMouseEvents);
-            layout->addWidget(label);
-            addNodes(node.id, depth + 1);
+            auto *item = new QStandardItem(node.name);
+            item->setData(node.id, Qt::UserRole);
+            parentItem->appendRow(item);
+            addNodes(node.id, item);
         }
     };
 
-    addNodes(std::nullopt, 0);
+    addNodes(std::nullopt, card.model->invisibleRootItem());
+    layout->addWidget(card.treeView);
+    card.treeView->hide();
+    card.isLoaded = true;
+
+    connect(card.treeView, &QTreeView::expanded, this, [this, treeView = card.treeView] {
+        updateTreeHeight(treeView);
+    });
+    connect(card.treeView, &QTreeView::collapsed, this, [this, treeView = card.treeView] {
+        updateTreeHeight(treeView);
+    });
+
+    updateTreeHeight(card.treeView);
+}
+
+void DomainView::updateTreeHeight(QTreeView *treeView) {
+    int height = treeView->frameWidth() * 2;
+
+    for (QModelIndex index = treeView->model()->index(0, 0);
+         index.isValid();
+         index = treeView->indexBelow(index)) {
+        height += treeView->sizeHintForIndex(index).height();
+    }
+
+    treeView->setFixedHeight(std::min(height, 400));
 }
 
 void DomainView::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    updateCardWidths();
+    updateCardLayout();
 }
 
-void DomainView::updateCardWidths() {
-    const int cardWidth = std::min(1000, scrollArea->viewport()->width() - 40);
+void DomainView::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    updateCardLayout();
+}
 
-    for (const DomainCard &card : domainCards) {
+void DomainView::updateCardLayout() {
+    const int availableWidth = scrollArea->viewport()->width() - 40;
+    const int columnCount = availableWidth >= 1212 ? 2 : 1;
+    const int cardWidth = std::min(600, (availableWidth - (columnCount - 1) * 12) / columnCount);
+
+    cardsWidget->setFixedWidth(cardWidth * columnCount + (columnCount - 1) * 12 + 40);
+    secondColumn->setVisible(columnCount == 2);
+
+    int index = 0;
+    for (const MetadataItem &domain : AppState::metadata.domains) {
+        if (!domainCards.contains(domain.id)) {
+            continue;
+        }
+
+        const DomainCard &card = domainCards[domain.id];
+        firstColumnLayout->removeWidget(card.frame);
+        secondColumnLayout->removeWidget(card.frame);
         card.frame->setFixedWidth(cardWidth);
+        QVBoxLayout *columnLayout = columnCount == 2 && index % 2 == 1
+            ? secondColumnLayout
+            : firstColumnLayout;
+        columnLayout->addWidget(card.frame);
+        ++index;
     }
 }

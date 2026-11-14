@@ -100,13 +100,11 @@ void ApiClient::getMetadata() {
     });
 }
 
-void ApiClient::getDomainNodes(const int domainId) {
-    const QNetworkRequest networkRequest(buildUrl(
-        "/domains/" + QString::number(domainId) + "/nodes"
-    ));
+void ApiClient::getDomainNodes() {
+    const QNetworkRequest networkRequest(buildUrl("/domain-nodes"));
     QNetworkReply *reply = manager.get(networkRequest);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, domainId] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
         std::vector<DomainNode> nodes;
         const QJsonArray jsonArray = QJsonDocument::fromJson(reply->readAll()).array();
 
@@ -125,7 +123,7 @@ void ApiClient::getDomainNodes(const int domainId) {
             nodes.push_back(node);
         }
 
-        emit domainNodesReceived(domainId, nodes);
+        emit domainNodesReceived(nodes);
         reply->deleteLater();
     });
 }
