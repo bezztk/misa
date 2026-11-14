@@ -1,4 +1,6 @@
-use crate::api::handlers::{domain_handler, flashcard_handler, metadata_handler, task_handler};
+use crate::api::handlers::{
+    document_handler, domain_handler, flashcard_handler, metadata_handler, task_handler,
+};
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
@@ -16,6 +18,12 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/domain-nodes/{id}",
             axum::routing::patch(domain_handler::update_domain_node),
+        )
+        .route(
+            "/domain-nodes/{node_id}/document",
+            get(document_handler::get_document)
+                .post(document_handler::create_document)
+                .put(document_handler::update_document),
         )
         .route(
             "/flashcards/due",

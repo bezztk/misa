@@ -16,6 +16,7 @@ pub struct DomainNode {
     pub name: String,
     pub is_system_value: bool,
     pub last_reviewed_at: DateTime<Utc>,
+    pub has_document: bool,
 }
 
 #[derive(Debug, Deserialize)]

@@ -9,3 +9,8 @@ pub struct Document {
     pub verification_status_id: Option<i32>,
     pub verification_level_id: Option<i32>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct DocumentContentRequest {
+    pub content: String,
+}
