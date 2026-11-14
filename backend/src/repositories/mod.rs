@@ -2,5 +2,6 @@ pub mod document_repository;
 pub mod domain_repository;
 pub mod flashcard_repository;
 pub mod metadata_repository;
+pub mod pursuit_repository;
 pub mod skill_repository;
 pub mod task_repository;

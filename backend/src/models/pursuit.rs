@@ -40,3 +40,32 @@ pub struct PursuitRequirement {
     pub verification_status_id: Option<i32>,
     pub verification_level_id: Option<i32>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePursuitRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PursuitDetails {
+    pub id: i32,
+    pub domain_node_id: i32,
+    pub name: String,
+    pub requirements: Vec<PursuitRequirement>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SkillRequirementRequest {
+    pub skill_id: i32,
+    pub psychomotor_level_id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePursuitRequirementsRequest {
+    pub cognitive_level_id: Option<i32>,
+    pub completeness_level_id: Option<i32>,
+    pub flashcard_status_id: Option<i32>,
+    pub verification_status_id: Option<i32>,
+    pub verification_level_id: Option<i32>,
+    pub skills: Vec<SkillRequirementRequest>,
+}
