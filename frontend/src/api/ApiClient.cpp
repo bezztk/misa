@@ -260,6 +260,138 @@ void ApiClient::updatePursuitRequirements(
     });
 }
 
+void ApiClient::getProgressions() {
+    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/progressions")));
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+            std::vector<ProgressionPursuit> pursuits;
+            for (const QJsonValue &value : object["pursuits"].toArray()) {
+                const QJsonObject pursuit = value.toObject();
+                ProgressionPursuit item{
+                    .id = pursuit["id"].toInt(),
+                    .name = pursuit["name"].toString()
+                };
+                if (!pursuit["progression_stage_id"].isNull()) {
+                    item.progressionStageId = pursuit["progression_stage_id"].toInt();
+                }
+                pursuits.push_back(item);
+            }
+
+            std::vector<Progression> progressions;
+            for (const QJsonValue &value : object["progressions"].toArray()) {
+                const QJsonObject progression = value.toObject();
+                Progression item{
+                    .id = progression["id"].toInt(),
+                    .name = progression["name"].toString()
+                };
+                if (!progression["personal_relevance_id"].isNull()) {
+                    item.personalRelevanceId = progression["personal_relevance_id"].toInt();
+                }
+                if (!progression["lasting_impact_id"].isNull()) {
+                    item.lastingImpactId = progression["lasting_impact_id"].toInt();
+                }
+                for (const QJsonValue &stageValue : progression["stages"].toArray()) {
+                    const QJsonObject stage = stageValue.toObject();
+                    ProgressionStage stageItem{
+                        .id = stage["id"].toInt(),
+                        .stage = stage["stage"].toInt(),
+                        .name = stage["name"].toString()
+                    };
+                    for (const QJsonValue &pursuitValue : stage["pursuits"].toArray()) {
+                        const QJsonObject pursuit = pursuitValue.toObject();
+                        stageItem.pursuits.push_back({
+                            .id = pursuit["id"].toInt(),
+                            .name = pursuit["name"].toString(),
+                            .progressionStageId = stageItem.id
+                        });
+                    }
+                    item.stages.push_back(stageItem);
+                }
+                progressions.push_back(item);
+            }
+            emit progressionsReceived(progressions, pursuits);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createProgression(const QString &name) {
+    QNetworkRequest request(buildUrl("/progressions"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(
+        request,
+        QJsonDocument(QJsonObject{{"name", name}}).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit progressionsChanged();
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateProgression(
+    const int id,
+    const QString &name,
+    const std::optional<int> personalRelevanceId,
+    const std::optional<int> lastingImpactId
+) {
+    QNetworkRequest request(buildUrl("/progressions/" + QString::number(id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json;
+    json["name"] = name;
+    json["personal_relevance_id"] = personalRelevanceId.has_value()
+        ? QJsonValue(*personalRelevanceId) : QJsonValue(QJsonValue::Null);
+    json["lasting_impact_id"] = lastingImpactId.has_value()
+        ? QJsonValue(*lastingImpactId) : QJsonValue(QJsonValue::Null);
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit progressionsChanged();
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createProgressionStage(const int progressionId, const QString &name) {
+    QNetworkRequest request(buildUrl(
+        "/progressions/" + QString::number(progressionId) + "/stages"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(
+        request,
+        QJsonDocument(QJsonObject{{"name", name}}).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit progressionsChanged();
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::assignPursuitToStage(const int stageId, const int pursuitId) {
+    QNetworkRequest request(buildUrl(
+        "/progression-stages/" + QString::number(stageId) + "/pursuits"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(
+        request,
+        QJsonDocument(QJsonObject{{"pursuit_id", pursuitId}}).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit progressionsChanged();
+        }
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::getNodeFlashcards(const int nodeId) {
     const QNetworkRequest request(buildUrl(
         "/domain-nodes/" + QString::number(nodeId) + "/flashcards"

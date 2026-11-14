@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -430,6 +431,43 @@ static bool showPursuitDialog(
     return true;
 }
 
+static bool showProgressionDialog(
+    QWidget *parent,
+    QString &name,
+    std::optional<int> &personalRelevanceId,
+    std::optional<int> &lastingImpactId
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle("Progression bearbeiten");
+    auto *layout = new QFormLayout(&dialog);
+    auto *nameEdit = new QLineEdit(name, &dialog);
+    auto *relevanceCombo = new QComboBox(&dialog);
+    auto *impactCombo = new QComboBox(&dialog);
+    fillMetadataCombo(relevanceCombo, AppState::metadata.personal_relevance_levels);
+    fillMetadataCombo(impactCombo, AppState::metadata.lasting_impacts);
+    selectMetadata(relevanceCombo, personalRelevanceId);
+    selectMetadata(impactCombo, lastingImpactId);
+    layout->addRow("Name", nameEdit);
+    layout->addRow("Persönliche Relevanz", relevanceCombo);
+    layout->addRow("Lasting Impact", impactCombo);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return false;
+    }
+    name = nameEdit->text().trimmed();
+    personalRelevanceId = selectedMetadata(relevanceCombo);
+    lastingImpactId = selectedMetadata(impactCombo);
+    return true;
+}
+
 class LineNumberArea;
 
 class SaveStatus : public QWidget {
@@ -596,6 +634,15 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         QWidget#domainView {
             background: palette(base);
         }
+        QWidget#progressionPanel {
+            background: palette(base);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+        }
+        QFrame#stageCard {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 6px;
+        }
         QTreeView#domainTree, QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
             border: none;
@@ -645,6 +692,95 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     )");
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    progressionWidget = new QWidget(this);
+    progressionWidget->setObjectName("progressionPanel");
+    progressionWidget->setFixedHeight(200);
+    auto *progressionLayout = new QVBoxLayout(progressionWidget);
+    progressionLayout->setContentsMargins(0, 0, 0, 0);
+    progressionLayout->setSpacing(0);
+
+    auto *progressionHeader = new QWidget(progressionWidget);
+    auto *progressionHeaderLayout = new QHBoxLayout(progressionHeader);
+    progressionHeaderLayout->setContentsMargins(10, 4, 10, 4);
+    auto *progressionTitle = new QLabel("Progressionen", progressionHeader);
+    QFont progressionTitleFont = progressionTitle->font();
+    progressionTitleFont.setBold(true);
+    progressionTitle->setFont(progressionTitleFont);
+    auto *addProgressionButton = new QPushButton("+", progressionHeader);
+    addProgressionButton->setObjectName("squareButton");
+    addProgressionButton->setFixedSize(24, 24);
+    addProgressionButton->setToolTip("Progression hinzufügen");
+    auto *toggleProgressionButton = new QPushButton("⌃", progressionHeader);
+    toggleProgressionButton->setObjectName("squareButton");
+    toggleProgressionButton->setFixedSize(24, 24);
+    toggleProgressionButton->setToolTip("Progressionen minimieren");
+    progressionHeaderLayout->addWidget(progressionTitle);
+    progressionHeaderLayout->addStretch();
+    progressionHeaderLayout->addWidget(addProgressionButton);
+    progressionHeaderLayout->addWidget(toggleProgressionButton);
+    progressionLayout->addWidget(progressionHeader);
+
+    progressionContent = new QWidget(progressionWidget);
+    auto *progressionContentLayout = new QHBoxLayout(progressionContent);
+    progressionContentLayout->setContentsMargins(8, 4, 8, 8);
+    progressionContentLayout->setSpacing(8);
+
+    progressionTreeView = new QTreeView(progressionContent);
+    progressionTreeView->setHeaderHidden(true);
+    progressionTreeView->setFrameShape(QFrame::NoFrame);
+    progressionTreeView->setFixedWidth(400);
+    progressionTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
+    progressionTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    progressionModel = new QStandardItemModel(progressionTreeView);
+    progressionTreeView->setModel(progressionModel);
+    progressionContentLayout->addWidget(progressionTreeView);
+
+    auto *progressionSeparator = new QFrame(progressionContent);
+    progressionSeparator->setFixedWidth(1);
+    progressionSeparator->setStyleSheet(
+        "background: rgba(255, 255, 255, 0.20); border: none;"
+    );
+    progressionContentLayout->addWidget(progressionSeparator);
+
+    auto *stageScrollArea = new QScrollArea(progressionContent);
+    stageScrollArea->setWidgetResizable(true);
+    stageScrollArea->setFrameShape(QFrame::NoFrame);
+    stageScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    auto *stageContent = new QWidget(stageScrollArea);
+    progressionStagesLayout = new QHBoxLayout(stageContent);
+    progressionStagesLayout->setContentsMargins(0, 0, 0, 0);
+    progressionStagesLayout->setSpacing(8);
+    stageScrollArea->setWidget(stageContent);
+    progressionContentLayout->addWidget(stageScrollArea, 1);
+    progressionLayout->addWidget(progressionContent, 1);
+    layout->addWidget(progressionWidget);
+
+    connect(addProgressionButton, &QPushButton::clicked, this, [this] {
+        bool accepted;
+        const QString name = QInputDialog::getText(
+            this,
+            "Progression hinzufügen",
+            "Name",
+            QLineEdit::Normal,
+            {},
+            &accepted
+        ).trimmed();
+        if (accepted && !name.isEmpty()) {
+            apiClient.createProgression(name);
+        }
+    });
+    connect(toggleProgressionButton, &QPushButton::clicked, this,
+            [this, toggleProgressionButton, expanded = true]() mutable {
+                expanded = !expanded;
+                progressionContent->setVisible(expanded);
+                progressionWidget->setFixedHeight(expanded ? 300 : 34);
+                toggleProgressionButton->setText(expanded ? "⌃" : "⌄");
+                toggleProgressionButton->setToolTip(
+                    expanded ? "Progressionen minimieren" : "Progressionen anzeigen"
+                );
+            });
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setHandleWidth(1);
@@ -1104,8 +1240,25 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         }
     });
     connect(autosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
+    connect(progressionTreeView, &QTreeView::clicked, this,
+            [this](const QModelIndex &index) {
+                currentProgressionId = index.data(Qt::UserRole).toInt();
+                renderProgressionStages();
+            });
+    connect(progressionTreeView, &QTreeView::customContextMenuRequested, this,
+            [this](const QPoint &position) { showProgressionContextMenu(position); });
+    connect(&apiClient, &ApiClient::progressionsReceived, this,
+            [this](const std::vector<Progression> &receivedProgressions,
+                   const std::vector<ProgressionPursuit> &receivedPursuits) {
+                progressions = receivedProgressions;
+                progressionPursuits = receivedPursuits;
+                renderProgressions();
+            });
+    connect(&apiClient, &ApiClient::progressionsChanged, this,
+            [this] { apiClient.getProgressions(); });
     connect(&apiClient, &ApiClient::metadataReceived, this, [this] {
         apiClient.getDomainTree();
+        apiClient.getProgressions();
     });
 
     apiClient.getMetadata();
@@ -1196,6 +1349,185 @@ void DomainView::finishPendingActions() {
         auto continuation = std::move(closeContinuation);
         closeContinuation = {};
         continuation();
+    }
+}
+
+void DomainView::renderProgressions() {
+    progressionModel->clear();
+    progressionModel->setColumnCount(1);
+
+    bool selectionExists = false;
+    for (const Progression &progression : progressions) {
+        QString text = progression.name;
+        if (progression.personalRelevanceId.has_value()) {
+            text += "  · R" + QString::number(*progression.personalRelevanceId);
+        }
+        if (progression.lastingImpactId.has_value()) {
+            text += "  · I" + QString::number(*progression.lastingImpactId);
+        }
+        auto *item = new QStandardItem(text);
+        item->setData(progression.id, Qt::UserRole);
+        progressionModel->appendRow(item);
+        if (progression.id == currentProgressionId) {
+            progressionTreeView->setCurrentIndex(item->index());
+            selectionExists = true;
+        }
+    }
+
+    if (!selectionExists) {
+        currentProgressionId = progressions.empty() ? -1 : progressions.front().id;
+        if (!progressions.empty()) {
+            progressionTreeView->setCurrentIndex(progressionModel->index(0, 0));
+        }
+    }
+    renderProgressionStages();
+}
+
+void DomainView::renderProgressionStages() {
+    while (QLayoutItem *item = progressionStagesLayout->takeAt(0)) {
+        delete item->widget();
+        delete item;
+    }
+
+    const Progression *selectedProgression = nullptr;
+    for (const Progression &progression : progressions) {
+        if (progression.id == currentProgressionId) {
+            selectedProgression = &progression;
+            break;
+        }
+    }
+
+    if (!selectedProgression) {
+        auto *label = new QLabel("Noch keine Progression ausgewählt.");
+        label->setAlignment(Qt::AlignCenter);
+        label->setStyleSheet("color: #777777;");
+        progressionStagesLayout->addWidget(label, 1);
+        return;
+    }
+    if (selectedProgression->stages.empty()) {
+        auto *label = new QLabel("Noch keine Progressionsstufen angelegt.");
+        label->setAlignment(Qt::AlignCenter);
+        label->setStyleSheet("color: #777777;");
+        progressionStagesLayout->addWidget(label, 1);
+        return;
+    }
+
+    for (const ProgressionStage &stage : selectedProgression->stages) {
+        auto *card = new QFrame();
+        card->setObjectName("stageCard");
+        card->setMinimumWidth(180);
+        card->setContextMenuPolicy(Qt::CustomContextMenu);
+        auto *cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(10, 8, 10, 8);
+        cardLayout->setSpacing(5);
+        auto *title = new QLabel(
+            QString::number(stage.stage) + ". " + stage.name,
+            card
+        );
+        QFont titleFont = title->font();
+        titleFont.setBold(true);
+        title->setFont(titleFont);
+        title->setWordWrap(true);
+        cardLayout->addWidget(title);
+
+        for (const ProgressionPursuit &pursuit : stage.pursuits) {
+            auto *label = new QLabel("↑ " + pursuit.name, card);
+            label->setWordWrap(true);
+            label->setStyleSheet("color: #B8B8B8;");
+            cardLayout->addWidget(label);
+        }
+        cardLayout->addStretch();
+        connect(card, &QWidget::customContextMenuRequested, this,
+                [this, card, stageId = stage.id](const QPoint &position) {
+                    QMenu menu(card);
+                    QAction *assignAction = menu.addAction("Bestrebung hinzufügen");
+                    if (menu.exec(card->mapToGlobal(position)) == assignAction) {
+                        assignPursuit(stageId);
+                    }
+                });
+        progressionStagesLayout->addWidget(card, 1);
+    }
+}
+
+void DomainView::showProgressionContextMenu(const QPoint &position) {
+    const QModelIndex index = progressionTreeView->indexAt(position);
+    if (!index.isValid()) {
+        return;
+    }
+    const int progressionId = index.data(Qt::UserRole).toInt();
+    QMenu menu(progressionTreeView);
+    QAction *editAction = menu.addAction("Bearbeiten");
+    QAction *stageAction = menu.addAction("Progressionsstufe hinzufügen");
+    QAction *selectedAction = menu.exec(
+        progressionTreeView->viewport()->mapToGlobal(position)
+    );
+    if (selectedAction == editAction) {
+        editProgression(progressionId);
+    } else if (selectedAction == stageAction) {
+        addProgressionStage(progressionId);
+    }
+}
+
+void DomainView::editProgression(const int progressionId) {
+    for (const Progression &progression : progressions) {
+        if (progression.id != progressionId) {
+            continue;
+        }
+        QString name = progression.name;
+        std::optional<int> relevanceId = progression.personalRelevanceId;
+        std::optional<int> impactId = progression.lastingImpactId;
+        if (showProgressionDialog(this, name, relevanceId, impactId)) {
+            apiClient.updateProgression(progression.id, name, relevanceId, impactId);
+        }
+        return;
+    }
+}
+
+void DomainView::addProgressionStage(const int progressionId) {
+    bool accepted;
+    const QString name = QInputDialog::getText(
+        this,
+        "Progressionsstufe hinzufügen",
+        "Name",
+        QLineEdit::Normal,
+        {},
+        &accepted
+    ).trimmed();
+    if (accepted && !name.isEmpty()) {
+        apiClient.createProgressionStage(progressionId, name);
+    }
+}
+
+void DomainView::assignPursuit(const int stageId) {
+    QStringList names;
+    std::vector<int> ids;
+    for (const ProgressionPursuit &pursuit : progressionPursuits) {
+        if (!pursuit.progressionStageId.has_value()) {
+            names.push_back(pursuit.name);
+            ids.push_back(pursuit.id);
+        }
+    }
+    if (names.empty()) {
+        QMessageBox::information(
+            this,
+            "Bestrebung hinzufügen",
+            "Es gibt keine unzugeordneten Bestrebungen."
+        );
+        return;
+    }
+
+    bool accepted;
+    const QString name = QInputDialog::getItem(
+        this,
+        "Bestrebung hinzufügen",
+        "Bestrebung",
+        names,
+        0,
+        false,
+        &accepted
+    );
+    if (accepted) {
+        apiClient.assignPursuitToStage(stageId, ids[names.indexOf(name)]);
     }
 }
 

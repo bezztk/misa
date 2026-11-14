@@ -34,6 +34,7 @@ add_executable(frontend
         src/models/AppState.h
         src/models/Skill.h
         src/models/Pursuit.h
+        src/models/Progression.h
 )
 target_link_libraries(frontend
         Qt6::Core

@@ -7,6 +7,7 @@
 #include "../models/Document.h"
 #include "../models/Skill.h"
 #include "../models/Pursuit.h"
+#include "../models/Progression.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -26,6 +27,9 @@ signals:
     void nodeSkillsChanged(int nodeId);
     void nodePursuitsReceived(int nodeId, const std::vector<Pursuit>& pursuits);
     void nodePursuitsChanged(int nodeId);
+    void progressionsReceived(const std::vector<Progression>& progressions,
+                              const std::vector<ProgressionPursuit>& pursuits);
+    void progressionsChanged();
     void domainTreeReceived(
         const std::vector<MetadataItem>& domains,
         const std::vector<DomainNode>& nodes
@@ -59,6 +63,13 @@ public:
     void createPursuit(int nodeId, const QString& name);
     void updatePursuitRequirements(int nodeId, int pursuitId,
                                    const UpdatePursuitRequirements& requirements);
+    void getProgressions();
+    void createProgression(const QString& name);
+    void updateProgression(int id, const QString& name,
+                           std::optional<int> personalRelevanceId,
+                           std::optional<int> lastingImpactId);
+    void createProgressionStage(int progressionId, const QString& name);
+    void assignPursuitToStage(int stageId, int pursuitId);
     void getDomainTree();
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);

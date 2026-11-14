@@ -19,6 +19,7 @@ class QPlainTextEdit;
 class QResizeEvent;
 class QTableView;
 class QTreeView;
+class QHBoxLayout;
 class QVBoxLayout;
 
 class DomainView : public QWidget {
@@ -54,10 +55,24 @@ private:
     void createPursuit();
     void editPursuit(const QModelIndex &index);
     void updatePursuitCount(int nodeId, int count);
+    void renderProgressions();
+    void renderProgressionStages();
+    void showProgressionContextMenu(const QPoint &position);
+    void editProgression(int progressionId);
+    void addProgressionStage(int progressionId);
+    void assignPursuit(int stageId);
 
     ApiClient apiClient;
     QTreeView *treeView;
     QStandardItemModel *model;
+    QWidget *progressionWidget;
+    QWidget *progressionContent;
+    QTreeView *progressionTreeView;
+    QStandardItemModel *progressionModel;
+    QHBoxLayout *progressionStagesLayout;
+    std::vector<Progression> progressions;
+    std::vector<ProgressionPursuit> progressionPursuits;
+    int currentProgressionId = -1;
     QWidget *editorWidget;
     QVBoxLayout *editorLayout;
     QWidget *documentWidget;
