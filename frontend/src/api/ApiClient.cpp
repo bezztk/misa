@@ -74,7 +74,6 @@ void ApiClient::getMetadata() {
         metadata.document_flashcard_statuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());
         metadata.document_verification_statuses = parseMetadataItems(object["document_verification_statuses"].toArray());
         metadata.document_verification_levels = parseMetadataItems(object["document_verification_levels"].toArray());
-        metadata.domains = parseMetadataItems(object["domains"].toArray());
         metadata.flashcard_review_states = parseMetadataItems(object["flashcard_review_states"].toArray());
         metadata.pursuit_requirement_types = parseMetadataItems(object["pursuit_requirement_types"].toArray());
         metadata.systemtask_groups = parseMetadataItems(object["systemtask_groups"].toArray());
@@ -114,19 +113,20 @@ void ApiClient::getMetadata() {
     });
 }
 
-void ApiClient::getDomainNodes() {
-    const QNetworkRequest networkRequest(buildUrl("/domain-nodes"));
+void ApiClient::getDomainTree() {
+    const QNetworkRequest networkRequest(buildUrl("/domain-tree"));
     QNetworkReply *reply = manager.get(networkRequest);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+        const std::vector<MetadataItem> domains = parseMetadataItems(object["domains"].toArray());
         std::vector<DomainNode> nodes;
-        const QJsonArray jsonArray = QJsonDocument::fromJson(reply->readAll()).array();
 
-        for (const QJsonValue &value : jsonArray) {
+        for (const QJsonValue &value : object["nodes"].toArray()) {
             nodes.push_back(parseDomainNode(value.toObject()));
         }
 
-        emit domainNodesReceived(nodes);
+        emit domainTreeReceived(domains, nodes);
         reply->deleteLater();
     });
 }
@@ -141,11 +141,32 @@ void ApiClient::createDomainNode(const int parentId, const QString &name) {
     json["name"] = name;
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, parentId] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
             const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
-            emit domainNodeCreated(parentId, parseDomainNode(object));
+            emit domainNodeCreated(parseDomainNode(object));
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createRootDomainNode(const int domainId, const QString &name) {
+    QNetworkRequest networkRequest(buildUrl(
+        "/domains/" + QString::number(domainId) + "/nodes"
+    ));
+    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["name"] = name;
+    QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+            emit domainNodeCreated(parseDomainNode(object));
         }
 
         reply->deleteLater();

@@ -33,7 +33,6 @@ struct Metadata {
     std::vector<MetadataItem> document_flashcard_statuses;
     std::vector<MetadataItem> document_verification_statuses;
     std::vector<MetadataItem> document_verification_levels;
-    std::vector<MetadataItem> domains;
     std::vector<FlashcardRetentionClass> flashcard_retention_classes;
     std::vector<MetadataItem> flashcard_review_states;
     std::vector<MetadataItem> pursuit_requirement_types;

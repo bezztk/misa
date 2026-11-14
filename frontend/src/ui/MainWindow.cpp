@@ -96,7 +96,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::renderTasks);
     connect(&apiClient, &ApiClient::metadataReceived, learningView, &LearningView::refreshMetadata);
-    connect(&apiClient, &ApiClient::metadataReceived, domainView, &DomainView::renderDomains);
 
     stack->addWidget(taskView);
     stack->addWidget(learningView);

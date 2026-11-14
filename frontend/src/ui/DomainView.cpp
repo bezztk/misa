@@ -1,24 +1,18 @@
 #include "DomainView.h"
-#include "../models/AppState.h"
 
 #include <QFrame>
-#include <QHBoxLayout>
 #include <QInputDialog>
-#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
-#include <QMouseEvent>
-#include <QResizeEvent>
-#include <QScrollArea>
-#include <QShowEvent>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QTextEdit>
 #include <QTreeView>
 #include <QVBoxLayout>
 
-#include <algorithm>
 #include <functional>
+
+static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 
 DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
@@ -26,196 +20,120 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
-    scrollArea = new QScrollArea(splitter);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    treeView = new QTreeView(splitter);
+    treeView->setHeaderHidden(true);
+    treeView->setFrameShape(QFrame::NoFrame);
+    treeView->setIndentation(16);
+    treeView->setUniformRowHeights(true);
+    treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    treeView->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    cardsWidget = new QWidget(scrollArea);
-    cardsLayout = new QHBoxLayout(cardsWidget);
-    cardsLayout->setContentsMargins(20, 20, 20, 20);
-    cardsLayout->setSpacing(12);
-    cardsLayout->setAlignment(Qt::AlignTop);
+    model = new QStandardItemModel(treeView);
+    treeView->setModel(model);
 
-    auto *firstColumn = new QWidget(cardsWidget);
-    firstColumnLayout = new QVBoxLayout(firstColumn);
-    firstColumnLayout->setContentsMargins(0, 0, 0, 0);
-    firstColumnLayout->setSpacing(12);
-    firstColumnLayout->setAlignment(Qt::AlignTop);
-
-    secondColumn = new QWidget(cardsWidget);
-    secondColumnLayout = new QVBoxLayout(secondColumn);
-    secondColumnLayout->setContentsMargins(0, 0, 0, 0);
-    secondColumnLayout->setSpacing(12);
-    secondColumnLayout->setAlignment(Qt::AlignTop);
-
-    cardsLayout->addWidget(firstColumn);
-    cardsLayout->addWidget(secondColumn);
-
-    scrollArea->setWidget(cardsWidget);
-    splitter->addWidget(scrollArea);
+    splitter->addWidget(treeView);
     splitter->addWidget(new QTextEdit(splitter));
     layout->addWidget(splitter);
 
-    connect(&apiClient, &ApiClient::domainNodesReceived, this,
-            [this](const std::vector<DomainNode> &nodes) {
-                for (const MetadataItem &domain : AppState::metadata.domains) {
-                    renderDomainNodes(domain.id, nodes);
-                }
+    connect(&apiClient, &ApiClient::domainTreeReceived, this,
+            [this](const std::vector<MetadataItem> &domains,
+                   const std::vector<DomainNode> &nodes) {
+                renderDomainTree(domains, nodes);
             });
     connect(&apiClient, &ApiClient::domainNodeCreated, this,
-            [this](const int parentId, const DomainNode &node) {
-                QStandardItem *parentItem = findDomainNodeItem(node.domainId, parentId);
+            [this](const DomainNode &node) {
                 auto *item = new QStandardItem(node.name);
                 item->setData(node.id, Qt::UserRole);
+                QStandardItem *parentItem = node.parentId.has_value()
+                    ? findDomainNodeItem(*node.parentId)
+                    : findDomainItem(node.domainId);
                 parentItem->appendRow(item);
-                updateTreeHeight(domainCards[node.domainId].treeView);
             });
     connect(&apiClient, &ApiClient::domainNodeUpdated, this,
             [this](const DomainNode &node) {
-                findDomainNodeItem(node.domainId, node.id)->setText(node.name);
+                findDomainNodeItem(node.id)->setText(node.name);
             });
+    connect(treeView, &QTreeView::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                showDomainNodeContextMenu(position);
+            });
+
+    apiClient.getDomainTree();
 }
 
-void DomainView::renderDomains() {
-    domainCards.clear();
-
-    for (QVBoxLayout *columnLayout : {firstColumnLayout, secondColumnLayout}) {
-        while (QLayoutItem *item = columnLayout->takeAt(0)) {
-            delete item->widget();
-            delete item;
-        }
-    }
-
-    for (const MetadataItem &domain : AppState::metadata.domains) {
-        auto *card = new QFrame(this);
-        card->setObjectName("domainCard");
-        card->setCursor(Qt::PointingHandCursor);
-        card->installEventFilter(this);
-        card->setMaximumWidth(600);
-        card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        card->setStyleSheet(R"(
-            QFrame#domainCard {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.10);
-                border-radius: 6px;
-            }
-            QLabel {
-                border: none;
-                background: transparent;
-            }
-        )");
-
-        auto *cardLayout = new QVBoxLayout(card);
-        cardLayout->setContentsMargins(16, 14, 16, 14);
-
-        auto *title = new QLabel(domain.name, card);
-        title->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        title->setAttribute(Qt::WA_TransparentForMouseEvents);
-        QFont titleFont = title->font();
-        titleFont.setBold(true);
-        titleFont.setPointSize(titleFont.pointSize() + 2);
-        title->setFont(titleFont);
-        cardLayout->addWidget(title);
-
-        domainCards.insert(domain.id, DomainCard{
-            .domain = domain,
-            .frame = card,
-            .treeView = nullptr,
-            .model = nullptr,
-            .isLoaded = false
-        });
-    }
-
-    updateCardLayout();
-    apiClient.getDomainNodes();
-}
-
-bool DomainView::eventFilter(QObject *watched, QEvent *event) {
-    if (event->type() == QEvent::MouseButtonRelease
-        && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
-        for (auto it = domainCards.begin(); it != domainCards.end(); ++it) {
-            DomainCard &card = it.value();
-
-            if (card.frame == watched && card.isLoaded) {
-                card.treeView->setVisible(!card.treeView->isVisible());
-                return true;
-            }
-        }
-    }
-
-    return QWidget::eventFilter(watched, event);
-}
-
-void DomainView::renderDomainNodes(
-    const int domainId,
+void DomainView::renderDomainTree(
+    const std::vector<MetadataItem> &domains,
     const std::vector<DomainNode> &nodes
 ) {
-    DomainCard &card = domainCards[domainId];
-    auto *layout = qobject_cast<QVBoxLayout *>(card.frame->layout());
+    model->clear();
 
-    card.treeView = new QTreeView(card.frame);
-    card.model = new QStandardItemModel(card.treeView);
-    card.treeView->setHeaderHidden(true);
-    card.treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    card.treeView->setContextMenuPolicy(Qt::CustomContextMenu);
-    card.treeView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    card.treeView->setModel(card.model);
+    for (const MetadataItem &domain : domains) {
+        auto *domainItem = new QStandardItem(domain.name);
+        QFont font = domainItem->font();
+        font.setBold(true);
+        domainItem->setFont(font);
+        domainItem->setData(domain.id, DOMAIN_ID_ROLE);
+        model->appendRow(domainItem);
 
-    connect(card.treeView, &QTreeView::customContextMenuRequested, this,
-            [this, domainId](const QPoint &position) {
-                showDomainNodeContextMenu(domainId, position);
-            });
+        std::function<void(std::optional<int>, QStandardItem *)> addNodes;
+        addNodes = [&](const std::optional<int> parentId, QStandardItem *parentItem) {
+            for (const DomainNode &node : nodes) {
+                if (node.domainId != domain.id || node.parentId != parentId) {
+                    continue;
+                }
 
-    std::function<void(std::optional<int>, QStandardItem *)> addNodes;
-    addNodes = [&](const std::optional<int> parentId, QStandardItem *parentItem) {
-        for (const DomainNode &node : nodes) {
-            if (node.domainId != domainId || node.parentId != parentId) {
-                continue;
+                auto *item = new QStandardItem(node.name);
+                item->setData(node.id, Qt::UserRole);
+                parentItem->appendRow(item);
+                addNodes(node.id, item);
             }
+        };
 
-            auto *item = new QStandardItem(node.name);
-            item->setData(node.id, Qt::UserRole);
-            parentItem->appendRow(item);
-            addNodes(node.id, item);
-        }
-    };
+        addNodes(std::nullopt, domainItem);
+    }
 
-    addNodes(std::nullopt, card.model->invisibleRootItem());
-    layout->addWidget(card.treeView);
-    card.treeView->hide();
-    card.isLoaded = true;
-
-    connect(card.treeView, &QTreeView::expanded, this, [this, treeView = card.treeView] {
-        updateTreeHeight(treeView);
-    });
-    connect(card.treeView, &QTreeView::collapsed, this, [this, treeView = card.treeView] {
-        updateTreeHeight(treeView);
-    });
-
-    updateTreeHeight(card.treeView);
+    treeView->collapseAll();
 }
 
-void DomainView::showDomainNodeContextMenu(
-    const int domainId,
-    const QPoint &position
-) {
-    DomainCard &card = domainCards[domainId];
-    const QModelIndex index = card.treeView->indexAt(position);
+void DomainView::showDomainNodeContextMenu(const QPoint &position) {
+    const QModelIndex index = treeView->indexAt(position);
 
     if (!index.isValid()) {
         return;
     }
 
-    QMenu menu(card.treeView);
+    if (index.data(DOMAIN_ID_ROLE).isValid()) {
+        QMenu menu(treeView);
+        QAction *createAction = menu.addAction("Root-Knoten hinzufügen");
+
+        if (menu.exec(treeView->viewport()->mapToGlobal(position)) == createAction) {
+            bool accepted;
+            const QString name = QInputDialog::getText(
+                treeView,
+                "Root-Knoten hinzufügen",
+                "Name",
+                QLineEdit::Normal,
+                {},
+                &accepted
+            ).trimmed();
+
+            if (accepted && !name.isEmpty()) {
+                apiClient.createRootDomainNode(index.data(DOMAIN_ID_ROLE).toInt(), name);
+            }
+        }
+
+        return;
+    }
+
+    QMenu menu(treeView);
     QAction *createAction = menu.addAction("Unterknoten hinzufügen");
     QAction *editAction = menu.addAction("Bearbeiten");
-    QAction *selectedAction = menu.exec(card.treeView->viewport()->mapToGlobal(position));
+    QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
 
     if (selectedAction == createAction) {
         bool accepted;
         const QString name = QInputDialog::getText(
-            card.treeView,
+            treeView,
             "Unterknoten hinzufügen",
             "Name",
             QLineEdit::Normal,
@@ -229,7 +147,7 @@ void DomainView::showDomainNodeContextMenu(
     } else if (selectedAction == editAction) {
         bool accepted;
         const QString name = QInputDialog::getText(
-            card.treeView,
+            treeView,
             "Domain Node bearbeiten",
             "Name",
             QLineEdit::Normal,
@@ -243,8 +161,19 @@ void DomainView::showDomainNodeContextMenu(
     }
 }
 
-QStandardItem *DomainView::findDomainNodeItem(const int domainId, const int nodeId) {
-    QStandardItemModel *model = domainCards[domainId].model;
+QStandardItem *DomainView::findDomainItem(const int domainId) {
+    const QModelIndexList matches = model->match(
+        model->index(0, 0),
+        DOMAIN_ID_ROLE,
+        domainId,
+        1,
+        Qt::MatchExactly
+    );
+
+    return model->itemFromIndex(matches.first());
+}
+
+QStandardItem *DomainView::findDomainNodeItem(const int nodeId) {
     const QModelIndexList matches = model->match(
         model->index(0, 0),
         Qt::UserRole,
@@ -254,52 +183,4 @@ QStandardItem *DomainView::findDomainNodeItem(const int domainId, const int node
     );
 
     return model->itemFromIndex(matches.first());
-}
-
-void DomainView::updateTreeHeight(QTreeView *treeView) {
-    int height = treeView->frameWidth() * 2;
-
-    for (QModelIndex index = treeView->model()->index(0, 0);
-         index.isValid();
-         index = treeView->indexBelow(index)) {
-        height += treeView->sizeHintForIndex(index).height();
-    }
-
-    treeView->setFixedHeight(std::min(height, 400));
-}
-
-void DomainView::resizeEvent(QResizeEvent *event) {
-    QWidget::resizeEvent(event);
-    updateCardLayout();
-}
-
-void DomainView::showEvent(QShowEvent *event) {
-    QWidget::showEvent(event);
-    updateCardLayout();
-}
-
-void DomainView::updateCardLayout() {
-    const int availableWidth = scrollArea->viewport()->width() - 40;
-    const int columnCount = availableWidth >= 1212 ? 2 : 1;
-    const int cardWidth = std::min(600, (availableWidth - (columnCount - 1) * 12) / columnCount);
-
-    cardsWidget->setFixedWidth(cardWidth * columnCount + (columnCount - 1) * 12 + 40);
-    secondColumn->setVisible(columnCount == 2);
-
-    int index = 0;
-    for (const MetadataItem &domain : AppState::metadata.domains) {
-        if (!domainCards.contains(domain.id)) {
-            continue;
-        }
-
-        const DomainCard &card = domainCards[domain.id];
-        firstColumnLayout->removeWidget(card.frame);
-        secondColumnLayout->removeWidget(card.frame);
-        card.frame->setFixedWidth(cardWidth);
-        QVBoxLayout *columnLayout = columnCount == 2 && index % 2 == 1
-            ? secondColumnLayout
-            : firstColumnLayout;
-        columnLayout->addWidget(card.frame);
-        ++index;
-    }
 }
