@@ -10,6 +10,19 @@ pub struct Skill {
     pub psychomotor_level_id: Option<i32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateSkillRequest {
+    pub parent_skill_id: Option<i32>,
+    pub name: String,
+    pub psychomotor_level_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSkillRequest {
+    pub name: String,
+    pub psychomotor_level_id: Option<i32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct SkillEvaluation {
     pub id: i32,

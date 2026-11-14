@@ -13,6 +13,7 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
                 dn.is_system_value, dn.last_reviewed_at,
                 EXISTS (SELECT 1 FROM documents WHERE domain_node_id = dn.id) AS has_document,
                 COUNT(f.id) AS flashcard_count,
+                (SELECT COUNT(*) FROM skills WHERE domain_node_id = dn.id) AS skill_count,
                 d.completeness_level_id, d.flashcard_status_id,
                 d.verification_status_id, d.verification_level_id
          FROM domain_nodes dn
@@ -37,6 +38,7 @@ pub async fn create_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
+                   0::BIGINT AS skill_count,
                    NULL::INTEGER AS completeness_level_id,
                    NULL::INTEGER AS flashcard_status_id,
                    NULL::INTEGER AS verification_status_id,
@@ -60,6 +62,7 @@ pub async fn create_root_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
+                   0::BIGINT AS skill_count,
                    NULL::INTEGER AS completeness_level_id,
                    NULL::INTEGER AS flashcard_status_id,
                    NULL::INTEGER AS verification_status_id,
@@ -105,6 +108,7 @@ pub async fn update_domain_node(
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at,
                    EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.id) AS has_document,
                    (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.id) AS flashcard_count,
+                   (SELECT COUNT(*) FROM skills WHERE domain_node_id = domain_nodes.id) AS skill_count,
                    (SELECT completeness_level_id FROM documents WHERE domain_node_id = domain_nodes.id) AS completeness_level_id,
                    (SELECT flashcard_status_id FROM documents WHERE domain_node_id = domain_nodes.id) AS flashcard_status_id,
                    (SELECT verification_status_id FROM documents WHERE domain_node_id = domain_nodes.id) AS verification_status_id,
