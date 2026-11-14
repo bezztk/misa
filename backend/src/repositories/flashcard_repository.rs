@@ -55,7 +55,14 @@ pub async fn get_due_flashcard_contexts(
             f.stability,
             f.difficulty,
             f.last_reviewed_at,
-            r.desired_retention::REAL AS desired_retention
+            r.desired_retention::REAL AS desired_retention,
+            (
+                SELECT fr.rating
+                FROM flashcard_reviews fr
+                WHERE fr.flashcard_id = f.id
+                ORDER BY fr.reviewed_at DESC, fr.id DESC
+                LIMIT 1
+            ) AS last_rating
          FROM flashcards f
          JOIN flashcard_retention_classes r ON r.id = f.retention_class_id
          WHERE f.due_at IS NULL OR f.due_at <= NOW()
@@ -78,7 +85,7 @@ pub async fn review_flashcard(
     pool: &PgPool,
     id: i32,
     rating: i16,
-    duration_ms: Option<i32>,
+    duration_ms: i32,
 ) -> Result<(), ReviewFlashcardError> {
     let mut tx = pool.begin().await?;
     let context = sqlx::query_as::<_, FlashcardReviewContext>(
@@ -98,8 +105,20 @@ pub async fn review_flashcard(
     .await?
     .ok_or(ReviewFlashcardError::NotFound)?;
 
+    let last_rating = sqlx::query_scalar::<_, i16>(
+        "SELECT rating
+         FROM flashcard_reviews
+         WHERE flashcard_id = $1
+         ORDER BY reviewed_at DESC, id DESC
+         LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
     let schedule = flashcard_review_service::calculate_review_schedule(
         context.review_state_id,
+        last_rating,
         context.stability,
         context.difficulty,
         context.last_reviewed_at,

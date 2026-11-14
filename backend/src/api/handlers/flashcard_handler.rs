@@ -30,6 +30,7 @@ pub async fn get_due_flashcards(
     for context in contexts {
         let preview = flashcard_review_service::calculate_review_preview(
             context.review_state_id,
+            context.last_rating,
             context.stability,
             context.difficulty,
             context.last_reviewed_at,
@@ -97,9 +98,7 @@ pub async fn review_flashcard(
     Path(id): Path<i32>,
     Json(payload): Json<ReviewFlashcardRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    if !(1..=4).contains(&payload.rating)
-        || payload.duration_ms.is_some_and(|duration| duration < 0)
-    {
+    if !(1..=4).contains(&payload.rating) || payload.duration_ms < 0 {
         return Err(StatusCode::BAD_REQUEST);
     }
 

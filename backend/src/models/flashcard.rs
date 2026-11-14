@@ -60,7 +60,7 @@ pub struct FlashcardReview {
     pub review_state_before_id: i32,
     pub review_state_after_id: i32,
     pub reviewed_at: DateTime<Utc>,
-    pub duration_ms: Option<i32>,
+    pub duration_ms: i32,
     pub next_due_at: DateTime<Utc>,
 }
 
@@ -74,7 +74,7 @@ pub struct CreateFlashcard {
 #[derive(Debug, Deserialize)]
 pub struct ReviewFlashcardRequest {
     pub rating: i16,
-    pub duration_ms: Option<i32>,
+    pub duration_ms: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
@@ -96,6 +96,7 @@ pub struct FlashcardQueueContext {
     pub difficulty: Option<f32>,
     pub last_reviewed_at: Option<DateTime<Utc>>,
     pub desired_retention: f32,
+    pub last_rating: Option<i16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
