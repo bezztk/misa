@@ -33,6 +33,7 @@ add_executable(frontend
         src/models/Metadata.h
         src/models/AppState.h
         src/models/Skill.h
+        src/models/Pursuit.h
 )
 target_link_libraries(frontend
         Qt6::Core

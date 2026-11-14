@@ -40,7 +40,8 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .name = object["name"].toString(),
         .hasDocument = object["has_document"].toBool(),
         .flashcardCount = object["flashcard_count"].toInt(),
-        .skillCount = object["skill_count"].toInt()
+        .skillCount = object["skill_count"].toInt(),
+        .pursuitCount = object["pursuit_count"].toInt()
     };
 
     if (!object["parent_id"].isNull()) {
@@ -147,6 +148,113 @@ void ApiClient::updateSkill(
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (reply->error() == QNetworkReply::NoError) {
             emit nodeSkillsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+static std::optional<int> optionalJsonInt(
+    const QJsonObject &object,
+    const QString &name
+) {
+    return object[name].isNull()
+        ? std::nullopt
+        : std::optional<int>(object[name].toInt());
+}
+
+static Pursuit parsePursuit(const QJsonObject &object) {
+    Pursuit pursuit{
+        .id = object["id"].toInt(),
+        .domainNodeId = object["domain_node_id"].toInt(),
+        .name = object["name"].toString()
+    };
+
+    for (const QJsonValue &value : object["requirements"].toArray()) {
+        const QJsonObject requirement = value.toObject();
+        pursuit.requirements.push_back({
+            .id = requirement["id"].toInt(),
+            .requirementTypeId = requirement["requirement_type_id"].toInt(),
+            .skillId = optionalJsonInt(requirement, "skill_id"),
+            .cognitiveLevelId = optionalJsonInt(requirement, "cognitive_level_id"),
+            .psychomotorLevelId = optionalJsonInt(requirement, "psychomotor_level_id"),
+            .completenessLevelId = optionalJsonInt(requirement, "completeness_level_id"),
+            .flashcardStatusId = optionalJsonInt(requirement, "flashcard_status_id"),
+            .verificationStatusId = optionalJsonInt(requirement, "verification_status_id"),
+            .verificationLevelId = optionalJsonInt(requirement, "verification_level_id")
+        });
+    }
+    return pursuit;
+}
+
+void ApiClient::getNodePursuits(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/pursuits"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            std::vector<Pursuit> pursuits;
+            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
+                pursuits.push_back(parsePursuit(value.toObject()));
+            }
+            emit nodePursuitsReceived(nodeId, pursuits);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createPursuit(const int nodeId, const QString &name) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/pursuits"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(
+        request,
+        QJsonDocument(QJsonObject{{"name", name}}).toJson()
+    );
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodePursuitsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updatePursuitRequirements(
+    const int nodeId,
+    const int pursuitId,
+    const UpdatePursuitRequirements &requirements
+) {
+    QNetworkRequest request(buildUrl(
+        "/pursuits/" + QString::number(pursuitId) + "/requirements"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json;
+    json["cognitive_level_id"] = requirements.cognitiveLevelId.has_value()
+        ? QJsonValue(*requirements.cognitiveLevelId) : QJsonValue(QJsonValue::Null);
+    json["completeness_level_id"] = requirements.completenessLevelId.has_value()
+        ? QJsonValue(*requirements.completenessLevelId) : QJsonValue(QJsonValue::Null);
+    json["flashcard_status_id"] = requirements.flashcardStatusId.has_value()
+        ? QJsonValue(*requirements.flashcardStatusId) : QJsonValue(QJsonValue::Null);
+    json["verification_status_id"] = requirements.verificationStatusId.has_value()
+        ? QJsonValue(*requirements.verificationStatusId) : QJsonValue(QJsonValue::Null);
+    json["verification_level_id"] = requirements.verificationLevelId.has_value()
+        ? QJsonValue(*requirements.verificationLevelId) : QJsonValue(QJsonValue::Null);
+    QJsonArray skills;
+    for (const PursuitSkillRequirement &skill : requirements.skills) {
+        skills.append(QJsonObject{
+            {"skill_id", skill.skillId},
+            {"psychomotor_level_id", skill.psychomotorLevelId}
+        });
+    }
+    json["skills"] = skills;
+    QNetworkReply *reply = manager.put(request, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodePursuitsChanged(nodeId);
         }
         reply->deleteLater();
     });

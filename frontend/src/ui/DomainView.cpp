@@ -16,6 +16,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QScrollArea>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStyle>
@@ -37,6 +38,7 @@ static constexpr int VERIFICATION_STATUS_ROLE = Qt::UserRole + 7;
 static constexpr int VERIFICATION_LEVEL_ROLE = Qt::UserRole + 8;
 static constexpr int NODE_NAME_ROLE = Qt::UserRole + 9;
 static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
+static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 
@@ -55,6 +57,15 @@ static QString skillText(const Skill &skill) {
         }
     }
     return text;
+}
+
+static QString metadataText(const std::vector<MetadataItem> &items, const int id) {
+    for (const MetadataItem &item : items) {
+        if (item.id == id) {
+            return metadataName(item);
+        }
+    }
+    return "#" + QString::number(id);
 }
 
 static void fillMetadataCombo(QComboBox *combo, const std::vector<MetadataItem> &items) {
@@ -109,6 +120,7 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.name, NODE_NAME_ROLE);
     item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
     item->setData(node.skillCount, SKILL_COUNT_ROLE);
+    item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
     setOptionalRole(item, COGNITIVE_LEVEL_ROLE, node.cognitiveLevelId);
     setOptionalRole(item, COMPLETENESS_LEVEL_ROLE, node.completenessLevelId);
     setOptionalRole(item, FLASHCARD_STATUS_ROLE, node.flashcardStatusId);
@@ -136,6 +148,10 @@ static void refreshDomainNodeText(QStandardItem *item) {
     const int skillCount = item->data(SKILL_COUNT_ROLE).toInt();
     if (skillCount > 0) {
         text += QString::fromUtf8("  ★ ") + QString::number(skillCount);
+    }
+    const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
+    if (pursuitCount > 0) {
+        text += QString::fromUtf8("  ↑ ") + QString::number(pursuitCount);
     }
     item->setText(text);
 }
@@ -286,6 +302,120 @@ static bool showSkillDialog(
 
     name = nameEdit->text().trimmed();
     psychomotorLevelId = selectedMetadata(levelCombo);
+    return true;
+}
+
+static bool showPursuitDialog(
+    QWidget *parent,
+    const Pursuit &pursuit,
+    const std::vector<Skill> &skills,
+    UpdatePursuitRequirements &result
+) {
+    for (const PursuitRequirement &requirement : pursuit.requirements) {
+        switch (requirement.requirementTypeId) {
+            case 1: result.cognitiveLevelId = requirement.cognitiveLevelId; break;
+            case 3: result.completenessLevelId = requirement.completenessLevelId; break;
+            case 4: result.flashcardStatusId = requirement.flashcardStatusId; break;
+            case 5: result.verificationStatusId = requirement.verificationStatusId; break;
+            case 6: result.verificationLevelId = requirement.verificationLevelId; break;
+            default: break;
+        }
+    }
+
+    QDialog dialog(parent);
+    dialog.setWindowTitle(pursuit.name);
+    dialog.resize(520, 600);
+    auto *layout = new QVBoxLayout(&dialog);
+
+    auto *nodeTitle = new QLabel("Domain- und Dokumentanforderungen", &dialog);
+    QFont sectionFont = nodeTitle->font();
+    sectionFont.setBold(true);
+    nodeTitle->setFont(sectionFont);
+    layout->addWidget(nodeTitle);
+    auto *nodeForm = new QFormLayout();
+    auto *cognitiveCombo = new QComboBox(&dialog);
+    auto *completenessCombo = new QComboBox(&dialog);
+    auto *flashcardStatusCombo = new QComboBox(&dialog);
+    auto *verificationStatusCombo = new QComboBox(&dialog);
+    auto *verificationLevelCombo = new QComboBox(&dialog);
+    fillMetadataCombo(cognitiveCombo, AppState::metadata.cognitive_levels);
+    fillMetadataCombo(completenessCombo, AppState::metadata.document_completeness_levels);
+    fillMetadataCombo(flashcardStatusCombo, AppState::metadata.document_flashcard_statuses);
+    fillMetadataCombo(verificationStatusCombo, AppState::metadata.document_verification_statuses);
+    fillMetadataCombo(verificationLevelCombo, AppState::metadata.document_verification_levels);
+    selectMetadata(cognitiveCombo, result.cognitiveLevelId);
+    selectMetadata(completenessCombo, result.completenessLevelId);
+    selectMetadata(flashcardStatusCombo, result.flashcardStatusId);
+    selectMetadata(verificationStatusCombo, result.verificationStatusId);
+    selectMetadata(verificationLevelCombo, result.verificationLevelId);
+    nodeForm->addRow("Kognitives Niveau", cognitiveCombo);
+    nodeForm->addRow("Vollständigkeit", completenessCombo);
+    nodeForm->addRow("Lernkartenstatus", flashcardStatusCombo);
+    nodeForm->addRow("Verifizierungsstatus", verificationStatusCombo);
+    nodeForm->addRow("Verifizierungsniveau", verificationLevelCombo);
+    layout->addLayout(nodeForm);
+
+    auto *separator = new QFrame(&dialog);
+    separator->setFrameShape(QFrame::HLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    layout->addWidget(separator);
+    auto *skillTitle = new QLabel("Skill-Anforderungen", &dialog);
+    skillTitle->setFont(sectionFont);
+    layout->addWidget(skillTitle);
+
+    auto *skillArea = new QScrollArea(&dialog);
+    skillArea->setWidgetResizable(true);
+    skillArea->setFrameShape(QFrame::NoFrame);
+    auto *skillContent = new QWidget(skillArea);
+    auto *skillForm = new QFormLayout(skillContent);
+    std::vector<std::pair<int, QComboBox *>> skillCombos;
+    for (const Skill &skill : skills) {
+        auto *combo = new QComboBox(skillContent);
+        fillMetadataCombo(combo, AppState::metadata.psychomotor_levels);
+        std::optional<int> selectedLevel;
+        for (const PursuitRequirement &requirement : pursuit.requirements) {
+            if (requirement.requirementTypeId == 2
+                && requirement.skillId == std::optional<int>(skill.id)) {
+                selectedLevel = requirement.psychomotorLevelId;
+                break;
+            }
+        }
+        selectMetadata(combo, selectedLevel);
+        skillForm->addRow(skill.name, combo);
+        skillCombos.emplace_back(skill.id, combo);
+    }
+    if (skills.empty()) {
+        skillForm->addRow(new QLabel("Noch keine Skills angelegt.", skillContent));
+    }
+    skillArea->setWidget(skillContent);
+    layout->addWidget(skillArea, 1);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return false;
+    }
+
+    result.cognitiveLevelId = selectedMetadata(cognitiveCombo);
+    result.completenessLevelId = selectedMetadata(completenessCombo);
+    result.flashcardStatusId = selectedMetadata(flashcardStatusCombo);
+    result.verificationStatusId = selectedMetadata(verificationStatusCombo);
+    result.verificationLevelId = selectedMetadata(verificationLevelCombo);
+    result.skills.clear();
+    for (const auto &[skillId, combo] : skillCombos) {
+        if (const std::optional<int> levelId = selectedMetadata(combo)) {
+            result.skills.push_back({
+                .skillId = skillId,
+                .psychomotorLevelId = *levelId
+            });
+        }
+    }
     return true;
 }
 
@@ -581,6 +711,42 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *skillLayout = new QVBoxLayout(skillWidget);
     skillLayout->setContentsMargins(8, 6, 4, 4);
     skillLayout->setSpacing(4);
+
+    auto *pursuitHeaderLayout = new QHBoxLayout();
+    pursuitHeaderLayout->setContentsMargins(0, 0, 0, 0);
+    auto *pursuitTitle = new QLabel("Bestrebungen", skillWidget);
+    QFont pursuitTitleFont = pursuitTitle->font();
+    pursuitTitleFont.setBold(true);
+    pursuitTitle->setFont(pursuitTitleFont);
+    addPursuitButton = new QPushButton("+", skillWidget);
+    addPursuitButton->setFixedSize(24, 24);
+    addPursuitButton->setToolTip("Bestrebung hinzufügen");
+    pursuitHeaderLayout->addWidget(pursuitTitle);
+    pursuitHeaderLayout->addStretch();
+    pursuitHeaderLayout->addWidget(addPursuitButton);
+    skillLayout->addLayout(pursuitHeaderLayout);
+
+    noPursuitsLabel = new QLabel("Noch keine Bestrebungen angelegt.", skillWidget);
+    noPursuitsLabel->setWordWrap(true);
+    noPursuitsLabel->setStyleSheet("color: palette(mid);");
+    skillLayout->addWidget(noPursuitsLabel);
+
+    pursuitTreeView = new QTreeView(skillWidget);
+    pursuitTreeView->setHeaderHidden(true);
+    pursuitTreeView->setFrameShape(QFrame::NoFrame);
+    pursuitTreeView->setIndentation(14);
+    pursuitTreeView->setUniformRowHeights(true);
+    pursuitTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    pursuitTreeView->setMaximumHeight(240);
+    pursuitModel = new QStandardItemModel(pursuitTreeView);
+    pursuitTreeView->setModel(pursuitModel);
+    skillLayout->addWidget(pursuitTreeView);
+
+    auto *pursuitSeparator = new QFrame(skillWidget);
+    pursuitSeparator->setFrameShape(QFrame::HLine);
+    pursuitSeparator->setFrameShadow(QFrame::Sunken);
+    skillLayout->addWidget(pursuitSeparator);
+
     auto *skillHeaderLayout = new QHBoxLayout();
     skillHeaderLayout->setContentsMargins(0, 0, 0, 0);
     auto *skillTitle = new QLabel("Skillansicht", skillWidget);
@@ -781,6 +947,20 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                     renderSkills(skills);
                 }
             });
+    connect(addPursuitButton, &QPushButton::clicked, this,
+            &DomainView::createPursuit);
+    connect(pursuitTreeView, &QTreeView::clicked, this,
+            [this](const QModelIndex &index) { editPursuit(index); });
+    connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
+            [this](const int nodeId) { apiClient.getNodePursuits(nodeId); });
+    connect(&apiClient, &ApiClient::nodePursuitsReceived, this,
+            [this](const int nodeId, const std::vector<Pursuit> &pursuits) {
+                updatePursuitCount(nodeId, static_cast<int>(pursuits.size()));
+                if (nodeId == currentNodeId) {
+                    currentPursuits = pursuits;
+                    renderPursuits();
+                }
+            });
     connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
         if (currentDocumentNodeId == -1) {
             return;
@@ -832,8 +1012,13 @@ void DomainView::continueDocumentChange() {
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     skillModel->removeRows(0, skillModel->rowCount());
+    pursuitModel->removeRows(0, pursuitModel->rowCount());
+    currentSkills.clear();
+    currentPursuits.clear();
     noSkillsLabel->show();
     skillTreeView->hide();
+    noPursuitsLabel->show();
+    pursuitTreeView->hide();
     editorWidget->setVisible(nodeId != -1);
     skillWidget->setVisible(nodeId != -1);
     documentWidget->setVisible(hasDocument);
@@ -845,6 +1030,7 @@ void DomainView::continueDocumentChange() {
     if (nodeId != -1) {
         apiClient.getNodeFlashcards(nodeId);
         apiClient.getNodeSkills(nodeId);
+        apiClient.getNodePursuits(nodeId);
         if (hasDocument) {
             apiClient.getDocument(nodeId);
         }
@@ -1049,6 +1235,7 @@ void DomainView::editFlashcard(const int row) {
 }
 
 void DomainView::renderSkills(const std::vector<Skill> &skills) {
+    currentSkills = skills;
     skillModel->clear();
     skillModel->setColumnCount(1);
 
@@ -1076,6 +1263,7 @@ void DomainView::renderSkills(const std::vector<Skill> &skills) {
     noSkillsLabel->setVisible(skills.empty());
     skillTreeView->setVisible(!skills.empty());
     skillTreeView->expandAll();
+    renderPursuits();
 }
 
 void DomainView::showSkillContextMenu(const QPoint &position) {
@@ -1138,6 +1326,127 @@ void DomainView::editSkill(const QModelIndex &index) {
             psychomotorLevelId
         );
     }
+}
+
+void DomainView::renderPursuits() {
+    pursuitModel->clear();
+    pursuitModel->setColumnCount(1);
+
+    for (const Pursuit &pursuit : currentPursuits) {
+        auto *pursuitItem = new QStandardItem(pursuit.name);
+        pursuitItem->setData(pursuit.id, Qt::UserRole);
+        QFont font = pursuitItem->font();
+        font.setBold(true);
+        pursuitItem->setFont(font);
+
+        for (const PursuitRequirement &requirement : pursuit.requirements) {
+            QString text;
+            switch (requirement.requirementTypeId) {
+                case 1:
+                    text = "Kognition: " + metadataText(
+                        AppState::metadata.cognitive_levels,
+                        *requirement.cognitiveLevelId
+                    );
+                    break;
+                case 2: {
+                    QString skillName = "#" + QString::number(*requirement.skillId);
+                    for (const Skill &skill : currentSkills) {
+                        if (skill.id == *requirement.skillId) {
+                            skillName = skill.name;
+                            break;
+                        }
+                    }
+                    text = skillName + ": " + metadataText(
+                        AppState::metadata.psychomotor_levels,
+                        *requirement.psychomotorLevelId
+                    );
+                    break;
+                }
+                case 3:
+                    text = "Vollständigkeit: " + metadataText(
+                        AppState::metadata.document_completeness_levels,
+                        *requirement.completenessLevelId
+                    );
+                    break;
+                case 4:
+                    text = "Lernkarten: " + metadataText(
+                        AppState::metadata.document_flashcard_statuses,
+                        *requirement.flashcardStatusId
+                    );
+                    break;
+                case 5:
+                    text = "Verifizierung: " + metadataText(
+                        AppState::metadata.document_verification_statuses,
+                        *requirement.verificationStatusId
+                    );
+                    break;
+                case 6:
+                    text = "Verifizierungsniveau: " + metadataText(
+                        AppState::metadata.document_verification_levels,
+                        *requirement.verificationLevelId
+                    );
+                    break;
+                default:
+                    break;
+            }
+            if (!text.isEmpty()) {
+                pursuitItem->appendRow(new QStandardItem(text));
+            }
+        }
+        pursuitModel->appendRow(pursuitItem);
+    }
+
+    noPursuitsLabel->setVisible(currentPursuits.empty());
+    pursuitTreeView->setVisible(!currentPursuits.empty());
+    pursuitTreeView->expandAll();
+}
+
+void DomainView::createPursuit() {
+    if (currentNodeId == -1) {
+        return;
+    }
+
+    bool accepted;
+    const QString name = QInputDialog::getText(
+        this,
+        "Bestrebung hinzufügen",
+        "Name",
+        QLineEdit::Normal,
+        {},
+        &accepted
+    ).trimmed();
+    if (accepted && !name.isEmpty()) {
+        apiClient.createPursuit(currentNodeId, name);
+    }
+}
+
+void DomainView::editPursuit(const QModelIndex &index) {
+    if (!index.isValid() || !index.data(Qt::UserRole).isValid()) {
+        return;
+    }
+
+    const int pursuitId = index.data(Qt::UserRole).toInt();
+    for (const Pursuit &pursuit : currentPursuits) {
+        if (pursuit.id != pursuitId) {
+            continue;
+        }
+
+        UpdatePursuitRequirements requirements;
+        if (showPursuitDialog(this, pursuit, currentSkills, requirements)) {
+            apiClient.updatePursuitRequirements(
+                currentNodeId,
+                pursuit.id,
+                requirements
+            );
+        }
+        return;
+    }
+}
+
+void DomainView::updatePursuitCount(const int nodeId, const int count) {
+    QStandardItem *item = findDomainNodeItem(nodeId);
+    item->setData(count, PURSUIT_COUNT_ROLE);
+    refreshDomainNodeText(item);
 }
 
 void DomainView::updateSkillCount(const int nodeId, const int count) {

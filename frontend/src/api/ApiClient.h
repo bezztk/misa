@@ -6,6 +6,7 @@
 #include "../models/DomainNode.h"
 #include "../models/Document.h"
 #include "../models/Skill.h"
+#include "../models/Pursuit.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -23,6 +24,8 @@ signals:
     void nodeFlashcardsChanged(int nodeId);
     void nodeSkillsReceived(int nodeId, const std::vector<Skill>& skills);
     void nodeSkillsChanged(int nodeId);
+    void nodePursuitsReceived(int nodeId, const std::vector<Pursuit>& pursuits);
+    void nodePursuitsChanged(int nodeId);
     void domainTreeReceived(
         const std::vector<MetadataItem>& domains,
         const std::vector<DomainNode>& nodes
@@ -52,6 +55,10 @@ public:
                      const QString& name, std::optional<int> psychomotorLevelId);
     void updateSkill(int nodeId, int id, const QString& name,
                      std::optional<int> psychomotorLevelId);
+    void getNodePursuits(int nodeId);
+    void createPursuit(int nodeId, const QString& name);
+    void updatePursuitRequirements(int nodeId, int pursuitId,
+                                   const UpdatePursuitRequirements& requirements);
     void getDomainTree();
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);

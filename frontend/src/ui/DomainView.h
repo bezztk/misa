@@ -50,6 +50,10 @@ private:
     void createSkill(std::optional<int> parentSkillId = std::nullopt);
     void editSkill(const QModelIndex &index);
     void updateSkillCount(int nodeId, int count);
+    void renderPursuits();
+    void createPursuit();
+    void editPursuit(const QModelIndex &index);
+    void updatePursuitCount(int nodeId, int count);
 
     ApiClient apiClient;
     QTreeView *treeView;
@@ -71,10 +75,16 @@ private:
     QTableView *flashcardTable;
     QStandardItemModel *flashcardModel;
     QWidget *skillWidget;
+    QLabel *noPursuitsLabel;
+    QPushButton *addPursuitButton;
+    QTreeView *pursuitTreeView;
+    QStandardItemModel *pursuitModel;
     QLabel *noSkillsLabel;
     QPushButton *addSkillButton;
     QTreeView *skillTreeView;
     QStandardItemModel *skillModel;
+    std::vector<Skill> currentSkills;
+    std::vector<Pursuit> currentPursuits;
     QTimer *autosaveTimer;
     int currentNodeId = -1;
     int currentDocumentNodeId = -1;
