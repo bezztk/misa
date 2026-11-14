@@ -25,6 +25,8 @@ add_executable(frontend
         src/models/Task.h
         src/ui/LearningView.cpp
         src/ui/LearningView.h
+        src/ui/DomainView.cpp
+        src/ui/DomainView.h
         src/models/Flashcard.h
         src/models/Metadata.h
         src/models/AppState.h

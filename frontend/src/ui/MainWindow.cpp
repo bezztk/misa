@@ -1,5 +1,6 @@
 ﻿#include "MainWindow.h"
 #include "TaskView.h"
+#include "DomainView.h"
 
 #include <QVBoxLayout>
 #include <QWidget>
@@ -64,18 +65,29 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     learningButton->setStyleSheet(navButtonStyle);
     navLayout->addWidget(learningButton, 0, Qt::AlignCenter);
 
+    auto *domainButton = new QPushButton("V", navbar);
+    domainButton->setToolTip("Verwirklichung");
+    domainButton->setFixedSize(36,36);
+    domainButton->setCheckable(true);
+    domainButton->setAutoExclusive(true);
+    domainButton->setStyleSheet(navButtonStyle);
+    navLayout->addWidget(domainButton, 0, Qt::AlignCenter);
+
     navLayout->addStretch();
 
     auto *stack = new QStackedWidget(central);
 
     auto *taskView = new TaskView();
     auto *learningView = new LearningView();
+    auto *domainView = new DomainView();
 
     connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::renderTasks);
     connect(&apiClient, &ApiClient::metadataReceived, learningView, &LearningView::refreshMetadata);
+    connect(&apiClient, &ApiClient::metadataReceived, domainView, &DomainView::renderDomains);
 
     stack->addWidget(taskView);
     stack->addWidget(learningView);
+    stack->addWidget(domainView);
 
     stack->setCurrentIndex(0);
 
@@ -111,5 +123,9 @@ border-color: #20ffffff;
 
     connect(learningButton, &QPushButton::clicked, this, [stack, learningView] {
         stack->setCurrentWidget(learningView);
+    });
+
+    connect(domainButton, &QPushButton::clicked, this, [stack, domainView] {
+        stack->setCurrentWidget(domainView);
     });
 }
