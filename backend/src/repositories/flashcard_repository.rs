@@ -1,4 +1,6 @@
-use crate::models::flashcard::{FlashcardQueueContext, FlashcardReviewContext};
+use crate::models::flashcard::{
+    EditableFlashcard, FlashcardQueueContext, FlashcardRetentionClassId, FlashcardReviewContext,
+};
 use crate::services::flashcard_review_service;
 use chrono::Utc;
 use sqlx::PgPool;
@@ -27,19 +29,52 @@ pub async fn create_flashcard(
     domain_node_id: i32,
     front: &str,
     back: &str,
-    retention_class_id: i32,
-) -> Result<i32, sqlx::Error> {
-    sqlx::query_scalar(
+) -> Result<EditableFlashcard, sqlx::Error> {
+    sqlx::query_as::<_, EditableFlashcard>(
         "INSERT INTO flashcards
             (domain_node_id, front, back, retention_class_id)
          VALUES ($1, $2, $3, $4)
-         RETURNING id",
+         RETURNING id, front, back",
     )
     .bind(domain_node_id)
     .bind(front)
     .bind(back)
-    .bind(retention_class_id)
+    .bind(FlashcardRetentionClassId::General as i32)
     .fetch_one(pool)
+    .await
+}
+
+pub async fn get_flashcards(
+    pool: &PgPool,
+    domain_node_id: i32,
+) -> Result<Vec<EditableFlashcard>, sqlx::Error> {
+    sqlx::query_as::<_, EditableFlashcard>(
+        "SELECT id, front, back
+         FROM flashcards
+         WHERE domain_node_id = $1
+         ORDER BY id",
+    )
+    .bind(domain_node_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn update_flashcard(
+    pool: &PgPool,
+    id: i32,
+    front: &str,
+    back: &str,
+) -> Result<Option<EditableFlashcard>, sqlx::Error> {
+    sqlx::query_as::<_, EditableFlashcard>(
+        "UPDATE flashcards
+         SET front = $2, back = $3
+         WHERE id = $1
+         RETURNING id, front, back",
+    )
+    .bind(id)
+    .bind(front)
+    .bind(back)
+    .fetch_optional(pool)
     .await
 }
 

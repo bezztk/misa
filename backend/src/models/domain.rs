@@ -17,6 +17,7 @@ pub struct DomainNode {
     pub is_system_value: bool,
     pub last_reviewed_at: DateTime<Utc>,
     pub has_document: bool,
+    pub flashcard_count: i64,
 }
 
 #[derive(Debug, Deserialize)]

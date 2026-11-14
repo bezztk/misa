@@ -1,18 +1,14 @@
 use crate::api::error::{ApiError, ApiResult};
-use crate::models::flashcard::{CreateFlashcard, FlashcardQueueItem, ReviewFlashcardRequest};
+use crate::models::flashcard::{
+    CreateFlashcard, EditableFlashcard, FlashcardQueueItem, ReviewFlashcardRequest, UpdateFlashcard,
+};
 use crate::repositories::flashcard_repository;
 use crate::services::flashcard_review_service;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::Utc;
-use serde::Serialize;
 use sqlx::PgPool;
-
-#[derive(Serialize)]
-pub struct CreateFlashcardResponse {
-    pub id: i32,
-}
 
 pub async fn get_due_flashcards(
     State(pool): State<PgPool>,
@@ -48,21 +44,42 @@ pub async fn create_flashcard(
     State(pool): State<PgPool>,
     Path(node_id): Path<i32>,
     Json(payload): Json<CreateFlashcard>,
-) -> ApiResult<(StatusCode, Json<CreateFlashcardResponse>)> {
+) -> ApiResult<(StatusCode, Json<EditableFlashcard>)> {
     if payload.front.trim().is_empty() || payload.back.trim().is_empty() {
         return Err(ApiError::BadRequest);
     }
 
-    let id = flashcard_repository::create_flashcard(
-        &pool,
-        node_id,
-        &payload.front,
-        &payload.back,
-        payload.retention_class_id,
-    )
-    .await?;
+    let flashcard =
+        flashcard_repository::create_flashcard(&pool, node_id, &payload.front, &payload.back)
+            .await?;
 
-    Ok((StatusCode::CREATED, Json(CreateFlashcardResponse { id })))
+    Ok((StatusCode::CREATED, Json(flashcard)))
+}
+
+pub async fn get_flashcards(
+    State(pool): State<PgPool>,
+    Path(node_id): Path<i32>,
+) -> ApiResult<Json<Vec<EditableFlashcard>>> {
+    Ok(Json(
+        flashcard_repository::get_flashcards(&pool, node_id).await?,
+    ))
+}
+
+pub async fn update_flashcard(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<UpdateFlashcard>,
+) -> ApiResult<Json<EditableFlashcard>> {
+    if payload.front.trim().is_empty() || payload.back.trim().is_empty() {
+        return Err(ApiError::BadRequest);
+    }
+
+    let flashcard =
+        flashcard_repository::update_flashcard(&pool, id, &payload.front, &payload.back)
+            .await?
+            .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(flashcard))
 }
 
 pub async fn delete_flashcard(

@@ -31,7 +31,8 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/flashcards/{id}",
-            axum::routing::delete(flashcard_handler::delete_flashcard),
+            axum::routing::patch(flashcard_handler::update_flashcard)
+                .delete(flashcard_handler::delete_flashcard),
         )
         .route(
             "/flashcards/{id}/reviews",
@@ -39,7 +40,7 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/domain-nodes/{node_id}/flashcards",
-            axum::routing::post(flashcard_handler::create_flashcard),
+            get(flashcard_handler::get_flashcards).post(flashcard_handler::create_flashcard),
         )
         .route("/metadata", get(metadata_handler::get_metadata))
         .route(

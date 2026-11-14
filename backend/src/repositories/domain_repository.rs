@@ -9,10 +9,14 @@ pub async fn get_domains(pool: &PgPool) -> Result<Vec<Domain>, sqlx::Error> {
 
 pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Error> {
     sqlx::query_as::<_, DomainNode>(
-        "SELECT id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at,
-                EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.id) AS has_document
-         FROM domain_nodes
-         ORDER BY domain_id, id",
+        "SELECT dn.id, dn.domain_id, dn.parent_id, dn.cognitive_level_id, dn.name,
+                dn.is_system_value, dn.last_reviewed_at,
+                EXISTS (SELECT 1 FROM documents WHERE domain_node_id = dn.id) AS has_document,
+                COUNT(f.id) AS flashcard_count
+         FROM domain_nodes dn
+         LEFT JOIN flashcards f ON f.domain_node_id = dn.id
+         GROUP BY dn.id
+         ORDER BY dn.domain_id, dn.id",
     )
     .fetch_all(pool)
     .await
@@ -29,7 +33,7 @@ pub async fn create_domain_node(
          FROM domain_nodes
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
-                   last_reviewed_at, FALSE AS has_document",
+                   last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count",
     )
     .bind(parent_id)
     .bind(name)
@@ -48,7 +52,7 @@ pub async fn create_root_domain_node(
          FROM domains
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
-                   last_reviewed_at, FALSE AS has_document",
+                   last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count",
     )
     .bind(domain_id)
     .bind(name)
@@ -66,7 +70,8 @@ pub async fn update_domain_node(
          SET name = $2
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at,
-                   EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.id) AS has_document",
+                   EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.id) AS has_document,
+                   (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.id) AS flashcard_count",
     )
     .bind(id)
     .bind(name)

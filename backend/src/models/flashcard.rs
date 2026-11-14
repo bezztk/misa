@@ -68,7 +68,19 @@ pub struct FlashcardReview {
 pub struct CreateFlashcard {
     pub front: String,
     pub back: String,
-    pub retention_class_id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateFlashcard {
+    pub front: String,
+    pub back: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
+pub struct EditableFlashcard {
+    pub id: i32,
+    pub front: String,
+    pub back: String,
 }
 
 #[derive(Debug, Deserialize)]
