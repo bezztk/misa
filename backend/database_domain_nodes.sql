@@ -2723,10 +2723,9 @@ BEGIN
             ) THEN
                 INSERT INTO domain_nodes (
                     domain_id, parent_id, name, is_system_value,
-                    cognitive_level_id, psychomotor_level_id,
-                    flashcard_status_id, verification_status_id
+                    cognitive_level_id
                 )
-                VALUES (v_domain_id, NULL, v_parent->>'name', TRUE, 1, 1, 1, 1)
+                VALUES (v_domain_id, NULL, v_parent->>'name', TRUE, 1)
                 RETURNING id INTO v_parent_id;
             ELSE
                 SELECT n.id INTO STRICT v_parent_id
@@ -2745,10 +2744,9 @@ BEGIN
                 ) THEN
                    INSERT INTO domain_nodes (
                         domain_id, parent_id, name, is_system_value,
-                        cognitive_level_id, psychomotor_level_id,
-                        flashcard_status_id, verification_status_id
+                        cognitive_level_id
                    )
-                   VALUES (v_domain_id, v_parent_id, v_child->>'name', TRUE, 1, 1, 1, 1);
+                   VALUES (v_domain_id, v_parent_id, v_child->>'name', TRUE, 1);
                 END IF;
             END LOOP;
         END LOOP;

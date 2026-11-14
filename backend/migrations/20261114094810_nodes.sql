@@ -1,3 +1,4 @@
+-- Add migration script here
 BEGIN;
 
 DO $misa_import$
@@ -2721,12 +2722,8 @@ FOR v_parent IN SELECT value FROM jsonb_array_elements(v_domain->'nodes') LOOP
                   AND parent_id IS NULL
                   AND name = v_parent->>'name'
             ) THEN
-                INSERT INTO domain_nodes (
-    domain_id, parent_id, name, is_system_value,
-    cognitive_level_id, psychomotor_level_id,
-    flashcard_status_id, verification_status_id
-)
-                VALUES (v_domain_id, NULL, v_parent->>'name', TRUE, 1, 1, 1, 1)
+                INSERT INTO domain_nodes (domain_id, parent_id, name, is_system_value, cognitive_level_id)
+                VALUES (v_domain_id, NULL, v_parent->>'name', TRUE, 1)
                     RETURNING id INTO v_parent_id;
 ELSE
 SELECT n.id INTO STRICT v_parent_id
@@ -2743,12 +2740,8 @@ FOR v_child IN SELECT value FROM jsonb_array_elements(v_parent->'children') LOOP
                       AND parent_id = v_parent_id
                       AND name = v_child->>'name'
                 ) THEN
-               INSERT INTO domain_nodes (
-    domain_id, parent_id, name, is_system_value,
-    cognitive_level_id, psychomotor_level_id,
-    flashcard_status_id, verification_status_id
-)
-               VALUES (v_domain_id, v_parent_id, v_child->>'name', TRUE, 1, 1, 1, 1);
+               INSERT INTO domain_nodes (domain_id, parent_id, name, is_system_value, cognitive_level_id)
+               VALUES (v_domain_id, v_parent_id, v_child->>'name', TRUE, 1);
 END IF;
 END LOOP;
 END LOOP;
