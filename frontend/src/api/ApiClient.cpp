@@ -33,6 +33,20 @@ static std::vector<MetadataItem> parseMetadataItems(const QJsonArray &array) {
     return items;
 }
 
+static DomainNode parseDomainNode(const QJsonObject &object) {
+    DomainNode node{
+        .id = object["id"].toInt(),
+        .domainId = object["domain_id"].toInt(),
+        .name = object["name"].toString()
+    };
+
+    if (!object["parent_id"].isNull()) {
+        node.parentId = object["parent_id"].toInt();
+    }
+
+    return node;
+}
+
 QUrl ApiClient::buildUrl(const QString &path) {
     QUrl url;
 
@@ -109,21 +123,54 @@ void ApiClient::getDomainNodes() {
         const QJsonArray jsonArray = QJsonDocument::fromJson(reply->readAll()).array();
 
         for (const QJsonValue &value : jsonArray) {
-            const QJsonObject object = value.toObject();
-            DomainNode node{
-                .id = object["id"].toInt(),
-                .domainId = object["domain_id"].toInt(),
-                .name = object["name"].toString()
-            };
-
-            if (!object["parent_id"].isNull()) {
-                node.parentId = object["parent_id"].toInt();
-            }
-
-            nodes.push_back(node);
+            nodes.push_back(parseDomainNode(value.toObject()));
         }
 
         emit domainNodesReceived(nodes);
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createDomainNode(const int parentId, const QString &name) {
+    QNetworkRequest networkRequest(buildUrl(
+        "/domain-nodes/" + QString::number(parentId) + "/children"
+    ));
+    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["name"] = name;
+    QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, parentId] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+            emit domainNodeCreated(parentId, parseDomainNode(object));
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateDomainNode(const int id, const QString &name) {
+    QNetworkRequest networkRequest(buildUrl("/domain-nodes/" + QString::number(id)));
+    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["name"] = name;
+    QNetworkReply *reply = manager.sendCustomRequest(
+        networkRequest,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200) {
+            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+            emit domainNodeUpdated(parseDomainNode(object));
+        }
+
         reply->deleteLater();
     });
 }

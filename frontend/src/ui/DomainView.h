@@ -10,9 +10,11 @@
 class QEvent;
 class QFrame;
 class QHBoxLayout;
+class QPoint;
 class QResizeEvent;
 class QScrollArea;
 class QShowEvent;
+class QStandardItem;
 class QStandardItemModel;
 class QTreeView;
 class QVBoxLayout;
@@ -37,6 +39,8 @@ protected:
 
 private:
     void renderDomainNodes(int domainId, const std::vector<DomainNode> &nodes);
+    void showDomainNodeContextMenu(int domainId, const QPoint &position);
+    QStandardItem *findDomainNodeItem(int domainId, int nodeId);
     void updateTreeHeight(QTreeView *treeView);
     void updateCardLayout();
 

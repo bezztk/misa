@@ -3,7 +3,10 @@
 
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
+#include <QLineEdit>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QResizeEvent>
 #include <QScrollArea>
@@ -53,6 +56,18 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 for (const MetadataItem &domain : AppState::metadata.domains) {
                     renderDomainNodes(domain.id, nodes);
                 }
+            });
+    connect(&apiClient, &ApiClient::domainNodeCreated, this,
+            [this](const int parentId, const DomainNode &node) {
+                QStandardItem *parentItem = findDomainNodeItem(node.domainId, parentId);
+                auto *item = new QStandardItem(node.name);
+                item->setData(node.id, Qt::UserRole);
+                parentItem->appendRow(item);
+                updateTreeHeight(domainCards[node.domainId].treeView);
+            });
+    connect(&apiClient, &ApiClient::domainNodeUpdated, this,
+            [this](const DomainNode &node) {
+                findDomainNodeItem(node.domainId, node.id)->setText(node.name);
             });
 }
 
@@ -137,8 +152,14 @@ void DomainView::renderDomainNodes(
     card.model = new QStandardItemModel(card.treeView);
     card.treeView->setHeaderHidden(true);
     card.treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    card.treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     card.treeView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     card.treeView->setModel(card.model);
+
+    connect(card.treeView, &QTreeView::customContextMenuRequested, this,
+            [this, domainId](const QPoint &position) {
+                showDomainNodeContextMenu(domainId, position);
+            });
 
     std::function<void(std::optional<int>, QStandardItem *)> addNodes;
     addNodes = [&](const std::optional<int> parentId, QStandardItem *parentItem) {
@@ -167,6 +188,66 @@ void DomainView::renderDomainNodes(
     });
 
     updateTreeHeight(card.treeView);
+}
+
+void DomainView::showDomainNodeContextMenu(
+    const int domainId,
+    const QPoint &position
+) {
+    DomainCard &card = domainCards[domainId];
+    const QModelIndex index = card.treeView->indexAt(position);
+
+    if (!index.isValid()) {
+        return;
+    }
+
+    QMenu menu(card.treeView);
+    QAction *createAction = menu.addAction("Unterknoten hinzufügen");
+    QAction *editAction = menu.addAction("Bearbeiten");
+    QAction *selectedAction = menu.exec(card.treeView->viewport()->mapToGlobal(position));
+
+    if (selectedAction == createAction) {
+        bool accepted;
+        const QString name = QInputDialog::getText(
+            card.treeView,
+            "Unterknoten hinzufügen",
+            "Name",
+            QLineEdit::Normal,
+            {},
+            &accepted
+        ).trimmed();
+
+        if (accepted && !name.isEmpty()) {
+            apiClient.createDomainNode(index.data(Qt::UserRole).toInt(), name);
+        }
+    } else if (selectedAction == editAction) {
+        bool accepted;
+        const QString name = QInputDialog::getText(
+            card.treeView,
+            "Domain Node bearbeiten",
+            "Name",
+            QLineEdit::Normal,
+            index.data().toString(),
+            &accepted
+        ).trimmed();
+
+        if (accepted && !name.isEmpty()) {
+            apiClient.updateDomainNode(index.data(Qt::UserRole).toInt(), name);
+        }
+    }
+}
+
+QStandardItem *DomainView::findDomainNodeItem(const int domainId, const int nodeId) {
+    QStandardItemModel *model = domainCards[domainId].model;
+    const QModelIndexList matches = model->match(
+        model->index(0, 0),
+        Qt::UserRole,
+        nodeId,
+        1,
+        Qt::MatchExactly | Qt::MatchRecursive
+    );
+
+    return model->itemFromIndex(matches.first());
 }
 
 void DomainView::updateTreeHeight(QTreeView *treeView) {

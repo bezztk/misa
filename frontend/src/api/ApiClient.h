@@ -19,6 +19,8 @@ signals:
     void flashcardRated();
     void flashcardPreviewCalculated(const FlashcardReviewPreview& preview);
     void domainNodesReceived(const std::vector<DomainNode>& nodes);
+    void domainNodeCreated(int parentId, const DomainNode& node);
+    void domainNodeUpdated(const DomainNode& node);
 
 public:
     ApiClient();
@@ -32,6 +34,8 @@ public:
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
     void getFlashcardPreview(int id);
     void getDomainNodes();
+    void createDomainNode(int parentId, const QString& name);
+    void updateDomainNode(int id, const QString& name);
 
 private:
     static constexpr auto SCHEME = "http";
