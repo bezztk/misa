@@ -369,21 +369,32 @@ static bool showPursuitDialog(
     auto *skillContent = new QWidget(skillArea);
     auto *skillForm = new QFormLayout(skillContent);
     std::vector<std::pair<int, QComboBox *>> skillCombos;
-    for (const Skill &skill : skills) {
-        auto *combo = new QComboBox(skillContent);
-        fillMetadataCombo(combo, AppState::metadata.psychomotor_levels);
-        std::optional<int> selectedLevel;
-        for (const PursuitRequirement &requirement : pursuit.requirements) {
-            if (requirement.requirementTypeId == 2
-                && requirement.skillId == std::optional<int>(skill.id)) {
-                selectedLevel = requirement.psychomotorLevelId;
-                break;
+    std::function<void(std::optional<int>, int)> addSkillRows;
+    addSkillRows = [&](const std::optional<int> parentId, const int depth) {
+        for (const Skill &skill : skills) {
+            if (skill.parentSkillId != parentId) {
+                continue;
             }
+
+            auto *combo = new QComboBox(skillContent);
+            fillMetadataCombo(combo, AppState::metadata.psychomotor_levels);
+            std::optional<int> selectedLevel;
+            for (const PursuitRequirement &requirement : pursuit.requirements) {
+                if (requirement.requirementTypeId == 2
+                    && requirement.skillId == std::optional<int>(skill.id)) {
+                    selectedLevel = requirement.psychomotorLevelId;
+                    break;
+                }
+            }
+            selectMetadata(combo, selectedLevel);
+            auto *skillLabel = new QLabel(skill.name, skillContent);
+            skillLabel->setContentsMargins(depth * 16, 0, 0, 0);
+            skillForm->addRow(skillLabel, combo);
+            skillCombos.emplace_back(skill.id, combo);
+            addSkillRows(skill.id, depth + 1);
         }
-        selectMetadata(combo, selectedLevel);
-        skillForm->addRow(skill.name, combo);
-        skillCombos.emplace_back(skill.id, combo);
-    }
+    };
+    addSkillRows(std::nullopt, 0);
     if (skills.empty()) {
         skillForm->addRow(new QLabel("Noch keine Skills angelegt.", skillContent));
     }
@@ -709,64 +720,73 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
-    skillLayout->setContentsMargins(8, 6, 4, 4);
-    skillLayout->setSpacing(4);
+    skillLayout->setContentsMargins(8, 0, 4, 0);
+    skillLayout->setSpacing(0);
+
+    auto *sidebarSplitter = new QSplitter(Qt::Vertical, skillWidget);
+    sidebarSplitter->setHandleWidth(4);
+    sidebarSplitter->setStyleSheet(
+        "QSplitter::handle { background: palette(mid); }"
+    );
+    auto *pursuitPanel = new QWidget();
+    auto *pursuitLayout = new QVBoxLayout(pursuitPanel);
+    pursuitLayout->setContentsMargins(0, 6, 0, 4);
+    pursuitLayout->setSpacing(4);
 
     auto *pursuitHeaderLayout = new QHBoxLayout();
     pursuitHeaderLayout->setContentsMargins(0, 0, 0, 0);
-    auto *pursuitTitle = new QLabel("Bestrebungen", skillWidget);
+    auto *pursuitTitle = new QLabel("Bestrebungen", pursuitPanel);
     QFont pursuitTitleFont = pursuitTitle->font();
     pursuitTitleFont.setBold(true);
     pursuitTitle->setFont(pursuitTitleFont);
-    addPursuitButton = new QPushButton("+", skillWidget);
+    addPursuitButton = new QPushButton("+", pursuitPanel);
     addPursuitButton->setFixedSize(24, 24);
     addPursuitButton->setToolTip("Bestrebung hinzufügen");
     pursuitHeaderLayout->addWidget(pursuitTitle);
     pursuitHeaderLayout->addStretch();
     pursuitHeaderLayout->addWidget(addPursuitButton);
-    skillLayout->addLayout(pursuitHeaderLayout);
+    pursuitLayout->addLayout(pursuitHeaderLayout);
 
-    noPursuitsLabel = new QLabel("Noch keine Bestrebungen angelegt.", skillWidget);
+    noPursuitsLabel = new QLabel("Noch keine Bestrebungen angelegt.", pursuitPanel);
     noPursuitsLabel->setWordWrap(true);
     noPursuitsLabel->setStyleSheet("color: palette(mid);");
-    skillLayout->addWidget(noPursuitsLabel);
+    pursuitLayout->addWidget(noPursuitsLabel);
 
-    pursuitTreeView = new QTreeView(skillWidget);
+    pursuitTreeView = new QTreeView(pursuitPanel);
     pursuitTreeView->setHeaderHidden(true);
     pursuitTreeView->setFrameShape(QFrame::NoFrame);
     pursuitTreeView->setIndentation(14);
     pursuitTreeView->setUniformRowHeights(true);
     pursuitTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    pursuitTreeView->setMaximumHeight(240);
     pursuitModel = new QStandardItemModel(pursuitTreeView);
     pursuitTreeView->setModel(pursuitModel);
-    skillLayout->addWidget(pursuitTreeView);
+    pursuitLayout->addWidget(pursuitTreeView, 1);
 
-    auto *pursuitSeparator = new QFrame(skillWidget);
-    pursuitSeparator->setFrameShape(QFrame::HLine);
-    pursuitSeparator->setFrameShadow(QFrame::Sunken);
-    skillLayout->addWidget(pursuitSeparator);
+    auto *skillPanel = new QWidget();
+    auto *skillPanelLayout = new QVBoxLayout(skillPanel);
+    skillPanelLayout->setContentsMargins(0, 4, 0, 4);
+    skillPanelLayout->setSpacing(4);
 
     auto *skillHeaderLayout = new QHBoxLayout();
     skillHeaderLayout->setContentsMargins(0, 0, 0, 0);
-    auto *skillTitle = new QLabel("Skillansicht", skillWidget);
+    auto *skillTitle = new QLabel("Skillansicht", skillPanel);
     QFont skillTitleFont = skillTitle->font();
     skillTitleFont.setBold(true);
     skillTitle->setFont(skillTitleFont);
-    addSkillButton = new QPushButton("+", skillWidget);
+    addSkillButton = new QPushButton("+", skillPanel);
     addSkillButton->setFixedSize(24, 24);
     addSkillButton->setToolTip("Skill hinzufügen");
     skillHeaderLayout->addWidget(skillTitle);
     skillHeaderLayout->addStretch();
     skillHeaderLayout->addWidget(addSkillButton);
-    skillLayout->addLayout(skillHeaderLayout);
+    skillPanelLayout->addLayout(skillHeaderLayout);
 
-    noSkillsLabel = new QLabel("Noch keine Skills angelegt.", skillWidget);
+    noSkillsLabel = new QLabel("Noch keine Skills angelegt.", skillPanel);
     noSkillsLabel->setWordWrap(true);
     noSkillsLabel->setStyleSheet("color: palette(mid);");
-    skillLayout->addWidget(noSkillsLabel);
+    skillPanelLayout->addWidget(noSkillsLabel);
 
-    skillTreeView = new QTreeView(skillWidget);
+    skillTreeView = new QTreeView(skillPanel);
     skillTreeView->setHeaderHidden(true);
     skillTreeView->setFrameShape(QFrame::NoFrame);
     skillTreeView->setIndentation(14);
@@ -775,7 +795,13 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     skillTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     skillModel = new QStandardItemModel(skillTreeView);
     skillTreeView->setModel(skillModel);
-    skillLayout->addWidget(skillTreeView, 1);
+    skillPanelLayout->addWidget(skillTreeView, 1);
+    sidebarSplitter->addWidget(pursuitPanel);
+    sidebarSplitter->addWidget(skillPanel);
+    sidebarSplitter->setStretchFactor(0, 1);
+    sidebarSplitter->setStretchFactor(1, 1);
+    sidebarSplitter->setSizes({100, 100});
+    skillLayout->addWidget(sidebarSplitter);
     skillWidget->hide();
 
     splitter->addWidget(treeView);
@@ -1348,20 +1374,7 @@ void DomainView::renderPursuits() {
                         *requirement.cognitiveLevelId
                     );
                     break;
-                case 2: {
-                    QString skillName = "#" + QString::number(*requirement.skillId);
-                    for (const Skill &skill : currentSkills) {
-                        if (skill.id == *requirement.skillId) {
-                            skillName = skill.name;
-                            break;
-                        }
-                    }
-                    text = skillName + ": " + metadataText(
-                        AppState::metadata.psychomotor_levels,
-                        *requirement.psychomotorLevelId
-                    );
-                    break;
-                }
+                case 2: break;
                 case 3:
                     text = "Vollständigkeit: " + metadataText(
                         AppState::metadata.document_completeness_levels,
@@ -1391,6 +1404,52 @@ void DomainView::renderPursuits() {
             }
             if (!text.isEmpty()) {
                 pursuitItem->appendRow(new QStandardItem(text));
+            }
+        }
+
+        std::function<QStandardItem *(const Skill &)> skillRequirementItem;
+        skillRequirementItem = [&](const Skill &skill) -> QStandardItem * {
+            const PursuitRequirement *skillRequirement = nullptr;
+            for (const PursuitRequirement &requirement : pursuit.requirements) {
+                if (requirement.requirementTypeId == 2
+                    && requirement.skillId == std::optional<int>(skill.id)) {
+                    skillRequirement = &requirement;
+                    break;
+                }
+            }
+
+            std::vector<QStandardItem *> childItems;
+            for (const Skill &child : currentSkills) {
+                if (child.parentSkillId == std::optional<int>(skill.id)) {
+                    if (QStandardItem *childItem = skillRequirementItem(child)) {
+                        childItems.push_back(childItem);
+                    }
+                }
+            }
+
+            if (!skillRequirement && childItems.empty()) {
+                return nullptr;
+            }
+
+            QString text = skill.name;
+            if (skillRequirement) {
+                text += ": " + metadataText(
+                    AppState::metadata.psychomotor_levels,
+                    *skillRequirement->psychomotorLevelId
+                );
+            }
+            auto *item = new QStandardItem(text);
+            for (QStandardItem *childItem : childItems) {
+                item->appendRow(childItem);
+            }
+            return item;
+        };
+
+        for (const Skill &skill : currentSkills) {
+            if (!skill.parentSkillId.has_value()) {
+                if (QStandardItem *skillItem = skillRequirementItem(skill)) {
+                    pursuitItem->appendRow(skillItem);
+                }
             }
         }
         pursuitModel->appendRow(pursuitItem);
