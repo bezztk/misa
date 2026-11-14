@@ -17,27 +17,28 @@ enum class FlashcardRating : int16_t {
     Easy = 4
 };
 
-struct FlashcardReviewQueueItem {
-    int id;
-    QString front;
-    QString back;
-    int16_t state;
-    int16_t learning_step;
-    int retention_levels_id;
-    std::optional<float> stability;
-    std::optional<float> difficulty;
-};
-
-struct ReviewFlashcard {
-    int16_t rating;
-    int duration_ms;
-};
-
 struct FlashcardReviewPreview {
     float again;
     float hard;
     float good;
     float easy;
+};
+
+struct FlashcardReviewQueueItem {
+    int id;
+    QString front;
+    QString back;
+    int16_t review_state_id;
+    int16_t learning_step;
+    int retention_class_id;
+    std::optional<float> stability;
+    std::optional<float> difficulty;
+    FlashcardReviewPreview preview;
+};
+
+struct ReviewFlashcard {
+    int16_t rating;
+    int duration_ms;
 };
 
 #endif //FRONTEND_FLASHCARD_H

@@ -18,7 +18,6 @@ signals:
     void taskDeleted();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
-    void flashcardPreviewCalculated(const FlashcardReviewPreview& preview);
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
     void nodeFlashcardsChanged(int nodeId);
     void domainTreeReceived(
@@ -41,7 +40,6 @@ public:
 
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
-    void getFlashcardPreview(int id);
     void getNodeFlashcards(int nodeId);
     void createFlashcard(int nodeId, const QString& front, const QString& back);
     void updateFlashcard(int nodeId, int id, const QString& front, const QString& back);

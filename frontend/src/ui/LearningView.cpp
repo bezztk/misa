@@ -25,10 +25,11 @@ static QString formatInterval(const float days) {
 
 static QString flashcardStateName(const int state) {
     switch (state) {
-        case 1: return "Lernen";
-        case 2: return "Wiederholen";
-        case 3: return "Erneut lernen";
-        default: return "Neu";
+        case 1: return "Neu";
+        case 2: return "Lernen";
+        case 3: return "Wiederholen";
+        case 4: return "Erneut lernen";
+        default: return "Unbekannt";
     }
 }
 
@@ -160,14 +161,6 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
         rateFlashcard(FlashcardRating::Easy);
     });
 
-    connect(&apiClient, &ApiClient::flashcardPreviewCalculated, this,
-    [this](const FlashcardReviewPreview& preview) {
-        againButton->setText("Nochmal\n" + formatInterval(preview.again));
-        hardButton->setText("Schwer\n" + formatInterval(preview.hard));
-        goodButton->setText("Gut\n" + formatInterval(preview.good));
-        easyButton->setText("Einfach\n" + formatInterval(preview.easy));
-    });
-
     reloadFlashcards();
 };
 
@@ -226,7 +219,11 @@ void LearningView::showCurrentFlashcard() {
     "Verbleibende Karten in der Warteschlange: " + QString::number(flashcards.size() - currentIndex)
 );
 
-    apiClient.getFlashcardPreview(flashcards[currentIndex].id);
+    const FlashcardReviewPreview &preview = flashcards[currentIndex].preview;
+    againButton->setText("Nochmal\n" + formatInterval(preview.again));
+    hardButton->setText("Schwer\n" + formatInterval(preview.hard));
+    goodButton->setText("Gut\n" + formatInterval(preview.good));
+    easyButton->setText("Einfach\n" + formatInterval(preview.easy));
 }
 
 void LearningView::showAnswer() {
@@ -259,8 +256,8 @@ void LearningView::updateMetadataBanner() {
         "<tr><td style='color:#777777'>Lernschritt</td><td style='color:#D0D0D0; padding-left:12px'>%5</td></tr>"
         "</table>"
     ).arg(
-        flashcardStateName(flashcard.state).toHtmlEscaped(),
-        retentionLevelText(flashcard.retention_levels_id).toHtmlEscaped(),
+        flashcardStateName(flashcard.review_state_id).toHtmlEscaped(),
+        retentionLevelText(flashcard.retention_class_id).toHtmlEscaped(),
         metricText(flashcard.stability),
         metricText(flashcard.difficulty),
         QString::number(flashcard.learning_step)

@@ -403,9 +403,9 @@ void ApiClient::getDueFlashcards() {
             flashcard.id = object["id"].toInt();
             flashcard.front = object["front"].toString();
             flashcard.back = object["back"].toString();
-            flashcard.state = static_cast<int16_t>(object["state"].toInt());
+            flashcard.review_state_id = static_cast<int16_t>(object["review_state_id"].toInt());
             flashcard.learning_step = static_cast<int16_t>(object["learning_step"].toInt());
-            flashcard.retention_levels_id = object["retention_levels_id"].toInt();
+            flashcard.retention_class_id = object["retention_class_id"].toInt();
 
             if (!object["stability"].isNull()) {
                 flashcard.stability = static_cast<float>(object["stability"].toDouble());
@@ -414,6 +414,12 @@ void ApiClient::getDueFlashcards() {
             if (!object["difficulty"].isNull()) {
                 flashcard.difficulty = static_cast<float>(object["difficulty"].toDouble());
             }
+
+            const QJsonObject preview = object["preview"].toObject();
+            flashcard.preview.again = static_cast<float>(preview["again"].toDouble());
+            flashcard.preview.hard = static_cast<float>(preview["hard"].toDouble());
+            flashcard.preview.good = static_cast<float>(preview["good"].toDouble());
+            flashcard.preview.easy = static_cast<float>(preview["easy"].toDouble());
 
             flashcards.push_back(flashcard);
         }
@@ -441,27 +447,6 @@ void ApiClient::rateFlashcard(const int id, const ReviewFlashcard reviewFlashcar
         } else {
             qWarning() << "Flashcard review failed: " << reply->errorString();
         }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getFlashcardPreview(const int id) {
-    const QNetworkRequest networkRequest(buildUrl("/flashcards/" + QString::number(id) + "/preview"));
-
-    QNetworkReply *reply = manager.get(networkRequest);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        FlashcardReviewPreview preview{};
-        const QByteArray data = reply->readAll();
-        const QJsonObject jsonObject = QJsonDocument::fromJson(data).object();
-
-        preview.again = static_cast<float>(jsonObject["again"].toDouble());
-        preview.hard = static_cast<float>(jsonObject["hard"].toDouble());
-        preview.good = static_cast<float>(jsonObject["good"].toDouble());
-        preview.easy = static_cast<float>(jsonObject["easy"].toDouble());
-
-        emit flashcardPreviewCalculated(preview);
 
         reply->deleteLater();
     });
