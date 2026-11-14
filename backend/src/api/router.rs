@@ -4,10 +4,14 @@ use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
-        .route("/domain-nodes", get(domain_handler::get_domain_nodes))
+        .route("/domain-tree", get(domain_handler::get_domain_tree))
         .route(
             "/domain-nodes/{parent_id}/children",
             axum::routing::post(domain_handler::create_domain_node),
+        )
+        .route(
+            "/domains/{domain_id}/nodes",
+            axum::routing::post(domain_handler::create_root_domain_node),
         )
         .route(
             "/domain-nodes/{id}",

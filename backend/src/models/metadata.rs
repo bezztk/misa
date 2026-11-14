@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::models::domain::Domain;
 use crate::models::flashcard::{FlashcardRetentionClass, FlashcardReviewState};
 use crate::models::pursuit::PursuitRequirementType;
 use crate::models::routine::SystemTaskRoutineExecutionState;
@@ -37,7 +36,6 @@ pub struct Metadata {
     pub document_flashcard_statuses: Vec<DocumentFlashcardStatus>,
     pub document_verification_statuses: Vec<DocumentVerificationStatus>,
     pub document_verification_levels: Vec<DocumentVerificationLevel>,
-    pub domains: Vec<Domain>,
     pub flashcard_retention_classes: Vec<FlashcardRetentionClass>,
     pub flashcard_review_states: Vec<FlashcardReviewState>,
     pub pursuit_requirement_types: Vec<PursuitRequirementType>,

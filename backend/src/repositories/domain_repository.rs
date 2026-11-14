@@ -1,5 +1,11 @@
-use crate::models::domain::DomainNode;
+use crate::models::domain::{Domain, DomainNode};
 use sqlx::PgPool;
+
+pub async fn get_domains(pool: &PgPool) -> Result<Vec<Domain>, sqlx::Error> {
+    sqlx::query_as::<_, Domain>("SELECT id, name FROM domains ORDER BY id")
+        .fetch_all(pool)
+        .await
+}
 
 pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Error> {
     sqlx::query_as::<_, DomainNode>(
@@ -24,6 +30,24 @@ pub async fn create_domain_node(
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at",
     )
     .bind(parent_id)
+    .bind(name)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn create_root_domain_node(
+    pool: &PgPool,
+    domain_id: i32,
+    name: &str,
+) -> Result<Option<DomainNode>, sqlx::Error> {
+    sqlx::query_as::<_, DomainNode>(
+        "INSERT INTO domain_nodes (domain_id, parent_id, name, is_system_value)
+         SELECT id, NULL, $2, FALSE
+         FROM domains
+         WHERE id = $1
+         RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at",
+    )
+    .bind(domain_id)
     .bind(name)
     .fetch_optional(pool)
     .await

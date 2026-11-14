@@ -1,4 +1,3 @@
-use crate::models::domain::Domain;
 use crate::models::flashcard::{FlashcardRetentionClass, FlashcardReviewState};
 use crate::models::metadata::{
     CognitiveLevel, DocumentCompletenessLevel, DocumentFlashcardStatus, DocumentVerificationLevel,
@@ -52,9 +51,6 @@ pub async fn get_metadata(pool: &PgPool) -> Result<Metadata, sqlx::Error> {
         )
         .fetch_all(pool)
         .await?,
-        domains: sqlx::query_as::<_, Domain>("SELECT id, name FROM domains ORDER BY id")
-            .fetch_all(pool)
-            .await?,
         flashcard_retention_classes: sqlx::query_as::<_, FlashcardRetentionClass>(
             "SELECT id, name, display_name, desired_retention::REAL AS desired_retention
              FROM flashcard_retention_classes

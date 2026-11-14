@@ -23,6 +23,12 @@ pub struct DomainNodeNameRequest {
     pub name: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct DomainTree {
+    pub domains: Vec<Domain>,
+    pub nodes: Vec<DomainNode>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct CognitiveEvaluation {
     pub id: i32,
