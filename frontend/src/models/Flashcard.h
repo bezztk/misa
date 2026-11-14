@@ -4,6 +4,12 @@
 #include <QDateTime>
 #include <optional>
 
+struct Flashcard {
+    int id;
+    QString front;
+    QString back;
+};
+
 enum class FlashcardRating : int16_t {
     Again = 1,
     Hard = 2,

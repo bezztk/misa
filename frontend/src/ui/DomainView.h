@@ -14,6 +14,8 @@ class QTimer;
 class QStandardItem;
 class QStandardItemModel;
 class QPlainTextEdit;
+class QSplitter;
+class QTableView;
 class QTreeView;
 
 class DomainView : public QWidget {
@@ -29,21 +31,30 @@ private:
     void showDomainNodeContextMenu(const QPoint &position);
     QStandardItem *findDomainItem(int domainId);
     QStandardItem *findDomainNodeItem(int nodeId);
-    void requestDocumentChange(int nodeId);
+    void requestDocumentChange(int nodeId, bool hasDocument = false);
     void continueDocumentChange();
     void startSave();
     void finishPendingActions();
+    void createFlashcard();
+    void editFlashcard(int row);
+    void updateFlashcardCount(int nodeId, int count);
 
     ApiClient apiClient;
     QTreeView *treeView;
     QStandardItemModel *model;
     QWidget *editorWidget;
+    QSplitter *contentSplitter;
+    QWidget *documentWidget;
     QLabel *documentTitle;
     QWidget *saveStatus;
     QPlainTextEdit *documentEditor;
+    QTableView *flashcardTable;
+    QStandardItemModel *flashcardModel;
     QTimer *autosaveTimer;
+    int currentNodeId = -1;
     int currentDocumentNodeId = -1;
     int pendingDocumentNodeId = -1;
+    bool pendingNodeHasDocument = false;
     bool documentChangePending = false;
     bool documentLoadPending = false;
     bool saveInProgress = false;

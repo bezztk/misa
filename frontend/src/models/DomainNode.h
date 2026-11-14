@@ -11,6 +11,7 @@ struct DomainNode {
     std::optional<int> parentId;
     QString name;
     bool hasDocument;
+    int flashcardCount;
 };
 
 #endif // FRONTEND_DOMAINNODE_H

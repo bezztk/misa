@@ -38,7 +38,8 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .id = object["id"].toInt(),
         .domainId = object["domain_id"].toInt(),
         .name = object["name"].toString(),
-        .hasDocument = object["has_document"].toBool()
+        .hasDocument = object["has_document"].toBool(),
+        .flashcardCount = object["flashcard_count"].toInt()
     };
 
     if (!object["parent_id"].isNull()) {
@@ -46,6 +47,84 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     }
 
     return node;
+}
+
+void ApiClient::getNodeFlashcards(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/flashcards"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            std::vector<Flashcard> flashcards;
+            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
+                const QJsonObject object = value.toObject();
+                flashcards.push_back({
+                    .id = object["id"].toInt(),
+                    .front = object["front"].toString(),
+                    .back = object["back"].toString()
+                });
+            }
+            emit nodeFlashcardsReceived(nodeId, flashcards);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createFlashcard(
+    const int nodeId,
+    const QString &front,
+    const QString &back
+) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/flashcards"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json{{"front", front}, {"back", back}};
+    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodeFlashcardsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateFlashcard(
+    const int nodeId,
+    const int id,
+    const QString &front,
+    const QString &back
+) {
+    QNetworkRequest request(buildUrl("/flashcards/" + QString::number(id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json{{"front", front}, {"back", back}};
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodeFlashcardsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::deleteFlashcard(const int nodeId, const int id) {
+    const QNetworkRequest request(buildUrl("/flashcards/" + QString::number(id)));
+    QNetworkReply *reply = manager.deleteResource(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodeFlashcardsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
 }
 
 static Document parseDocument(const QJsonObject &object) {

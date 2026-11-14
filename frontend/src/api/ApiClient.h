@@ -19,6 +19,8 @@ signals:
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
     void flashcardPreviewCalculated(const FlashcardReviewPreview& preview);
+    void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
+    void nodeFlashcardsChanged(int nodeId);
     void domainTreeReceived(
         const std::vector<MetadataItem>& domains,
         const std::vector<DomainNode>& nodes
@@ -40,6 +42,10 @@ public:
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
     void getFlashcardPreview(int id);
+    void getNodeFlashcards(int nodeId);
+    void createFlashcard(int nodeId, const QString& front, const QString& back);
+    void updateFlashcard(int nodeId, int id, const QString& front, const QString& back);
+    void deleteFlashcard(int nodeId, int id);
     void getDomainTree();
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);

@@ -1,6 +1,10 @@
 #include "DomainView.h"
 
 #include <QFrame>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -12,6 +16,7 @@
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStyle>
+#include <QTableView>
 #include <QTextBlock>
 #include <QTimer>
 #include <QTreeView>
@@ -21,6 +26,42 @@
 
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
+static constexpr int FLASHCARD_COUNT_ROLE = Qt::UserRole + 3;
+
+static bool showFlashcardDialog(
+    QWidget *parent,
+    const QString &title,
+    QString &front,
+    QString &back
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.resize(480, 280);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *frontEdit = new QPlainTextEdit(front, &dialog);
+    auto *backEdit = new QPlainTextEdit(back, &dialog);
+    form->addRow("Front", frontEdit);
+    form->addRow("Back", backEdit);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return false;
+    }
+
+    front = frontEdit->toPlainText().trimmed();
+    back = backEdit->toPlainText().trimmed();
+    return !front.isEmpty() && !back.isEmpty();
+}
 
 class LineNumberArea;
 
@@ -216,25 +257,73 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->setSpacing(0);
 
-    auto *header = new QWidget(editorWidget);
+    contentSplitter = new QSplitter(Qt::Vertical, editorWidget);
+    contentSplitter->setHandleWidth(1);
+    contentSplitter->setStyleSheet("QSplitter::handle { background: palette(mid); }");
+    editorLayout->addWidget(contentSplitter);
+
+    documentWidget = new QWidget(contentSplitter);
+    auto *documentLayout = new QVBoxLayout(documentWidget);
+    documentLayout->setContentsMargins(0, 0, 0, 0);
+    documentLayout->setSpacing(0);
+
+    auto *header = new QWidget(documentWidget);
     auto *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(10, 6, 10, 6);
-    documentTitle = new QLabel(editorWidget);
+    documentTitle = new QLabel(documentWidget);
     QFont titleFont = documentTitle->font();
     titleFont.setBold(true);
     titleFont.setPointSize(titleFont.pointSize() + 4);
     documentTitle->setFont(titleFont);
-    documentEditor = new DocumentEditor(editorWidget);
+    documentEditor = new DocumentEditor(documentWidget);
     documentEditor->setObjectName("documentEditor");
-    saveStatus = new SaveStatus(editorWidget);
+    saveStatus = new SaveStatus(documentWidget);
     autosaveTimer = new QTimer(this);
     autosaveTimer->setInterval(1000);
     autosaveTimer->setSingleShot(true);
     headerLayout->addWidget(documentTitle);
     headerLayout->addStretch();
     headerLayout->addWidget(saveStatus);
-    editorLayout->addWidget(header);
-    editorLayout->addWidget(documentEditor, 1);
+    documentLayout->addWidget(header);
+    documentLayout->addWidget(documentEditor, 1);
+
+    auto *flashcardWidget = new QWidget(contentSplitter);
+    flashcardWidget->setMinimumHeight(36);
+    auto *flashcardLayout = new QVBoxLayout(flashcardWidget);
+    flashcardLayout->setContentsMargins(0, 0, 0, 0);
+    flashcardLayout->setSpacing(0);
+    auto *flashcardHeader = new QWidget(flashcardWidget);
+    flashcardHeader->setMinimumHeight(36);
+    auto *flashcardHeaderLayout = new QHBoxLayout(flashcardHeader);
+    flashcardHeaderLayout->setContentsMargins(10, 4, 10, 4);
+    auto *flashcardTitle = new QLabel("Lernkarten", flashcardHeader);
+    auto *addFlashcardButton = new QPushButton("+", flashcardHeader);
+    addFlashcardButton->setFixedSize(26, 26);
+    addFlashcardButton->setToolTip("Lernkarte hinzufügen");
+    flashcardHeaderLayout->addWidget(flashcardTitle);
+    flashcardHeaderLayout->addStretch();
+    flashcardHeaderLayout->addWidget(addFlashcardButton);
+    flashcardLayout->addWidget(flashcardHeader);
+
+    flashcardTable = new QTableView(flashcardWidget);
+    flashcardTable->setFrameShape(QFrame::NoFrame);
+    flashcardTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    flashcardTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    flashcardTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    flashcardTable->setMinimumHeight(0);
+    flashcardTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
+    flashcardTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    flashcardModel = new QStandardItemModel(0, 2, flashcardTable);
+    flashcardModel->setHorizontalHeaderLabels({"Front", "Back"});
+    flashcardTable->setModel(flashcardModel);
+    flashcardTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    flashcardLayout->addWidget(flashcardTable, 1);
+
+    contentSplitter->addWidget(documentWidget);
+    contentSplitter->addWidget(flashcardWidget);
+    contentSplitter->setStretchFactor(0, 1);
+    contentSplitter->setStretchFactor(1, 0);
+    contentSplitter->setSizes({400, 36});
     editorWidget->hide();
 
     splitter->addWidget(treeView);
@@ -251,10 +340,17 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 auto *item = new QStandardItem(node.name);
                 item->setData(node.id, Qt::UserRole);
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
+                item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
+                auto *countItem = new QStandardItem(
+                    QIcon(":/assets/icons/flashcards-white.png"),
+                    QString::number(node.flashcardCount)
+                );
+                countItem->setData(node.id, Qt::UserRole);
+                countItem->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
                 QStandardItem *parentItem = node.parentId.has_value()
                     ? findDomainNodeItem(*node.parentId)
                     : findDomainItem(node.domainId);
-                parentItem->appendRow(item);
+                parentItem->appendRow({item, countItem});
             });
     connect(&apiClient, &ApiClient::domainNodeUpdated, this,
             [this](const DomainNode &node) {
@@ -287,7 +383,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 QStandardItem *item = findDomainNodeItem(document.domainNodeId);
                 item->setData(true, HAS_DOCUMENT_ROLE);
                 item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
-                requestDocumentChange(document.domainNodeId);
+                requestDocumentChange(document.domainNodeId, true);
             });
     connect(&apiClient, &ApiClient::documentUpdated, this,
             [this](const bool successful) {
@@ -308,14 +404,53 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 showDomainNodeContextMenu(position);
             });
     connect(treeView, &QTreeView::clicked, this, [this](const QModelIndex &index) {
-        if (!index.data(Qt::UserRole).isValid()
-            || !index.data(HAS_DOCUMENT_ROLE).toBool()) {
+        const QModelIndex nodeIndex = index.sibling(index.row(), 0);
+        if (!nodeIndex.data(Qt::UserRole).isValid()) {
             requestDocumentChange(-1);
             return;
         }
 
-        requestDocumentChange(index.data(Qt::UserRole).toInt());
+        requestDocumentChange(
+            nodeIndex.data(Qt::UserRole).toInt(),
+            nodeIndex.data(HAS_DOCUMENT_ROLE).toBool()
+        );
     });
+    connect(addFlashcardButton, &QPushButton::clicked, this, &DomainView::createFlashcard);
+    connect(flashcardTable, &QTableView::doubleClicked, this,
+            [this](const QModelIndex &index) { editFlashcard(index.row()); });
+    connect(flashcardTable, &QTableView::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                const QModelIndex index = flashcardTable->indexAt(position);
+                if (!index.isValid()) {
+                    return;
+                }
+
+                QMenu menu(flashcardTable);
+                QAction *deleteAction = menu.addAction("Löschen");
+                if (menu.exec(flashcardTable->viewport()->mapToGlobal(position)) == deleteAction) {
+                    apiClient.deleteFlashcard(
+                        currentNodeId,
+                        flashcardModel->item(index.row(), 0)->data(Qt::UserRole).toInt()
+                    );
+                }
+            });
+    connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
+            [this](const int nodeId) { apiClient.getNodeFlashcards(nodeId); });
+    connect(&apiClient, &ApiClient::nodeFlashcardsReceived, this,
+            [this](const int nodeId, const std::vector<Flashcard> &flashcards) {
+                updateFlashcardCount(nodeId, static_cast<int>(flashcards.size()));
+                if (nodeId != currentNodeId) {
+                    return;
+                }
+
+                flashcardModel->removeRows(0, flashcardModel->rowCount());
+                for (const Flashcard &flashcard : flashcards) {
+                    auto *front = new QStandardItem(flashcard.front);
+                    auto *back = new QStandardItem(flashcard.back);
+                    front->setData(flashcard.id, Qt::UserRole);
+                    flashcardModel->appendRow({front, back});
+                }
+            });
     connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
         if (currentDocumentNodeId == -1) {
             return;
@@ -340,12 +475,15 @@ void DomainView::saveBeforeClose(std::function<void()> continuation) {
     finishPendingActions();
 }
 
-void DomainView::requestDocumentChange(const int nodeId) {
-    if (nodeId == currentDocumentNodeId && !documentChangePending) {
+void DomainView::requestDocumentChange(const int nodeId, const bool hasDocument) {
+    const bool currentHasDocument = currentDocumentNodeId != -1 || documentLoadPending;
+    if (nodeId == currentNodeId && hasDocument == currentHasDocument
+        && !documentChangePending) {
         return;
     }
 
     pendingDocumentNodeId = nodeId;
+    pendingNodeHasDocument = hasDocument;
     documentChangePending = true;
     autosaveTimer->stop();
     finishPendingActions();
@@ -353,13 +491,21 @@ void DomainView::requestDocumentChange(const int nodeId) {
 
 void DomainView::continueDocumentChange() {
     const int nodeId = pendingDocumentNodeId;
+    const bool hasDocument = pendingNodeHasDocument;
     documentChangePending = false;
+    currentNodeId = nodeId;
     currentDocumentNodeId = -1;
-    editorWidget->hide();
-    documentLoadPending = nodeId != -1;
+    documentLoadPending = nodeId != -1 && hasDocument;
+    flashcardModel->removeRows(0, flashcardModel->rowCount());
+    editorWidget->setVisible(nodeId != -1);
+    documentWidget->setVisible(hasDocument);
 
     if (nodeId != -1) {
-        apiClient.getDocument(nodeId);
+        apiClient.getNodeFlashcards(nodeId);
+        if (hasDocument) {
+            contentSplitter->setSizes({400, 36});
+            apiClient.getDocument(nodeId);
+        }
     }
 }
 
@@ -401,6 +547,7 @@ void DomainView::renderDomainTree(
     const std::vector<DomainNode> &nodes
 ) {
     model->clear();
+    model->setColumnCount(2);
 
     for (const MetadataItem &domain : domains) {
         auto *domainItem = new QStandardItem(domain.name);
@@ -420,10 +567,17 @@ void DomainView::renderDomainTree(
                 auto *item = new QStandardItem(node.name);
                 item->setData(node.id, Qt::UserRole);
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
+                item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
                 if (node.hasDocument) {
                     item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 }
-                parentItem->appendRow(item);
+                auto *countItem = new QStandardItem(
+                    QIcon(":/assets/icons/flashcards-white.png"),
+                    QString::number(node.flashcardCount)
+                );
+                countItem->setData(node.id, Qt::UserRole);
+                countItem->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
+                parentItem->appendRow({item, countItem});
                 addNodes(node.id, item);
             }
         };
@@ -431,15 +585,20 @@ void DomainView::renderDomainTree(
         addNodes(std::nullopt, domainItem);
     }
 
+    treeView->header()->setStretchLastSection(false);
+    treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     treeView->collapseAll();
 }
 
 void DomainView::showDomainNodeContextMenu(const QPoint &position) {
-    const QModelIndex index = treeView->indexAt(position);
+    QModelIndex index = treeView->indexAt(position);
 
     if (!index.isValid()) {
         return;
     }
+
+    index = index.sibling(index.row(), 0);
 
     if (index.data(DOMAIN_ID_ROLE).isValid()) {
         QMenu menu(treeView);
@@ -504,6 +663,41 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
         apiClient.createDocument(index.data(Qt::UserRole).toInt());
     }
+}
+
+void DomainView::createFlashcard() {
+    if (currentNodeId == -1) {
+        return;
+    }
+
+    QString front;
+    QString back;
+    if (showFlashcardDialog(this, "Lernkarte erstellen", front, back)) {
+        apiClient.createFlashcard(currentNodeId, front, back);
+    }
+}
+
+void DomainView::editFlashcard(const int row) {
+    QStandardItem *frontItem = flashcardModel->item(row, 0);
+    QStandardItem *backItem = flashcardModel->item(row, 1);
+    QString front = frontItem->text();
+    QString back = backItem->text();
+
+    if (showFlashcardDialog(this, "Lernkarte bearbeiten", front, back)) {
+        apiClient.updateFlashcard(
+            currentNodeId,
+            frontItem->data(Qt::UserRole).toInt(),
+            front,
+            back
+        );
+    }
+}
+
+void DomainView::updateFlashcardCount(const int nodeId, const int count) {
+    QStandardItem *item = findDomainNodeItem(nodeId);
+    item->setData(count, FLASHCARD_COUNT_ROLE);
+    QStandardItem *countItem = model->itemFromIndex(item->index().siblingAtColumn(1));
+    countItem->setText(QString::number(count));
 }
 
 QStandardItem *DomainView::findDomainItem(const int domainId) {
