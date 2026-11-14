@@ -4,10 +4,7 @@ use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
-        .route(
-            "/domains/{domain_id}/nodes",
-            get(domain_handler::get_domain_nodes),
-        )
+        .route("/domain-nodes", get(domain_handler::get_domain_nodes))
         .route(
             "/flashcards/due",
             get(flashcard_handler::get_due_flashcards),
