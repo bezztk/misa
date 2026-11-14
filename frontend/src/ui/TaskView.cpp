@@ -1,4 +1,5 @@
 #include "TaskView.h"
+#include "../models/AppState.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -32,7 +33,7 @@ protected:
 };
 
 static QString taskGroupName(const int id) {
-    for (const TaskGroupMetadata &group : AppState::metadata.task_groups) {
+    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
         if (group.id == id) {
             return group.name;
         }
@@ -42,7 +43,7 @@ static QString taskGroupName(const int id) {
 }
 
 static QString taskStateName(const int id) {
-    for (const MetadataItem &state : AppState::metadata.task_states) {
+    for (const MetadataItem &state : AppState::metadata.systemtask_states) {
         if (state.id == id) {
             return state.display_name.value_or(state.name);
         }
@@ -181,21 +182,21 @@ void TaskView::openEditDialog(const Task &task) {
     layout->addRow("Name", nameEdit);
 
     auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : AppState::metadata.task_states) {
+    for (const MetadataItem &state : AppState::metadata.systemtask_states) {
         stateEdit->addItem(state.display_name.value_or(state.name), state.id);
     }
     stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
     layout->addRow("Status", stateEdit);
 
     auto *groupEdit = new QComboBox(&dialog);
-    for (const TaskGroupMetadata &group : AppState::metadata.task_groups) {
+    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
         groupEdit->addItem(group.name, group.id);
     }
     groupEdit->setCurrentIndex(groupEdit->findData(task.group_id));
     layout->addRow("Gruppe", groupEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : AppState::metadata.task_priorities) {
+    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
     }
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));

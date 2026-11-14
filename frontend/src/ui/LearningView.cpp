@@ -1,5 +1,7 @@
 ﻿#include "LearningView.h"
 
+#include "../models/AppState.h"
+
 #include <QHideEvent>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -31,7 +33,7 @@ static QString flashcardStateName(const int state) {
 }
 
 static QString retentionLevelText(const int id) {
-    for (const FlashcardRetentionLevel &level : AppState::metadata.flashcard_retention_levels) {
+    for (const FlashcardRetentionClass &level : AppState::metadata.flashcard_retention_classes) {
         if (level.id == id) {
             return QString("%1 (%2 %)")
                 .arg(level.display_name.value_or(level.name))

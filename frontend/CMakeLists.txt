@@ -27,6 +27,7 @@ add_executable(frontend
         src/ui/LearningView.h
         src/models/Flashcard.h
         src/models/Metadata.h
+        src/models/AppState.h
 )
 target_link_libraries(frontend
         Qt6::Core

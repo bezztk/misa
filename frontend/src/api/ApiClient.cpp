@@ -1,4 +1,5 @@
 ﻿#include "ApiClient.h"
+#include "../models/AppState.h"
 #include "../models/Task.h"
 #include <QNetworkReply>
 #include <QJsonParseError>
@@ -51,35 +52,45 @@ void ApiClient::getMetadata() {
         const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
         Metadata metadata;
 
-        for (const QJsonValue &value : object["task_groups"].toArray()) {
-            const QJsonObject group = value.toObject();
-            metadata.task_groups.push_back({
-                .id = group["id"].toInt(),
-                .name = group["name"].toString()
-            });
-        }
-
-        metadata.task_states = parseMetadataItems(object["task_states"].toArray());
-        metadata.task_priorities = parseMetadataItems(object["task_priorities"].toArray());
-        metadata.topic_understanding_levels = parseMetadataItems(object["topic_understanding_levels"].toArray());
+        metadata.personal_relevance_levels = parseMetadataItems(object["personal_relevance_levels"].toArray());
+        metadata.lasting_impacts = parseMetadataItems(object["lasting_impacts"].toArray());
+        metadata.cognitive_levels = parseMetadataItems(object["cognitive_levels"].toArray());
+        metadata.psychomotor_levels = parseMetadataItems(object["psychomotor_levels"].toArray());
         metadata.document_completeness_levels = parseMetadataItems(object["document_completeness_levels"].toArray());
         metadata.document_flashcard_statuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());
         metadata.document_verification_statuses = parseMetadataItems(object["document_verification_statuses"].toArray());
         metadata.document_verification_levels = parseMetadataItems(object["document_verification_levels"].toArray());
+        metadata.domains = parseMetadataItems(object["domains"].toArray());
+        metadata.flashcard_review_states = parseMetadataItems(object["flashcard_review_states"].toArray());
+        metadata.pursuit_requirement_types = parseMetadataItems(object["pursuit_requirement_types"].toArray());
+        metadata.systemtask_groups = parseMetadataItems(object["systemtask_groups"].toArray());
+        metadata.systemtask_states = parseMetadataItems(object["systemtask_states"].toArray());
+        metadata.systemtask_priorities = parseMetadataItems(object["systemtask_priorities"].toArray());
+        metadata.systemtask_routine_execution_states = parseMetadataItems(object["systemtask_routine_execution_states"].toArray());
+        metadata.systemtask_session_states = parseMetadataItems(object["systemtask_session_states"].toArray());
 
-        for (const QJsonValue &value : object["flashcard_retention_levels"].toArray()) {
+        for (const QJsonValue &value : object["flashcard_retention_classes"].toArray()) {
             const QJsonObject level = value.toObject();
-            FlashcardRetentionLevel retentionLevel{
+            FlashcardRetentionClass retentionClass{
                 .id = level["id"].toInt(),
                 .name = level["name"].toString(),
                 .desired_retention = level["desired_retention"].toDouble()
             };
 
             if (!level["display_name"].isNull()) {
-                retentionLevel.display_name = level["display_name"].toString();
+                retentionClass.display_name = level["display_name"].toString();
             }
 
-            metadata.flashcard_retention_levels.push_back(retentionLevel);
+            metadata.flashcard_retention_classes.push_back(retentionClass);
+        }
+
+        for (const QJsonValue &value : object["systemtask_session_presets"].toArray()) {
+            const QJsonObject preset = value.toObject();
+            metadata.systemtask_session_presets.push_back({
+                .id = preset["id"].toInt(),
+                .name = preset["name"].toString(),
+                .planned_duration_minutes = preset["planned_duration_minutes"].toInt()
+            });
         }
 
         AppState::metadata = metadata;
