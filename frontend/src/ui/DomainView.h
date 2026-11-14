@@ -10,7 +10,7 @@ class QLabel;
 class QPushButton;
 class QStandardItem;
 class QStandardItemModel;
-class QTextEdit;
+class QPlainTextEdit;
 class QTreeView;
 
 class DomainView : public QWidget {
@@ -31,7 +31,7 @@ private:
     QStandardItemModel *model;
     QWidget *editorWidget;
     QLabel *documentTitle;
-    QTextEdit *documentEditor;
+    QPlainTextEdit *documentEditor;
     QPushButton *saveButton;
     int currentDocumentNodeId = -1;
 };

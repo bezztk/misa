@@ -6,11 +6,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPainter>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStyle>
-#include <QTextEdit>
+#include <QTextBlock>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -18,6 +20,115 @@
 
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
+
+class LineNumberArea;
+
+class DocumentEditor : public QPlainTextEdit {
+public:
+    explicit DocumentEditor(QWidget *parent = nullptr);
+    int lineNumberAreaWidth() const;
+    void paintLineNumbers(QPaintEvent *event);
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
+private:
+    void updateLineNumberAreaWidth();
+    void updateLineNumberArea(const QRect &rect, int dy);
+
+    QWidget *lineNumberArea;
+};
+
+class LineNumberArea : public QWidget {
+public:
+    explicit LineNumberArea(DocumentEditor *editor)
+        : QWidget(editor), editor(editor) {}
+
+    QSize sizeHint() const override {
+        return {editor->lineNumberAreaWidth(), 0};
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        editor->paintLineNumbers(event);
+    }
+
+private:
+    DocumentEditor *editor;
+};
+
+DocumentEditor::DocumentEditor(QWidget *parent)
+    : QPlainTextEdit(parent), lineNumberArea(new LineNumberArea(this)) {
+    connect(this, &QPlainTextEdit::blockCountChanged, this,
+            [this] { updateLineNumberAreaWidth(); });
+    connect(this, &QPlainTextEdit::updateRequest, this,
+            [this](const QRect &rect, const int dy) {
+                updateLineNumberArea(rect, dy);
+            });
+    updateLineNumberAreaWidth();
+}
+
+int DocumentEditor::lineNumberAreaWidth() const {
+    int digits = 1;
+    for (int count = qMax(1, blockCount()); count >= 10; count /= 10) {
+        ++digits;
+    }
+
+    return 8 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
+}
+
+void DocumentEditor::updateLineNumberAreaWidth() {
+    setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+}
+
+void DocumentEditor::updateLineNumberArea(const QRect &rect, const int dy) {
+    if (dy) {
+        lineNumberArea->scroll(0, dy);
+    } else {
+        lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
+    }
+
+    if (rect.contains(viewport()->rect())) {
+        updateLineNumberAreaWidth();
+    }
+}
+
+void DocumentEditor::resizeEvent(QResizeEvent *event) {
+    QPlainTextEdit::resizeEvent(event);
+    const QRect contents = contentsRect();
+    lineNumberArea->setGeometry(
+        QRect(contents.left(), contents.top(), lineNumberAreaWidth(), contents.height())
+    );
+}
+
+void DocumentEditor::paintLineNumbers(QPaintEvent *event) {
+    QPainter painter(lineNumberArea);
+    painter.fillRect(event->rect(), palette().color(QPalette::Base));
+    painter.setPen(palette().color(QPalette::Light));
+
+    QTextBlock block = firstVisibleBlock();
+    int blockNumber = block.blockNumber();
+    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+    int bottom = top + qRound(blockBoundingRect(block).height());
+
+    while (block.isValid() && top <= event->rect().bottom()) {
+        if (block.isVisible() && bottom >= event->rect().top()) {
+            painter.drawText(
+                0,
+                top,
+                lineNumberArea->width() - 4,
+                fontMetrics().height(),
+                Qt::AlignRight,
+                QString::number(blockNumber + 1)
+            );
+        }
+
+        block = block.next();
+        top = bottom;
+        bottom = top + qRound(blockBoundingRect(block).height());
+        ++blockNumber;
+    }
+}
 
 DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
@@ -44,7 +155,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         QWidget#documentEditorPanel {
             background: palette(base);
         }
-        QTextEdit#documentEditor {
+        QPlainTextEdit#documentEditor {
             background: palette(base);
             border: none;
         }
@@ -61,7 +172,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     titleFont.setBold(true);
     titleFont.setPointSize(titleFont.pointSize() + 4);
     documentTitle->setFont(titleFont);
-    documentEditor = new QTextEdit(editorWidget);
+    documentEditor = new DocumentEditor(editorWidget);
     documentEditor->setObjectName("documentEditor");
     saveButton = new QPushButton("Speichern", editorWidget);
     headerLayout->addWidget(documentTitle);
