@@ -33,6 +33,13 @@ pub async fn get_due_flashcards(
             id: context.id,
             front: context.front,
             back: context.back,
+            review_state_id: context.review_state_id,
+            retention_class_id: context.retention_class_id,
+            learning_step: i16::from(
+                matches!(context.review_state_id, 2 | 4) && context.last_rating == Some(3),
+            ),
+            stability: context.stability,
+            difficulty: context.difficulty,
             preview,
         });
     }

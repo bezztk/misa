@@ -104,6 +104,7 @@ pub struct FlashcardQueueContext {
     pub front: String,
     pub back: String,
     pub review_state_id: i32,
+    pub retention_class_id: i32,
     pub stability: Option<f32>,
     pub difficulty: Option<f32>,
     pub last_reviewed_at: Option<DateTime<Utc>>,
@@ -116,6 +117,11 @@ pub struct FlashcardQueueItem {
     pub id: i32,
     pub front: String,
     pub back: String,
+    pub review_state_id: i32,
+    pub retention_class_id: i32,
+    pub learning_step: i16,
+    pub stability: Option<f32>,
+    pub difficulty: Option<f32>,
     pub preview: FlashcardReviewPreview,
 }
 

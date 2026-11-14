@@ -87,6 +87,7 @@ pub async fn get_due_flashcard_contexts(
             f.front,
             f.back,
             f.review_state_id,
+            f.retention_class_id,
             f.stability,
             f.difficulty,
             f.last_reviewed_at,
