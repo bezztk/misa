@@ -1,7 +1,7 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::progression::{
     AssignPursuitRequest, CreateProgressionRequest, CreateProgressionStageRequest,
-    ProgressionOverview, UpdateProgressionRequest,
+    ProgressionOverview, ProgressionPursuit, UpdateProgressionRequest,
 };
 use crate::repositories::progression_repository;
 use crate::validation::valid_name;
@@ -15,6 +15,14 @@ pub async fn get_progressions(State(pool): State<PgPool>) -> ApiResult<Json<Prog
         progressions: progression_repository::get_progressions(&pool).await?,
         pursuits: progression_repository::get_pursuits(&pool).await?,
     }))
+}
+
+pub async fn get_available_pursuits(
+    State(pool): State<PgPool>,
+) -> ApiResult<Json<Vec<ProgressionPursuit>>> {
+    Ok(Json(
+        progression_repository::get_available_pursuits(&pool).await?,
+    ))
 }
 
 pub async fn create_progression(

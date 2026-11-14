@@ -53,6 +53,19 @@ pub async fn get_pursuits(pool: &PgPool) -> Result<Vec<ProgressionPursuit>, sqlx
     .await
 }
 
+pub async fn get_available_pursuits(
+    pool: &PgPool,
+) -> Result<Vec<ProgressionPursuit>, sqlx::Error> {
+    sqlx::query_as::<_, ProgressionPursuit>(
+        "SELECT id, name, progression_stage_id
+         FROM pursuits
+         WHERE progression_stage_id IS NULL
+         ORDER BY name, id",
+    )
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn create_progression(pool: &PgPool, name: &str) -> Result<Progression, sqlx::Error> {
     sqlx::query_as::<_, Progression>(
         "INSERT INTO progressions (name)
