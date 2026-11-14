@@ -4,6 +4,7 @@
 #include "../models/Flashcard.h"
 #include "../models/Metadata.h"
 #include "../models/DomainNode.h"
+#include "../models/Document.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -24,6 +25,7 @@ signals:
     );
     void domainNodeCreated(const DomainNode& node);
     void domainNodeUpdated(const DomainNode& node);
+    void documentReceived(const Document& document);
 
 public:
     ApiClient();
@@ -40,6 +42,9 @@ public:
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);
     void updateDomainNode(int id, const QString& name);
+    void createDocument(int nodeId);
+    void getDocument(int nodeId);
+    void updateDocument(int nodeId, const QString& content);
 
 private:
     static constexpr auto SCHEME = "http";

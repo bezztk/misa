@@ -24,6 +24,7 @@ add_executable(frontend
         src/ui/TaskView.h
         src/models/Task.h
         src/models/DomainNode.h
+        src/models/Document.h
         src/ui/LearningView.cpp
         src/ui/LearningView.h
         src/ui/DomainView.cpp

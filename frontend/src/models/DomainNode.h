@@ -10,6 +10,7 @@ struct DomainNode {
     int domainId;
     std::optional<int> parentId;
     QString name;
+    bool hasDocument;
 };
 
 #endif // FRONTEND_DOMAINNODE_H

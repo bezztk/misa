@@ -6,8 +6,11 @@
 #include <QWidget>
 
 class QPoint;
+class QLabel;
+class QPushButton;
 class QStandardItem;
 class QStandardItemModel;
+class QTextEdit;
 class QTreeView;
 
 class DomainView : public QWidget {
@@ -26,6 +29,11 @@ private:
     ApiClient apiClient;
     QTreeView *treeView;
     QStandardItemModel *model;
+    QWidget *editorWidget;
+    QLabel *documentTitle;
+    QTextEdit *documentEditor;
+    QPushButton *saveButton;
+    int currentDocumentNodeId = -1;
 };
 
 #endif // FRONTEND_DOMAINVIEW_H

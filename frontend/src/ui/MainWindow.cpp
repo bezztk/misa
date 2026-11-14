@@ -111,14 +111,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     bodyLayout->addWidget(navigationSeparator);
 
     auto *content = new QWidget(body);
-    content->setObjectName("content");
-
-    content->setStyleSheet(R"(
-    QWidget#content {
-        background-color: #40202B2D;
-        border: none;
-    }
-)");
 
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 0, 0);

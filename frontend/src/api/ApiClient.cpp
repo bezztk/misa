@@ -37,7 +37,8 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     DomainNode node{
         .id = object["id"].toInt(),
         .domainId = object["domain_id"].toInt(),
-        .name = object["name"].toString()
+        .name = object["name"].toString(),
+        .hasDocument = object["has_document"].toBool()
     };
 
     if (!object["parent_id"].isNull()) {
@@ -45,6 +46,13 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     }
 
     return node;
+}
+
+static Document parseDocument(const QJsonObject &object) {
+    return {
+        .domainNodeId = object["domain_node_id"].toInt(),
+        .content = object["content"].toString()
+    };
 }
 
 QUrl ApiClient::buildUrl(const QString &path) {
@@ -194,6 +202,53 @@ void ApiClient::updateDomainNode(const int id, const QString &name) {
 
         reply->deleteLater();
     });
+}
+
+void ApiClient::createDocument(const int nodeId) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/document"
+    ));
+    QNetworkReply *reply = manager.post(request, QByteArray());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit documentReceived(parseDocument(
+                QJsonDocument::fromJson(reply->readAll()).object()
+            ));
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::getDocument(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/document"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit documentReceived(parseDocument(
+                QJsonDocument::fromJson(reply->readAll()).object()
+            ));
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateDocument(const int nodeId, const QString &content) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/document"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["content"] = content;
+    QNetworkReply *reply = manager.put(request, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
 }
 
 void ApiClient::getDueFlashcards() {

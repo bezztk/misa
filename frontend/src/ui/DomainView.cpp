@@ -1,11 +1,15 @@
 #include "DomainView.h"
 
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPushButton>
 #include <QSplitter>
 #include <QStandardItemModel>
+#include <QStyle>
 #include <QTextEdit>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -13,12 +17,15 @@
 #include <functional>
 
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
+static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
 
 DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->setHandleWidth(1);
+    splitter->setStyleSheet("QSplitter::handle { background: palette(mid); }");
 
     treeView = new QTreeView(splitter);
     treeView->setHeaderHidden(true);
@@ -31,8 +38,41 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     model = new QStandardItemModel(treeView);
     treeView->setModel(model);
 
+    editorWidget = new QWidget(splitter);
+    editorWidget->setObjectName("documentEditorPanel");
+    editorWidget->setStyleSheet(R"(
+        QWidget#documentEditorPanel {
+            background: palette(base);
+        }
+        QTextEdit#documentEditor {
+            background: palette(base);
+            border: none;
+        }
+    )");
+    auto *editorLayout = new QVBoxLayout(editorWidget);
+    editorLayout->setContentsMargins(0, 0, 0, 0);
+    editorLayout->setSpacing(0);
+
+    auto *header = new QWidget(editorWidget);
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(10, 6, 10, 6);
+    documentTitle = new QLabel(editorWidget);
+    QFont titleFont = documentTitle->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(titleFont.pointSize() + 4);
+    documentTitle->setFont(titleFont);
+    documentEditor = new QTextEdit(editorWidget);
+    documentEditor->setObjectName("documentEditor");
+    saveButton = new QPushButton("Speichern", editorWidget);
+    headerLayout->addWidget(documentTitle);
+    headerLayout->addStretch();
+    headerLayout->addWidget(saveButton);
+    editorLayout->addWidget(header);
+    editorLayout->addWidget(documentEditor, 1);
+    editorWidget->hide();
+
     splitter->addWidget(treeView);
-    splitter->addWidget(new QTextEdit(splitter));
+    splitter->addWidget(editorWidget);
     layout->addWidget(splitter);
 
     connect(&apiClient, &ApiClient::domainTreeReceived, this,
@@ -44,6 +84,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             [this](const DomainNode &node) {
                 auto *item = new QStandardItem(node.name);
                 item->setData(node.id, Qt::UserRole);
+                item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
                 QStandardItem *parentItem = node.parentId.has_value()
                     ? findDomainNodeItem(*node.parentId)
                     : findDomainItem(node.domainId);
@@ -51,12 +92,41 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             });
     connect(&apiClient, &ApiClient::domainNodeUpdated, this,
             [this](const DomainNode &node) {
-                findDomainNodeItem(node.id)->setText(node.name);
+                QStandardItem *item = findDomainNodeItem(node.id);
+                item->setText(node.name);
+                if (currentDocumentNodeId == node.id) {
+                    documentTitle->setText(node.name);
+                }
+            });
+    connect(&apiClient, &ApiClient::documentReceived, this,
+            [this](const Document &document) {
+                QStandardItem *item = findDomainNodeItem(document.domainNodeId);
+                item->setData(true, HAS_DOCUMENT_ROLE);
+                item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                treeView->setCurrentIndex(item->index());
+                currentDocumentNodeId = document.domainNodeId;
+                documentTitle->setText(item->text());
+                documentEditor->setPlainText(document.content);
+                editorWidget->show();
             });
     connect(treeView, &QTreeView::customContextMenuRequested, this,
             [this](const QPoint &position) {
                 showDomainNodeContextMenu(position);
             });
+    connect(treeView, &QTreeView::clicked, this, [this](const QModelIndex &index) {
+        if (!index.data(Qt::UserRole).isValid()
+            || !index.data(HAS_DOCUMENT_ROLE).toBool()) {
+            currentDocumentNodeId = -1;
+            editorWidget->hide();
+            return;
+        }
+
+        editorWidget->hide();
+        apiClient.getDocument(index.data(Qt::UserRole).toInt());
+    });
+    connect(saveButton, &QPushButton::clicked, this, [this] {
+        apiClient.updateDocument(currentDocumentNodeId, documentEditor->toPlainText());
+    });
 
     apiClient.getDomainTree();
 }
@@ -84,6 +154,10 @@ void DomainView::renderDomainTree(
 
                 auto *item = new QStandardItem(node.name);
                 item->setData(node.id, Qt::UserRole);
+                item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
+                if (node.hasDocument) {
+                    item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                }
                 parentItem->appendRow(item);
                 addNodes(node.id, item);
             }
@@ -128,6 +202,10 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     QMenu menu(treeView);
     QAction *createAction = menu.addAction("Unterknoten hinzufügen");
     QAction *editAction = menu.addAction("Bearbeiten");
+    QAction *createDocumentAction = nullptr;
+    if (!index.data(HAS_DOCUMENT_ROLE).toBool()) {
+        createDocumentAction = menu.addAction("Dokument erstellen");
+    }
     QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
 
     if (selectedAction == createAction) {
@@ -158,6 +236,8 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         if (accepted && !name.isEmpty()) {
             apiClient.updateDomainNode(index.data(Qt::UserRole).toInt(), name);
         }
+    } else if (createDocumentAction && selectedAction == createDocumentAction) {
+        apiClient.createDocument(index.data(Qt::UserRole).toInt());
     }
 }
 
