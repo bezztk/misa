@@ -591,6 +591,58 @@ void DocumentEditor::paintLineNumbers(QPaintEvent *event) {
 }
 
 DomainView::DomainView(QWidget *parent) : QWidget(parent) {
+    setObjectName("domainView");
+    setStyleSheet(R"(
+        QWidget#domainView {
+            background: palette(base);
+        }
+        QTreeView#domainTree, QTreeView#pursuitTree, QTreeView#skillTree {
+            background: palette(base);
+            border: none;
+            outline: none;
+        }
+        QTreeView::item {
+            padding: 2px 4px;
+        }
+        QTreeView::item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        QTreeView::item:selected {
+            background: rgba(100, 181, 246, 0.18);
+        }
+        QWidget#editorHeader, QWidget#flashcardHeader {
+            background: rgba(255, 255, 255, 0.025);
+        }
+        QWidget#documentMetadataBar {
+            background: rgba(255, 255, 255, 0.025);
+            border-top: 1px solid rgba(255, 255, 255, 0.10);
+        }
+        QTableView#flashcardTable {
+            background: palette(base);
+            alternate-background-color: rgba(255, 255, 255, 0.025);
+            border: none;
+            gridline-color: transparent;
+            selection-background-color: rgba(100, 181, 246, 0.18);
+        }
+        QTableView#flashcardTable QHeaderView::section {
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 5px;
+        }
+        QPushButton#compactButton {
+            padding: 4px 10px;
+        }
+        QPushButton#squareButton {
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+        QPushButton#squareButton:hover {
+            background: rgba(255, 255, 255, 0.10);
+        }
+    )");
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
@@ -601,6 +653,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     );
 
     treeView = new QTreeView(splitter);
+    treeView->setObjectName("domainTree");
     treeView->setHeaderHidden(true);
     treeView->setFrameShape(QFrame::NoFrame);
     treeView->setIndentation(16);
@@ -634,8 +687,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     documentLayout->setSpacing(0);
 
     auto *header = new QWidget(documentWidget);
+    header->setObjectName("editorHeader");
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(10, 6, 10, 6);
+    headerLayout->setContentsMargins(14, 8, 12, 8);
     documentTitle = new QLabel(documentWidget);
     QFont titleFont = documentTitle->font();
     titleFont.setBold(true);
@@ -654,12 +708,22 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     documentLayout->addWidget(documentEditor, 1);
 
     documentMetadataWidget = new QWidget(editorWidget);
+    documentMetadataWidget->setObjectName("documentMetadataBar");
     auto *documentMetadataLayout = new QHBoxLayout(documentMetadataWidget);
-    documentMetadataLayout->setContentsMargins(10, 4, 10, 4);
+    documentMetadataLayout->setContentsMargins(12, 6, 12, 6);
+    documentMetadataLayout->setSpacing(14);
     completenessLabel = new QLabel(documentMetadataWidget);
     flashcardStatusLabel = new QLabel(documentMetadataWidget);
     verificationStatusLabel = new QLabel(documentMetadataWidget);
     verificationLevelLabel = new QLabel(documentMetadataWidget);
+    for (QLabel *label : {
+             completenessLabel,
+             flashcardStatusLabel,
+             verificationStatusLabel,
+             verificationLevelLabel
+         }) {
+        label->setStyleSheet("color: #B8B8B8; font-size: 11px;");
+    }
     documentMetadataLayout->addStretch();
     documentMetadataLayout->addWidget(completenessLabel);
     documentMetadataLayout->addWidget(flashcardStatusLabel);
@@ -679,13 +743,16 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     flashcardLayout->addWidget(flashcardSeparator);
 
     auto *flashcardHeader = new QWidget(flashcardWidget);
+    flashcardHeader->setObjectName("flashcardHeader");
     flashcardHeader->setFixedHeight(36);
     auto *flashcardHeaderLayout = new QHBoxLayout(flashcardHeader);
     flashcardHeaderLayout->setContentsMargins(10, 4, 10, 4);
     flashcardTitle = new QLabel("Lernkarten (0)", flashcardHeader);
     auto *addFlashcardButton = new QPushButton("Lernkarte erstellen", flashcardHeader);
+    addFlashcardButton->setObjectName("compactButton");
     addFlashcardButton->setToolTip("Lernkarte hinzufügen");
     toggleFlashcardsButton = new QPushButton("Lernkarten ausblenden", flashcardHeader);
+    toggleFlashcardsButton->setObjectName("compactButton");
     flashcardHeaderLayout->addWidget(flashcardTitle);
     flashcardHeaderLayout->addStretch();
     flashcardHeaderLayout->addWidget(addFlashcardButton);
@@ -693,6 +760,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     flashcardLayout->addWidget(flashcardHeader);
 
     flashcardTable = new QTableView(flashcardWidget);
+    flashcardTable->setObjectName("flashcardTable");
     flashcardTable->setFrameShape(QFrame::NoFrame);
     flashcardTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     flashcardTable->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -700,6 +768,8 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     flashcardTable->setMinimumHeight(0);
     flashcardTable->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     flashcardTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    flashcardTable->setAlternatingRowColors(true);
+    flashcardTable->setShowGrid(false);
     flashcardModel = new QStandardItemModel(0, 2, flashcardTable);
     flashcardModel->setHorizontalHeaderLabels({"Front", "Back"});
     flashcardTable->setModel(flashcardModel);
@@ -747,6 +817,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     pursuitTitleFont.setBold(true);
     pursuitTitle->setFont(pursuitTitleFont);
     addPursuitButton = new QPushButton("+", pursuitPanel);
+    addPursuitButton->setObjectName("squareButton");
     addPursuitButton->setFixedSize(24, 24);
     addPursuitButton->setToolTip("Bestrebung hinzufügen");
     pursuitHeaderLayout->addWidget(pursuitTitle);
@@ -782,6 +853,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     skillTitleFont.setBold(true);
     skillTitle->setFont(skillTitleFont);
     addSkillButton = new QPushButton("+", skillPanel);
+    addSkillButton->setObjectName("squareButton");
     addSkillButton->setFixedSize(24, 24);
     addSkillButton->setToolTip("Skill hinzufügen");
     skillHeaderLayout->addWidget(skillTitle);
@@ -814,6 +886,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     sidebarHeaderLayout->setContentsMargins(0, 2, 0, 2);
     sidebarHeaderLayout->addStretch();
     auto *toggleSidebarButton = new QPushButton("›", skillWidget);
+    toggleSidebarButton->setObjectName("squareButton");
     toggleSidebarButton->setFixedSize(24, 24);
     toggleSidebarButton->setToolTip("Seitenleiste minimieren");
     sidebarHeaderLayout->addWidget(toggleSidebarButton);
