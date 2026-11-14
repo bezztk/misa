@@ -11,7 +11,9 @@
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QShowEvent>
+#include <QSplitter>
 #include <QStandardItemModel>
+#include <QTextEdit>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -22,7 +24,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    scrollArea = new QScrollArea(this);
+    auto *splitter = new QSplitter(Qt::Horizontal, this);
+
+    scrollArea = new QScrollArea(splitter);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
@@ -49,7 +53,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     cardsLayout->addWidget(secondColumn);
 
     scrollArea->setWidget(cardsWidget);
-    layout->addWidget(scrollArea);
+    splitter->addWidget(scrollArea);
+    splitter->addWidget(new QTextEdit(splitter));
+    layout->addWidget(splitter);
 
     connect(&apiClient, &ApiClient::domainNodesReceived, this,
             [this](const std::vector<DomainNode> &nodes) {
