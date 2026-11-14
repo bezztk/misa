@@ -49,7 +49,7 @@ pub fn calculate_review_schedule(
 
     let next_review_state_id = next_review_state(review_state_id, last_rating, rating);
     let fsrs_duration = Duration::milliseconds(
-        (next_memory.interval * MILLISECONDS_PER_DAY)
+        (next_memory.interval.max(1.0) * MILLISECONDS_PER_DAY)
             .round()
             .max(1.0) as i64,
     );
