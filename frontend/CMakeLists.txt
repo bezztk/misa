@@ -32,6 +32,7 @@ add_executable(frontend
         src/models/Flashcard.h
         src/models/Metadata.h
         src/models/AppState.h
+        src/models/Skill.h
 )
 target_link_libraries(frontend
         Qt6::Core

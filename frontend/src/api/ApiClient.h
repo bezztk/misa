@@ -5,6 +5,7 @@
 #include "../models/Metadata.h"
 #include "../models/DomainNode.h"
 #include "../models/Document.h"
+#include "../models/Skill.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -20,6 +21,8 @@ signals:
     void flashcardRated();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
     void nodeFlashcardsChanged(int nodeId);
+    void nodeSkillsReceived(int nodeId, const std::vector<Skill>& skills);
+    void nodeSkillsChanged(int nodeId);
     void domainTreeReceived(
         const std::vector<MetadataItem>& domains,
         const std::vector<DomainNode>& nodes
@@ -44,6 +47,11 @@ public:
     void createFlashcard(int nodeId, const QString& front, const QString& back);
     void updateFlashcard(int nodeId, int id, const QString& front, const QString& back);
     void deleteFlashcard(int nodeId, int id);
+    void getNodeSkills(int nodeId);
+    void createSkill(int nodeId, std::optional<int> parentSkillId,
+                     const QString& name, std::optional<int> psychomotorLevelId);
+    void updateSkill(int nodeId, int id, const QString& name,
+                     std::optional<int> psychomotorLevelId);
     void getDomainTree();
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);

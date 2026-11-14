@@ -8,6 +8,7 @@
 #include <functional>
 
 class QPoint;
+class QModelIndex;
 class QLabel;
 class QComboBox;
 class QPushButton;
@@ -44,6 +45,11 @@ private:
     void editFlashcard(int row);
     void updateFlashcardCount(int nodeId, int count);
     void updateFlashcardView();
+    void renderSkills(const std::vector<Skill> &skills);
+    void showSkillContextMenu(const QPoint &position);
+    void createSkill(std::optional<int> parentSkillId = std::nullopt);
+    void editSkill(const QModelIndex &index);
+    void updateSkillCount(int nodeId, int count);
 
     ApiClient apiClient;
     QTreeView *treeView;
@@ -64,6 +70,11 @@ private:
     QPushButton *toggleFlashcardsButton;
     QTableView *flashcardTable;
     QStandardItemModel *flashcardModel;
+    QWidget *skillWidget;
+    QLabel *noSkillsLabel;
+    QPushButton *addSkillButton;
+    QTreeView *skillTreeView;
+    QStandardItemModel *skillModel;
     QTimer *autosaveTimer;
     int currentNodeId = -1;
     int currentDocumentNodeId = -1;

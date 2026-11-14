@@ -13,6 +13,7 @@ struct DomainNode {
     QString name;
     bool hasDocument;
     int flashcardCount;
+    int skillCount;
     std::optional<int> completenessLevelId;
     std::optional<int> flashcardStatusId;
     std::optional<int> verificationStatusId;

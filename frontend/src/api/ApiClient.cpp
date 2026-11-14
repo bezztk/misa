@@ -39,7 +39,8 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .domainId = object["domain_id"].toInt(),
         .name = object["name"].toString(),
         .hasDocument = object["has_document"].toBool(),
-        .flashcardCount = object["flashcard_count"].toInt()
+        .flashcardCount = object["flashcard_count"].toInt(),
+        .skillCount = object["skill_count"].toInt()
     };
 
     if (!object["parent_id"].isNull()) {
@@ -62,6 +63,93 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     }
 
     return node;
+}
+
+static Skill parseSkill(const QJsonObject &object) {
+    Skill skill{
+        .id = object["id"].toInt(),
+        .domainNodeId = object["domain_node_id"].toInt(),
+        .name = object["name"].toString()
+    };
+
+    if (!object["parent_skill_id"].isNull()) {
+        skill.parentSkillId = object["parent_skill_id"].toInt();
+    }
+    if (!object["psychomotor_level_id"].isNull()) {
+        skill.psychomotorLevelId = object["psychomotor_level_id"].toInt();
+    }
+
+    return skill;
+}
+
+void ApiClient::getNodeSkills(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/skills"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            std::vector<Skill> skills;
+            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
+                skills.push_back(parseSkill(value.toObject()));
+            }
+            emit nodeSkillsReceived(nodeId, skills);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createSkill(
+    const int nodeId,
+    const std::optional<int> parentSkillId,
+    const QString &name,
+    const std::optional<int> psychomotorLevelId
+) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/skills"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json;
+    json["parent_skill_id"] = parentSkillId.has_value()
+        ? QJsonValue(*parentSkillId) : QJsonValue(QJsonValue::Null);
+    json["name"] = name;
+    json["psychomotor_level_id"] = psychomotorLevelId.has_value()
+        ? QJsonValue(*psychomotorLevelId) : QJsonValue(QJsonValue::Null);
+    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodeSkillsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateSkill(
+    const int nodeId,
+    const int id,
+    const QString &name,
+    const std::optional<int> psychomotorLevelId
+) {
+    QNetworkRequest request(buildUrl("/skills/" + QString::number(id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json;
+    json["name"] = name;
+    json["psychomotor_level_id"] = psychomotorLevelId.has_value()
+        ? QJsonValue(*psychomotorLevelId) : QJsonValue(QJsonValue::Null);
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit nodeSkillsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
 }
 
 void ApiClient::getNodeFlashcards(const int nodeId) {
