@@ -1,4 +1,4 @@
-use crate::api::handlers::flashcard_handler;
+use crate::api::handlers::{flashcard_handler, metadata_handler};
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
@@ -19,7 +19,8 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/domain-nodes/{node_id}/flashcards",
             axum::routing::post(flashcard_handler::create_flashcard),
-        );
+        )
+        .route("/metadata", get(metadata_handler::get_metadata));
 
     Router::new()
         .route("/health", get(health))

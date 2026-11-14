@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+use crate::models::domain::Domain;
+use crate::models::flashcard::{FlashcardRetentionClass, FlashcardReviewState};
+use crate::models::pursuit::PursuitRequirementType;
+use crate::models::routine::SystemTaskRoutineExecutionState;
+use crate::models::session::{SystemTaskSessionPreset, SystemTaskSessionState};
+use crate::models::system_task::{SystemTaskGroup, SystemTaskPriority, SystemTaskState};
+
 macro_rules! lookup_model {
     ($name:ident) => {
         #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
@@ -19,6 +26,28 @@ lookup_model!(DocumentCompletenessLevel);
 lookup_model!(DocumentFlashcardStatus);
 lookup_model!(DocumentVerificationStatus);
 lookup_model!(DocumentVerificationLevel);
+
+#[derive(Debug, Serialize)]
+pub struct Metadata {
+    pub personal_relevance_levels: Vec<PersonalRelevanceLevel>,
+    pub lasting_impacts: Vec<LastingImpact>,
+    pub cognitive_levels: Vec<CognitiveLevel>,
+    pub psychomotor_levels: Vec<PsychomotorLevel>,
+    pub document_completeness_levels: Vec<DocumentCompletenessLevel>,
+    pub document_flashcard_statuses: Vec<DocumentFlashcardStatus>,
+    pub document_verification_statuses: Vec<DocumentVerificationStatus>,
+    pub document_verification_levels: Vec<DocumentVerificationLevel>,
+    pub domains: Vec<Domain>,
+    pub flashcard_retention_classes: Vec<FlashcardRetentionClass>,
+    pub flashcard_review_states: Vec<FlashcardReviewState>,
+    pub pursuit_requirement_types: Vec<PursuitRequirementType>,
+    pub systemtask_groups: Vec<SystemTaskGroup>,
+    pub systemtask_states: Vec<SystemTaskState>,
+    pub systemtask_priorities: Vec<SystemTaskPriority>,
+    pub systemtask_routine_execution_states: Vec<SystemTaskRoutineExecutionState>,
+    pub systemtask_session_presets: Vec<SystemTaskSessionPreset>,
+    pub systemtask_session_states: Vec<SystemTaskSessionState>,
+}
 
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
