@@ -1,6 +1,8 @@
 #include "DomainView.h"
+#include "../models/AppState.h"
 
 #include <QFrame>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -28,6 +30,173 @@
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
 static constexpr int FLASHCARD_COUNT_ROLE = Qt::UserRole + 3;
+static constexpr int COGNITIVE_LEVEL_ROLE = Qt::UserRole + 4;
+static constexpr int COMPLETENESS_LEVEL_ROLE = Qt::UserRole + 5;
+static constexpr int FLASHCARD_STATUS_ROLE = Qt::UserRole + 6;
+static constexpr int VERIFICATION_STATUS_ROLE = Qt::UserRole + 7;
+static constexpr int VERIFICATION_LEVEL_ROLE = Qt::UserRole + 8;
+static constexpr int NODE_NAME_ROLE = Qt::UserRole + 9;
+
+static QString metadataName(const MetadataItem &item) {
+    return item.display_name.value_or(item.name);
+}
+
+static void fillMetadataCombo(QComboBox *combo, const std::vector<MetadataItem> &items) {
+    combo->clear();
+    combo->addItem("—", QVariant());
+    for (const MetadataItem &item : items) {
+        combo->addItem(metadataName(item), item.id);
+    }
+}
+
+static void selectMetadata(QComboBox *combo, const std::optional<int> id) {
+    combo->setCurrentIndex(id.has_value() ? combo->findData(*id) : 0);
+}
+
+static std::optional<int> selectedMetadata(const QComboBox *combo) {
+    return combo->currentData().isValid()
+        ? std::optional<int>(combo->currentData().toInt())
+        : std::nullopt;
+}
+
+static void showMetadata(
+    QLabel *label,
+    const QString &title,
+    const std::vector<MetadataItem> &items,
+    const std::optional<int> id
+) {
+    QString value = "—";
+    for (const MetadataItem &item : items) {
+        if (id.has_value() && item.id == *id) {
+            value = metadataName(item);
+            break;
+        }
+    }
+    label->setText(title + ": " + value);
+}
+
+static void setOptionalRole(
+    QStandardItem *item,
+    const int role,
+    const std::optional<int> value
+) {
+    item->setData(value.has_value() ? QVariant(*value) : QVariant(), role);
+}
+
+static std::optional<int> optionalRole(const QModelIndex &index, const int role) {
+    return index.data(role).isValid()
+        ? std::optional<int>(index.data(role).toInt())
+        : std::nullopt;
+}
+
+static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
+    item->setData(node.name, NODE_NAME_ROLE);
+    item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
+    setOptionalRole(item, COGNITIVE_LEVEL_ROLE, node.cognitiveLevelId);
+    setOptionalRole(item, COMPLETENESS_LEVEL_ROLE, node.completenessLevelId);
+    setOptionalRole(item, FLASHCARD_STATUS_ROLE, node.flashcardStatusId);
+    setOptionalRole(item, VERIFICATION_STATUS_ROLE, node.verificationStatusId);
+    setOptionalRole(item, VERIFICATION_LEVEL_ROLE, node.verificationLevelId);
+}
+
+static void refreshDomainNodeText(QStandardItem *item) {
+    QString text = item->data(NODE_NAME_ROLE).toString();
+    const QVariant cognitiveLevel = item->data(COGNITIVE_LEVEL_ROLE);
+    item->setToolTip({});
+    if (cognitiveLevel.isValid()) {
+        text += "  C" + QString::number(cognitiveLevel.toInt());
+        for (const MetadataItem &level : AppState::metadata.cognitive_levels) {
+            if (level.id == cognitiveLevel.toInt()) {
+                item->setToolTip("Kognitives Niveau: " + metadataName(level));
+                break;
+            }
+        }
+    }
+    const int flashcardCount = item->data(FLASHCARD_COUNT_ROLE).toInt();
+    if (flashcardCount > 0) {
+        text += QString::fromUtf8("  ▣ ") + QString::number(flashcardCount);
+    }
+    item->setText(text);
+}
+
+static bool showDomainNodeDialog(
+    QWidget *parent,
+    QString &name,
+    std::optional<int> &cognitiveLevelId,
+    const bool hasDocument,
+    std::optional<int> &completenessLevelId,
+    std::optional<int> &flashcardStatusId,
+    std::optional<int> &verificationStatusId,
+    std::optional<int> &verificationLevelId
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle("Domain Node bearbeiten");
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *nameEdit = new QLineEdit(name, &dialog);
+    auto *cognitiveCombo = new QComboBox(&dialog);
+    fillMetadataCombo(cognitiveCombo, AppState::metadata.cognitive_levels);
+    selectMetadata(cognitiveCombo, cognitiveLevelId);
+    form->addRow("Name", nameEdit);
+    form->addRow("Kognitives Niveau", cognitiveCombo);
+    QComboBox *completenessCombo = nullptr;
+    QComboBox *flashcardStatusCombo = nullptr;
+    QComboBox *verificationStatusCombo = nullptr;
+    QComboBox *verificationLevelCombo = nullptr;
+    if (hasDocument) {
+        completenessCombo = new QComboBox(&dialog);
+        flashcardStatusCombo = new QComboBox(&dialog);
+        verificationStatusCombo = new QComboBox(&dialog);
+        verificationLevelCombo = new QComboBox(&dialog);
+        fillMetadataCombo(
+            completenessCombo,
+            AppState::metadata.document_completeness_levels
+        );
+        fillMetadataCombo(
+            flashcardStatusCombo,
+            AppState::metadata.document_flashcard_statuses
+        );
+        fillMetadataCombo(
+            verificationStatusCombo,
+            AppState::metadata.document_verification_statuses
+        );
+        fillMetadataCombo(
+            verificationLevelCombo,
+            AppState::metadata.document_verification_levels
+        );
+        selectMetadata(completenessCombo, completenessLevelId);
+        selectMetadata(flashcardStatusCombo, flashcardStatusId);
+        selectMetadata(verificationStatusCombo, verificationStatusId);
+        selectMetadata(verificationLevelCombo, verificationLevelId);
+        form->addRow("Vollständigkeit", completenessCombo);
+        form->addRow("Lernkartenstatus", flashcardStatusCombo);
+        form->addRow("Verifizierungsstatus", verificationStatusCombo);
+        form->addRow("Verifizierungsniveau", verificationLevelCombo);
+    }
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return false;
+    }
+
+    name = nameEdit->text().trimmed();
+    cognitiveLevelId = selectedMetadata(cognitiveCombo);
+    if (hasDocument) {
+        completenessLevelId = selectedMetadata(completenessCombo);
+        flashcardStatusId = selectedMetadata(flashcardStatusCombo);
+        verificationStatusId = selectedMetadata(verificationStatusCombo);
+        verificationLevelId = selectedMetadata(verificationLevelCombo);
+    }
+    return true;
+}
 
 static bool showFlashcardDialog(
     QWidget *parent,
@@ -236,6 +405,8 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     treeView->setHeaderHidden(true);
     treeView->setFrameShape(QFrame::NoFrame);
     treeView->setIndentation(16);
+    treeView->setMinimumWidth(200);
+    treeView->setMaximumWidth(600);
     treeView->setUniformRowHeights(true);
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -283,6 +454,19 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     documentLayout->addWidget(header);
     documentLayout->addWidget(documentEditor, 1);
 
+    documentMetadataWidget = new QWidget(editorWidget);
+    auto *documentMetadataLayout = new QHBoxLayout(documentMetadataWidget);
+    documentMetadataLayout->setContentsMargins(10, 4, 10, 4);
+    completenessLabel = new QLabel(documentMetadataWidget);
+    flashcardStatusLabel = new QLabel(documentMetadataWidget);
+    verificationStatusLabel = new QLabel(documentMetadataWidget);
+    verificationLevelLabel = new QLabel(documentMetadataWidget);
+    documentMetadataLayout->addStretch();
+    documentMetadataLayout->addWidget(completenessLabel);
+    documentMetadataLayout->addWidget(flashcardStatusLabel);
+    documentMetadataLayout->addWidget(verificationStatusLabel);
+    documentMetadataLayout->addWidget(verificationLevelLabel);
+
     flashcardWidget = new QWidget(editorWidget);
     auto *flashcardLayout = new QVBoxLayout(flashcardWidget);
     flashcardLayout->setContentsMargins(0, 0, 0, 0);
@@ -325,6 +509,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     editorLayout->addWidget(documentWidget);
     editorLayout->addStretch();
+    editorLayout->addWidget(documentMetadataWidget);
     editorLayout->addWidget(flashcardWidget);
     editorWidget->hide();
 
@@ -339,31 +524,35 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             });
     connect(&apiClient, &ApiClient::domainNodeCreated, this,
             [this](const DomainNode &node) {
-                auto *item = new QStandardItem(node.name);
+                auto *item = new QStandardItem();
                 item->setData(node.id, Qt::UserRole);
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
-                item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
-                auto *countItem = new QStandardItem(
-                    node.flashcardCount > 0
-                        ? QIcon(":/assets/icons/flashcards-white.png")
-                        : QIcon(),
-                    node.flashcardCount > 0
-                        ? QString::number(node.flashcardCount)
-                        : QString()
-                );
-                countItem->setData(node.id, Qt::UserRole);
-                countItem->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
+                setDomainNodeRoles(item, node);
+                refreshDomainNodeText(item);
                 QStandardItem *parentItem = node.parentId.has_value()
                     ? findDomainNodeItem(*node.parentId)
                     : findDomainItem(node.domainId);
-                parentItem->appendRow({item, countItem});
+                parentItem->appendRow(item);
             });
     connect(&apiClient, &ApiClient::domainNodeUpdated, this,
             [this](const DomainNode &node) {
                 QStandardItem *item = findDomainNodeItem(node.id);
-                item->setText(node.name);
+                setDomainNodeRoles(item, node);
+                refreshDomainNodeText(item);
                 if (currentDocumentNodeId == node.id) {
                     documentTitle->setText(node.name);
+                    showMetadata(completenessLabel, "Vollständigkeit",
+                                 AppState::metadata.document_completeness_levels,
+                                 node.completenessLevelId);
+                    showMetadata(flashcardStatusLabel, "Lernkarten",
+                                 AppState::metadata.document_flashcard_statuses,
+                                 node.flashcardStatusId);
+                    showMetadata(verificationStatusLabel, "Verifizierung",
+                                 AppState::metadata.document_verification_statuses,
+                                 node.verificationStatusId);
+                    showMetadata(verificationLevelLabel, "Niveau",
+                                 AppState::metadata.document_verification_levels,
+                                 node.verificationLevelId);
                 }
             });
     connect(&apiClient, &ApiClient::documentReceived, this,
@@ -378,9 +567,21 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 treeView->setCurrentIndex(item->index());
                 currentDocumentNodeId = document.domainNodeId;
-                documentTitle->setText(item->text());
+                documentTitle->setText(item->data(NODE_NAME_ROLE).toString());
                 savedContent = document.content;
                 documentEditor->setPlainText(document.content);
+                showMetadata(completenessLabel, "Vollständigkeit",
+                             AppState::metadata.document_completeness_levels,
+                             document.completenessLevelId);
+                showMetadata(flashcardStatusLabel, "Lernkarten",
+                             AppState::metadata.document_flashcard_statuses,
+                             document.flashcardStatusId);
+                showMetadata(verificationStatusLabel, "Verifizierung",
+                             AppState::metadata.document_verification_statuses,
+                             document.verificationStatusId);
+                showMetadata(verificationLevelLabel, "Niveau",
+                             AppState::metadata.document_verification_levels,
+                             document.verificationLevelId);
                 static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Hidden);
                 editorWidget->show();
             });
@@ -476,8 +677,11 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         }
     });
     connect(autosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
+    connect(&apiClient, &ApiClient::metadataReceived, this, [this] {
+        apiClient.getDomainTree();
+    });
 
-    apiClient.getDomainTree();
+    apiClient.getMetadata();
 }
 
 void DomainView::saveBeforeClose(std::function<void()> continuation) {
@@ -506,10 +710,12 @@ void DomainView::continueDocumentChange() {
     documentChangePending = false;
     currentNodeId = nodeId;
     currentDocumentNodeId = -1;
+    savedContent.clear();
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     editorWidget->setVisible(nodeId != -1);
     documentWidget->setVisible(hasDocument);
+    documentMetadataWidget->setVisible(hasDocument);
     editorLayout->setStretch(0, hasDocument ? 1 : 0);
     editorLayout->setStretch(1, hasDocument ? 0 : 1);
     updateFlashcardView();
@@ -560,7 +766,7 @@ void DomainView::renderDomainTree(
     const std::vector<DomainNode> &nodes
 ) {
     model->clear();
-    model->setColumnCount(2);
+    model->setColumnCount(1);
 
     for (const MetadataItem &domain : domains) {
         auto *domainItem = new QStandardItem(domain.name);
@@ -577,24 +783,15 @@ void DomainView::renderDomainTree(
                     continue;
                 }
 
-                auto *item = new QStandardItem(node.name);
+                auto *item = new QStandardItem();
                 item->setData(node.id, Qt::UserRole);
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
-                item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
+                setDomainNodeRoles(item, node);
+                refreshDomainNodeText(item);
                 if (node.hasDocument) {
                     item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 }
-                auto *countItem = new QStandardItem(
-                    node.flashcardCount > 0
-                        ? QIcon(":/assets/icons/flashcards-white.png")
-                        : QIcon(),
-                    node.flashcardCount > 0
-                        ? QString::number(node.flashcardCount)
-                        : QString()
-                );
-                countItem->setData(node.id, Qt::UserRole);
-                countItem->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
-                parentItem->appendRow({item, countItem});
+                parentItem->appendRow(item);
                 addNodes(node.id, item);
             }
         };
@@ -602,9 +799,7 @@ void DomainView::renderDomainTree(
         addNodes(std::nullopt, domainItem);
     }
 
-    treeView->header()->setStretchLastSection(false);
     treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    treeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     treeView->collapseAll();
 }
 
@@ -664,18 +859,38 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             apiClient.createDomainNode(index.data(Qt::UserRole).toInt(), name);
         }
     } else if (selectedAction == editAction) {
-        bool accepted;
-        const QString name = QInputDialog::getText(
-            treeView,
-            "Domain Node bearbeiten",
-            "Name",
-            QLineEdit::Normal,
-            index.data().toString(),
-            &accepted
-        ).trimmed();
+        QString name = index.data(NODE_NAME_ROLE).toString();
+        std::optional<int> cognitiveLevelId = optionalRole(index, COGNITIVE_LEVEL_ROLE);
+        std::optional<int> completenessLevelId = optionalRole(
+            index, COMPLETENESS_LEVEL_ROLE
+        );
+        std::optional<int> flashcardStatusId = optionalRole(index, FLASHCARD_STATUS_ROLE);
+        std::optional<int> verificationStatusId = optionalRole(
+            index, VERIFICATION_STATUS_ROLE
+        );
+        std::optional<int> verificationLevelId = optionalRole(
+            index, VERIFICATION_LEVEL_ROLE
+        );
 
-        if (accepted && !name.isEmpty()) {
-            apiClient.updateDomainNode(index.data(Qt::UserRole).toInt(), name);
+        if (showDomainNodeDialog(
+                treeView,
+                name,
+                cognitiveLevelId,
+                index.data(HAS_DOCUMENT_ROLE).toBool(),
+                completenessLevelId,
+                flashcardStatusId,
+                verificationStatusId,
+                verificationLevelId
+            )) {
+            apiClient.updateDomainNode(
+                index.data(Qt::UserRole).toInt(),
+                name,
+                cognitiveLevelId,
+                completenessLevelId,
+                flashcardStatusId,
+                verificationStatusId,
+                verificationLevelId
+            );
         }
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
         apiClient.createDocument(index.data(Qt::UserRole).toInt());
@@ -713,11 +928,7 @@ void DomainView::editFlashcard(const int row) {
 void DomainView::updateFlashcardCount(const int nodeId, const int count) {
     QStandardItem *item = findDomainNodeItem(nodeId);
     item->setData(count, FLASHCARD_COUNT_ROLE);
-    QStandardItem *countItem = model->itemFromIndex(item->index().siblingAtColumn(1));
-    countItem->setIcon(
-        count > 0 ? QIcon(":/assets/icons/flashcards-white.png") : QIcon()
-    );
-    countItem->setText(count > 0 ? QString::number(count) : QString());
+    refreshDomainNodeText(item);
 }
 
 void DomainView::updateFlashcardView() {

@@ -49,7 +49,12 @@ public:
     void getDomainTree();
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);
-    void updateDomainNode(int id, const QString& name);
+    void updateDomainNode(int id, const QString& name,
+                          std::optional<int> cognitiveLevelId,
+                          std::optional<int> completenessLevelId,
+                          std::optional<int> flashcardStatusId,
+                          std::optional<int> verificationStatusId,
+                          std::optional<int> verificationLevelId);
     void createDocument(int nodeId);
     void getDocument(int nodeId);
     void updateDocument(int nodeId, const QString& content);

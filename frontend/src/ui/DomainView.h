@@ -9,6 +9,7 @@
 
 class QPoint;
 class QLabel;
+class QComboBox;
 class QPushButton;
 class QTimer;
 class QStandardItem;
@@ -51,6 +52,11 @@ private:
     QVBoxLayout *editorLayout;
     QWidget *documentWidget;
     QLabel *documentTitle;
+    QWidget *documentMetadataWidget;
+    QLabel *completenessLabel;
+    QLabel *flashcardStatusLabel;
+    QLabel *verificationStatusLabel;
+    QLabel *verificationLevelLabel;
     QWidget *saveStatus;
     QPlainTextEdit *documentEditor;
     QWidget *flashcardWidget;

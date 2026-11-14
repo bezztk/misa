@@ -45,6 +45,21 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     if (!object["parent_id"].isNull()) {
         node.parentId = object["parent_id"].toInt();
     }
+    if (!object["cognitive_level_id"].isNull()) {
+        node.cognitiveLevelId = object["cognitive_level_id"].toInt();
+    }
+    if (!object["completeness_level_id"].isNull()) {
+        node.completenessLevelId = object["completeness_level_id"].toInt();
+    }
+    if (!object["flashcard_status_id"].isNull()) {
+        node.flashcardStatusId = object["flashcard_status_id"].toInt();
+    }
+    if (!object["verification_status_id"].isNull()) {
+        node.verificationStatusId = object["verification_status_id"].toInt();
+    }
+    if (!object["verification_level_id"].isNull()) {
+        node.verificationLevelId = object["verification_level_id"].toInt();
+    }
 
     return node;
 }
@@ -128,10 +143,25 @@ void ApiClient::deleteFlashcard(const int nodeId, const int id) {
 }
 
 static Document parseDocument(const QJsonObject &object) {
-    return {
+    Document document{
         .domainNodeId = object["domain_node_id"].toInt(),
         .content = object["content"].toString()
     };
+
+    if (!object["completeness_level_id"].isNull()) {
+        document.completenessLevelId = object["completeness_level_id"].toInt();
+    }
+    if (!object["flashcard_status_id"].isNull()) {
+        document.flashcardStatusId = object["flashcard_status_id"].toInt();
+    }
+    if (!object["verification_status_id"].isNull()) {
+        document.verificationStatusId = object["verification_status_id"].toInt();
+    }
+    if (!object["verification_level_id"].isNull()) {
+        document.verificationLevelId = object["verification_level_id"].toInt();
+    }
+
+    return document;
 }
 
 QUrl ApiClient::buildUrl(const QString &path) {
@@ -260,12 +290,31 @@ void ApiClient::createRootDomainNode(const int domainId, const QString &name) {
     });
 }
 
-void ApiClient::updateDomainNode(const int id, const QString &name) {
+void ApiClient::updateDomainNode(
+    const int id,
+    const QString &name,
+    const std::optional<int> cognitiveLevelId,
+    const std::optional<int> completenessLevelId,
+    const std::optional<int> flashcardStatusId,
+    const std::optional<int> verificationStatusId,
+    const std::optional<int> verificationLevelId
+) {
     QNetworkRequest networkRequest(buildUrl("/domain-nodes/" + QString::number(id)));
     networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject json;
     json["name"] = name;
+    json["cognitive_level_id"] = cognitiveLevelId.has_value()
+        ? QJsonValue(*cognitiveLevelId)
+        : QJsonValue(QJsonValue::Null);
+    json["completeness_level_id"] = completenessLevelId.has_value()
+        ? QJsonValue(*completenessLevelId) : QJsonValue(QJsonValue::Null);
+    json["flashcard_status_id"] = flashcardStatusId.has_value()
+        ? QJsonValue(*flashcardStatusId) : QJsonValue(QJsonValue::Null);
+    json["verification_status_id"] = verificationStatusId.has_value()
+        ? QJsonValue(*verificationStatusId) : QJsonValue(QJsonValue::Null);
+    json["verification_level_id"] = verificationLevelId.has_value()
+        ? QJsonValue(*verificationLevelId) : QJsonValue(QJsonValue::Null);
     QNetworkReply *reply = manager.sendCustomRequest(
         networkRequest,
         "PATCH",
