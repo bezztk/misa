@@ -18,11 +18,25 @@ pub struct DomainNode {
     pub last_reviewed_at: DateTime<Utc>,
     pub has_document: bool,
     pub flashcard_count: i64,
+    pub completeness_level_id: Option<i32>,
+    pub flashcard_status_id: Option<i32>,
+    pub verification_status_id: Option<i32>,
+    pub verification_level_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DomainNodeNameRequest {
     pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DomainNodeUpdateRequest {
+    pub name: String,
+    pub cognitive_level_id: Option<i32>,
+    pub completeness_level_id: Option<i32>,
+    pub flashcard_status_id: Option<i32>,
+    pub verification_status_id: Option<i32>,
+    pub verification_level_id: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
