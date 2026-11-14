@@ -6,6 +6,14 @@ pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
         .route("/domain-nodes", get(domain_handler::get_domain_nodes))
         .route(
+            "/domain-nodes/{parent_id}/children",
+            axum::routing::post(domain_handler::create_domain_node),
+        )
+        .route(
+            "/domain-nodes/{id}",
+            axum::routing::patch(domain_handler::update_domain_node),
+        )
+        .route(
             "/flashcards/due",
             get(flashcard_handler::get_due_flashcards),
         )

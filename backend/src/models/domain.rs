@@ -18,6 +18,11 @@ pub struct DomainNode {
     pub last_reviewed_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DomainNodeNameRequest {
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct CognitiveEvaluation {
     pub id: i32,
