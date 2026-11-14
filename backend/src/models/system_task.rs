@@ -64,3 +64,26 @@ pub struct SystemTask {
     pub estimated_effort_minutes: Option<i32>,
     pub due_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
+pub struct TaskListItem {
+    pub id: i32,
+    pub name: String,
+    pub group_id: i32,
+    pub state_id: i32,
+    pub priority_id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTaskRequest {
+    pub name: String,
+    pub group_id: i32,
+    pub priority_id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTaskRequest {
+    pub name: Option<String>,
+    pub state_id: Option<i32>,
+    pub priority_id: Option<i32>,
+}
