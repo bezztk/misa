@@ -69,26 +69,47 @@ static QString taskStateColor(const int id) {
 }
 
 TaskView::TaskView(QWidget *parent) : QWidget(parent) {
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(8);
 
-    auto *createButton = new QPushButton("Neue Aufgabe", this);
+    auto *content = new QWidget(this);
+    content->setMaximumWidth(820);
+    auto *contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(24, 20, 24, 20);
+    contentLayout->setSpacing(14);
+
+    auto *headerLayout = new QHBoxLayout();
+    auto *title = new QLabel("Aufgaben", content);
+    QFont titleFont = title->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(titleFont.pointSize() + 4);
+    title->setFont(titleFont);
+
+    auto *createButton = new QPushButton("Neue Aufgabe", content);
+    createButton->setMinimumWidth(120);
     connect(createButton, &QPushButton::clicked, this, [this] {
         openCreateDialog();
     });
-    layout->addWidget(createButton, 0, Qt::AlignRight);
+    headerLayout->addWidget(title);
+    headerLayout->addStretch();
+    headerLayout->addWidget(createButton);
+    contentLayout->addLayout(headerLayout);
 
-    auto *scrollArea = new QScrollArea(this);
+    auto *scrollArea = new QScrollArea(content);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setStyleSheet("QScrollArea { background: transparent; }");
 
     auto *cards = new QWidget(scrollArea);
     cardsLayout = new QVBoxLayout(cards);
     cardsLayout->setContentsMargins(0, 0, 0, 0);
-    cardsLayout->setSpacing(2);
+    cardsLayout->setSpacing(8);
     scrollArea->setWidget(cards);
-    layout->addWidget(scrollArea);
+    contentLayout->addWidget(scrollArea, 1);
+
+    layout->addStretch();
+    layout->addWidget(content, 1);
+    layout->addStretch();
 
     connect(&apiClient, &ApiClient::taskReceived, this,
             [this](const std::vector<Task> &receivedTasks) {
@@ -114,55 +135,65 @@ void TaskView::renderTasks() {
         delete item;
     }
 
-    for (std::size_t i = 0; i < tasks.size(); ++i) {
-        const Task &task = tasks[i];
+    if (tasks.empty()) {
+        auto *emptyLabel = new QLabel("Noch keine Aufgaben angelegt.");
+        emptyLabel->setAlignment(Qt::AlignCenter);
+        emptyLabel->setStyleSheet("color: #777777; padding: 28px;");
+        cardsLayout->addWidget(emptyLabel);
+    }
+
+    for (const Task &task : tasks) {
         auto *card = new ClickableFrame();
+        card->setObjectName("taskCard");
         card->setCursor(Qt::PointingHandCursor);
-        card->setStyleSheet(
-            "QFrame { border: none; background: transparent; }"
-            "QFrame:hover { background: rgba(255, 255, 255, 0.03); }"
-            "QLabel { border: none; background: transparent; }"
-        );
+        card->setStyleSheet(QString(
+            "QFrame#taskCard {"
+            "  background: rgba(255, 255, 255, 0.04);"
+            "  border: 1px solid rgba(255, 255, 255, 0.10);"
+            "  border-left: 3px solid %1;"
+            "  border-radius: 6px;"
+            "}"
+            "QFrame#taskCard:hover { background: rgba(255, 255, 255, 0.07); }"
+            "QFrame#taskCard QLabel { border: none; background: transparent; }"
+        ).arg(priorityColor(task.priority_id)));
 
         auto *cardLayout = new QVBoxLayout(card);
-        cardLayout->setContentsMargins(8, 5, 8, 5);
-        cardLayout->setSpacing(1);
+        cardLayout->setContentsMargins(12, 9, 12, 9);
+        cardLayout->setSpacing(4);
 
         auto *topRow = new QHBoxLayout();
         topRow->setContentsMargins(0, 0, 0, 0);
         topRow->setSpacing(6);
-        auto *title = new QLabel(QString(
-            "<span style='color: #777777; font-size: 11px; font-weight: 400'>%1::</span>"
-            "<span style='color: %2'>%3</span>"
-        ).arg(
-            taskGroupName(task.group_id).toHtmlEscaped(),
-            priorityColor(task.priority_id),
-            task.name.toHtmlEscaped()
-        ), card);
-        title->setTextFormat(Qt::RichText);
-        title->setAttribute(Qt::WA_TransparentForMouseEvents);
+        auto *taskTitle = new QLabel(task.name, card);
+        taskTitle->setWordWrap(true);
+        QFont taskTitleFont = taskTitle->font();
+        taskTitleFont.setBold(true);
+        taskTitle->setFont(taskTitleFont);
+        taskTitle->setAttribute(Qt::WA_TransparentForMouseEvents);
 
         auto *status = new QLabel(taskStateName(task.state_id), card);
         status->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        status->setStyleSheet("color: " + taskStateColor(task.state_id) + ";");
+        status->setStyleSheet(
+            "color: " + taskStateColor(task.state_id)
+            + "; padding: 2px 6px; background: rgba(255,255,255,0.05);"
+            + " border-radius: 4px;"
+        );
         status->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-        topRow->addWidget(title, 1);
+        topRow->addWidget(taskTitle, 1);
         topRow->addWidget(status);
         cardLayout->addLayout(topRow);
+
+        auto *group = new QLabel(taskGroupName(task.group_id), card);
+        group->setStyleSheet("color: #777777; font-size: 11px;");
+        group->setAttribute(Qt::WA_TransparentForMouseEvents);
+        cardLayout->addWidget(group);
 
         card->clicked = [this, task] {
             openEditDialog(task);
         };
 
         cardsLayout->addWidget(card);
-
-        if (i + 1 < tasks.size()) {
-            auto *separator = new QFrame(this);
-            separator->setFixedHeight(1);
-            separator->setStyleSheet("background: rgba(255, 255, 255, 0.10); border: none;");
-            cardsLayout->addWidget(separator);
-        }
     }
 
     cardsLayout->addStretch();

@@ -50,64 +50,109 @@ static QString metricText(const std::optional<float> value) {
 }
 
 LearningView::LearningView(QWidget *parent) : QWidget(parent) {
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    auto *outerLayout = new QHBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto *content = new QWidget(this);
+    content->setMaximumWidth(860);
+    auto *layout = new QVBoxLayout(content);
+    layout->setContentsMargins(24, 20, 24, 20);
+    layout->setSpacing(14);
 
     auto* headerLayout = new QHBoxLayout();
-    auto* refreshButton = new QPushButton("Neu laden", this);
-    pauseButton = new QPushButton("Pause", this);
+    auto *title = new QLabel("Lernkarten", content);
+    QFont titleFont = title->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(titleFont.pointSize() + 4);
+    title->setFont(titleFont);
+    auto* refreshButton = new QPushButton("Neu laden", content);
+    pauseButton = new QPushButton("Pause", content);
     pauseButton->hide();
 
-    remainingLabel = new QLabel(this);
+    remainingLabel = new QLabel(content);
     remainingLabel->setStyleSheet(R"(
-    color: #666666;
-    font-size: 11px;
-    font-weight: 300;
-)");
-    headerLayout->addWidget(remainingLabel);
+        color: #777777;
+        font-size: 11px;
+    )");
+    headerLayout->addWidget(title);
+    headerLayout->addSpacing(12);
+    headerLayout->addWidget(remainingLabel, 1, Qt::AlignBottom);
     headerLayout->addStretch();
     headerLayout->addWidget(pauseButton);
     headerLayout->addWidget(refreshButton);
     layout->addLayout(headerLayout);
-    layout->addSpacing(6);
 
-    front = new QLabel(this);
+    auto *card = new QFrame(content);
+    card->setObjectName("learningCard");
+    card->setStyleSheet(R"(
+        QFrame#learningCard {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 8px;
+        }
+        QFrame#learningCard QLabel {
+            background: transparent;
+            border: none;
+        }
+    )");
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(20, 18, 20, 18);
+    cardLayout->setSpacing(10);
+
+    front = new QLabel(card);
     front->setText("Lernkarten werden geladen");
-    backLabel = new QLabel("Antwort:");
+    front->setWordWrap(true);
+    QFont frontFont = front->font();
+    frontFont.setPointSize(frontFont.pointSize() + 2);
+    frontFont.setBold(true);
+    front->setFont(frontFont);
+    backLabel = new QLabel("Antwort", card);
+    backLabel->setStyleSheet("color: #777777; font-size: 11px;");
     backLabel->hide();
-    back = new QLabel(this);
+    back = new QLabel(card);
+    back->setWordWrap(true);
 
-    showAnswerButton = new QPushButton("Antwort anzeigen", this);
+    showAnswerButton = new QPushButton("Antwort anzeigen", card);
+    showAnswerButton->setMinimumWidth(160);
+    showAnswerButton->setMaximumWidth(200);
     showAnswerButton->hide();
-    startButton = new QPushButton("Starten", this);
+    startButton = new QPushButton("Starten", card);
+    startButton->setMinimumWidth(120);
+    startButton->setMaximumWidth(160);
     startButton->hide();
 
-    layout->addWidget(front);
-    layout->addSpacing(20);
-    layout->addWidget(startButton);
-    layout->addWidget(backLabel);
-    layout->addWidget(back);
-    layout->addWidget(showAnswerButton);
+    cardLayout->addWidget(front);
+    cardLayout->addSpacing(12);
+    cardLayout->addWidget(backLabel);
+    cardLayout->addWidget(back);
+    cardLayout->addStretch();
 
-    ratingWidget = new QWidget(this);
+    ratingWidget = new QWidget(content);
+    ratingWidget->setMaximumWidth(700);
     auto *ratingLayout = new QHBoxLayout(ratingWidget);
+    ratingLayout->setContentsMargins(0, 0, 0, 0);
+    ratingLayout->setSpacing(8);
     againButton = new QPushButton("Nochmal");
     hardButton = new QPushButton("Schwer");
     goodButton = new QPushButton("Gut");
     easyButton = new QPushButton("Einfach");
+    for (QPushButton *button : {againButton, hardButton, goodButton, easyButton}) {
+        button->setMinimumWidth(120);
+        button->setMaximumWidth(160);
+    }
     ratingLayout->addWidget(againButton);
     ratingLayout->addWidget(hardButton);
     ratingLayout->addWidget(goodButton);
     ratingLayout->addWidget(easyButton);
 
-    metadataWidget = new QFrame(this);
+    metadataWidget = new QFrame(card);
     metadataWidget->setObjectName("flashcardMetadata");
     metadataWidget->setFixedWidth(260);
     metadataWidget->setStyleSheet(R"(
         QFrame#flashcardMetadata {
             background: rgba(255, 255, 255, 0.05);
-            border-left: 3px solid #64B5F6;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 5px;
         }
         QFrame#flashcardMetadata QLabel {
             background: transparent;
@@ -121,11 +166,20 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
     metadataLayout->addWidget(metadataLabel);
     metadataWidget->hide();
 
-    layout->addStretch();
-    layout->addWidget(metadataWidget, 0, Qt::AlignRight);
-    layout->addSpacing(6);
-    layout->addWidget(ratingWidget);
+    cardLayout->addWidget(metadataWidget, 0, Qt::AlignRight);
+    auto *actionLayout = new QHBoxLayout();
+    actionLayout->addStretch();
+    actionLayout->addWidget(startButton);
+    actionLayout->addWidget(showAnswerButton);
+    actionLayout->addStretch();
+    cardLayout->addLayout(actionLayout);
+    layout->addWidget(card, 1);
+    layout->addWidget(ratingWidget, 0, Qt::AlignCenter);
     ratingWidget->hide();
+
+    outerLayout->addStretch();
+    outerLayout->addWidget(content, 1);
+    outerLayout->addStretch();
 
     connect(&apiClient, &ApiClient::flashcardsReceived, this,
             [this](const std::vector<FlashcardReviewQueueItem> &receivedFlashcards) {

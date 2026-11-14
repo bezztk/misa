@@ -596,14 +596,16 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setHandleWidth(1);
-    splitter->setStyleSheet("QSplitter::handle { background: palette(mid); }");
+    splitter->setStyleSheet(
+        "QSplitter::handle { background: rgba(255, 255, 255, 0.25); }"
+    );
 
     treeView = new QTreeView(splitter);
     treeView->setHeaderHidden(true);
     treeView->setFrameShape(QFrame::NoFrame);
     treeView->setIndentation(16);
-    treeView->setMinimumWidth(200);
-    treeView->setMaximumWidth(600);
+    treeView->setMinimumWidth(500);
+    treeView->setMaximumWidth(800);
     treeView->setUniformRowHeights(true);
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -671,7 +673,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     auto *flashcardSeparator = new QFrame(flashcardWidget);
     flashcardSeparator->setFixedHeight(1);
-    flashcardSeparator->setStyleSheet("background: palette(mid); border: none;");
+    flashcardSeparator->setStyleSheet(
+        "background: rgba(255, 255, 255, 0.25); border: none;"
+    );
     flashcardLayout->addWidget(flashcardSeparator);
 
     auto *flashcardHeader = new QWidget(flashcardWidget);
@@ -712,21 +716,24 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     skillWidget = new QWidget(splitter);
     skillWidget->setObjectName("skillPanel");
-    skillWidget->setMinimumWidth(210);
-    skillWidget->setMaximumWidth(320);
+    skillWidget->setFixedWidth(300);
     skillWidget->setStyleSheet(R"(
         QWidget#skillPanel {
-            border-left: 1px solid palette(mid);
+            background: palette(base);
+        }
+        QTreeView#pursuitTree, QTreeView#skillTree {
+            background: palette(base);
+            border: none;
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
-    skillLayout->setContentsMargins(8, 0, 4, 0);
+    skillLayout->setContentsMargins(4, 0, 4, 0);
     skillLayout->setSpacing(0);
 
     auto *sidebarSplitter = new QSplitter(Qt::Vertical, skillWidget);
     sidebarSplitter->setHandleWidth(4);
     sidebarSplitter->setStyleSheet(
-        "QSplitter::handle { background: palette(mid); }"
+        "QSplitter::handle { background: rgba(255, 255, 255, 0.25); }"
     );
     auto *pursuitPanel = new QWidget();
     auto *pursuitLayout = new QVBoxLayout(pursuitPanel);
@@ -753,6 +760,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     pursuitLayout->addWidget(noPursuitsLabel);
 
     pursuitTreeView = new QTreeView(pursuitPanel);
+    pursuitTreeView->setObjectName("pursuitTree");
     pursuitTreeView->setHeaderHidden(true);
     pursuitTreeView->setFrameShape(QFrame::NoFrame);
     pursuitTreeView->setIndentation(14);
@@ -787,6 +795,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     skillPanelLayout->addWidget(noSkillsLabel);
 
     skillTreeView = new QTreeView(skillPanel);
+    skillTreeView->setObjectName("skillTree");
     skillTreeView->setHeaderHidden(true);
     skillTreeView->setFrameShape(QFrame::NoFrame);
     skillTreeView->setIndentation(14);
@@ -801,7 +810,25 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     sidebarSplitter->setStretchFactor(0, 1);
     sidebarSplitter->setStretchFactor(1, 1);
     sidebarSplitter->setSizes({100, 100});
+    auto *sidebarHeaderLayout = new QHBoxLayout();
+    sidebarHeaderLayout->setContentsMargins(0, 2, 0, 2);
+    sidebarHeaderLayout->addStretch();
+    auto *toggleSidebarButton = new QPushButton("›", skillWidget);
+    toggleSidebarButton->setFixedSize(24, 24);
+    toggleSidebarButton->setToolTip("Seitenleiste minimieren");
+    sidebarHeaderLayout->addWidget(toggleSidebarButton);
+    skillLayout->addLayout(sidebarHeaderLayout);
     skillLayout->addWidget(sidebarSplitter);
+    connect(toggleSidebarButton, &QPushButton::clicked, this,
+            [this, sidebarSplitter, toggleSidebarButton, expanded = true]() mutable {
+                expanded = !expanded;
+                sidebarSplitter->setVisible(expanded);
+                skillWidget->setFixedWidth(expanded ? 300 : 32);
+                toggleSidebarButton->setText(expanded ? "›" : "‹");
+                toggleSidebarButton->setToolTip(
+                    expanded ? "Seitenleiste minimieren" : "Seitenleiste anzeigen"
+                );
+            });
     skillWidget->hide();
 
     splitter->addWidget(treeView);
@@ -810,6 +837,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     splitter->setStretchFactor(2, 0);
+    splitter->setCollapsible(0, false);
+    splitter->setCollapsible(1, false);
+    splitter->setCollapsible(2, false);
     layout->addWidget(splitter);
 
     connect(&apiClient, &ApiClient::domainTreeReceived, this,

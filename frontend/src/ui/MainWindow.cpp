@@ -16,7 +16,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     apiClient.getMetadata();
 
     setWindowTitle("Misa");
-    resize(600, 400);
+    resize(1600, 900);
 
     auto *central = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(central);
@@ -60,7 +60,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     auto *taskButton = new QPushButton(navbar);
     taskButton->setFixedSize(36,36);
-    taskButton->setIcon(QIcon(":/assets/icons/task.png"));
+    taskButton->setIcon(QIcon(":/assets/icons/task-white.png"));
     taskButton->setIconSize(QSize(24, 24));
     taskButton->setCheckable(true);
     taskButton->setAutoExclusive(true);
