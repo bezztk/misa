@@ -25,7 +25,9 @@ signals:
     );
     void domainNodeCreated(const DomainNode& node);
     void domainNodeUpdated(const DomainNode& node);
+    void documentCreated(const Document& document);
     void documentReceived(const Document& document);
+    void documentUpdated(bool successful);
 
 public:
     ApiClient();

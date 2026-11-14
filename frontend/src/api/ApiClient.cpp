@@ -212,7 +212,7 @@ void ApiClient::createDocument(const int nodeId) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (reply->error() == QNetworkReply::NoError) {
-            emit documentReceived(parseDocument(
+            emit documentCreated(parseDocument(
                 QJsonDocument::fromJson(reply->readAll()).object()
             ));
         }
@@ -248,7 +248,13 @@ void ApiClient::updateDocument(const int nodeId, const QString &content) {
     json["content"] = content;
     QNetworkReply *reply = manager.put(request, QJsonDocument(json).toJson());
 
-    connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        emit documentUpdated(
+            reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200
+        );
+        reply->deleteLater();
+    });
 }
 
 void ApiClient::getDueFlashcards() {

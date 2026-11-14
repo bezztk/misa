@@ -13,6 +13,7 @@
 #include <QStandardItemModel>
 #include <QStyle>
 #include <QTextBlock>
+#include <QTimer>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -22,6 +23,57 @@ static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
 
 class LineNumberArea;
+
+class SaveStatus : public QWidget {
+public:
+    enum State { Hidden, Saving, Saved, Error };
+
+    explicit SaveStatus(QWidget *parent = nullptr) : QWidget(parent) {
+        setFixedSize(24, 24);
+        connect(&animationTimer, &QTimer::timeout, this, [this] {
+            angle = (angle + 30) % 360;
+            update();
+        });
+    }
+
+    void setState(const State newState) {
+        state = newState;
+        if (state == Saving) {
+            animationTimer.start(80);
+            setToolTip("Wird gespeichert");
+        } else {
+            animationTimer.stop();
+            setToolTip(state == Saved ? "Gespeichert" : state == Error ? "Speichern fehlgeschlagen" : "");
+        }
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        if (state == Saving) {
+            QPen pen(QColor(70, 145, 230), 2);
+            pen.setCapStyle(Qt::RoundCap);
+            painter.setPen(pen);
+            painter.drawArc(rect().adjusted(4, 4, -4, -4), (90 - angle) * 16, 270 * 16);
+        } else if (state == Saved) {
+            painter.setPen(QPen(QColor(90, 140, 195), 1.5));
+            painter.drawLine(5, 12, 10, 17);
+            painter.drawLine(10, 17, 19, 7);
+        } else if (state == Error) {
+            painter.setPen(QColor(220, 80, 60));
+            painter.setFont(QFont(painter.font().family(), 16));
+            painter.drawText(rect(), Qt::AlignCenter, QString::fromUtf8("\xE2\x9A\xA0"));
+        }
+    }
+
+private:
+    State state = Hidden;
+    QTimer animationTimer;
+    int angle = 0;
+};
 
 class DocumentEditor : public QPlainTextEdit {
 public:
@@ -174,10 +226,13 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     documentTitle->setFont(titleFont);
     documentEditor = new DocumentEditor(editorWidget);
     documentEditor->setObjectName("documentEditor");
-    saveButton = new QPushButton("Speichern", editorWidget);
+    saveStatus = new SaveStatus(editorWidget);
+    autosaveTimer = new QTimer(this);
+    autosaveTimer->setInterval(1000);
+    autosaveTimer->setSingleShot(true);
     headerLayout->addWidget(documentTitle);
     headerLayout->addStretch();
-    headerLayout->addWidget(saveButton);
+    headerLayout->addWidget(saveStatus);
     editorLayout->addWidget(header);
     editorLayout->addWidget(documentEditor, 1);
     editorWidget->hide();
@@ -211,14 +266,42 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             });
     connect(&apiClient, &ApiClient::documentReceived, this,
             [this](const Document &document) {
+                if (!documentLoadPending || document.domainNodeId != pendingDocumentNodeId) {
+                    return;
+                }
+
+                documentLoadPending = false;
                 QStandardItem *item = findDomainNodeItem(document.domainNodeId);
                 item->setData(true, HAS_DOCUMENT_ROLE);
                 item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 treeView->setCurrentIndex(item->index());
                 currentDocumentNodeId = document.domainNodeId;
                 documentTitle->setText(item->text());
+                savedContent = document.content;
                 documentEditor->setPlainText(document.content);
+                static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Hidden);
                 editorWidget->show();
+            });
+    connect(&apiClient, &ApiClient::documentCreated, this,
+            [this](const Document &document) {
+                QStandardItem *item = findDomainNodeItem(document.domainNodeId);
+                item->setData(true, HAS_DOCUMENT_ROLE);
+                item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                requestDocumentChange(document.domainNodeId);
+            });
+    connect(&apiClient, &ApiClient::documentUpdated, this,
+            [this](const bool successful) {
+                saveInProgress = false;
+                if (!successful) {
+                    static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Error);
+                    return;
+                }
+
+                savedContent = savingContent;
+                static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saved);
+                if (documentChangePending || closeContinuation || !autosaveTimer->isActive()) {
+                    finishPendingActions();
+                }
             });
     connect(treeView, &QTreeView::customContextMenuRequested, this,
             [this](const QPoint &position) {
@@ -227,19 +310,90 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     connect(treeView, &QTreeView::clicked, this, [this](const QModelIndex &index) {
         if (!index.data(Qt::UserRole).isValid()
             || !index.data(HAS_DOCUMENT_ROLE).toBool()) {
-            currentDocumentNodeId = -1;
-            editorWidget->hide();
+            requestDocumentChange(-1);
             return;
         }
 
-        editorWidget->hide();
-        apiClient.getDocument(index.data(Qt::UserRole).toInt());
+        requestDocumentChange(index.data(Qt::UserRole).toInt());
     });
-    connect(saveButton, &QPushButton::clicked, this, [this] {
-        apiClient.updateDocument(currentDocumentNodeId, documentEditor->toPlainText());
+    connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
+        if (currentDocumentNodeId == -1) {
+            return;
+        }
+
+        if (documentEditor->toPlainText() == savedContent) {
+            autosaveTimer->stop();
+            static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saved);
+        } else {
+            static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saving);
+            autosaveTimer->start();
+        }
     });
+    connect(autosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
 
     apiClient.getDomainTree();
+}
+
+void DomainView::saveBeforeClose(std::function<void()> continuation) {
+    closeContinuation = std::move(continuation);
+    autosaveTimer->stop();
+    finishPendingActions();
+}
+
+void DomainView::requestDocumentChange(const int nodeId) {
+    if (nodeId == currentDocumentNodeId && !documentChangePending) {
+        return;
+    }
+
+    pendingDocumentNodeId = nodeId;
+    documentChangePending = true;
+    autosaveTimer->stop();
+    finishPendingActions();
+}
+
+void DomainView::continueDocumentChange() {
+    const int nodeId = pendingDocumentNodeId;
+    documentChangePending = false;
+    currentDocumentNodeId = -1;
+    editorWidget->hide();
+    documentLoadPending = nodeId != -1;
+
+    if (nodeId != -1) {
+        apiClient.getDocument(nodeId);
+    }
+}
+
+void DomainView::startSave() {
+    if (saveInProgress || currentDocumentNodeId == -1
+        || documentEditor->toPlainText() == savedContent) {
+        return;
+    }
+
+    saveInProgress = true;
+    savingContent = documentEditor->toPlainText();
+    static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saving);
+    apiClient.updateDocument(currentDocumentNodeId, savingContent);
+}
+
+void DomainView::finishPendingActions() {
+    if (saveInProgress) {
+        return;
+    }
+
+    if (currentDocumentNodeId != -1 && documentEditor->toPlainText() != savedContent) {
+        startSave();
+        return;
+    }
+
+    if (documentChangePending) {
+        continueDocumentChange();
+    }
+
+    if (closeContinuation) {
+        auto continuation = std::move(closeContinuation);
+        closeContinuation = {};
+        continuation();
+    }
 }
 
 void DomainView::renderDomainTree(

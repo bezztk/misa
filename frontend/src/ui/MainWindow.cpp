@@ -5,6 +5,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QFrame>
+#include <QCloseEvent>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QStyle>
@@ -92,7 +93,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     auto *taskView = new TaskView();
     auto *learningView = new LearningView();
-    auto *domainView = new DomainView();
+    domainView = new DomainView();
 
     connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::renderTasks);
     connect(&apiClient, &ApiClient::metadataReceived, learningView, &LearningView::refreshMetadata);
@@ -131,7 +132,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         stack->setCurrentWidget(learningView);
     });
 
-    connect(domainButton, &QPushButton::clicked, this, [stack, domainView] {
+    connect(domainButton, &QPushButton::clicked, this, [this, stack] {
         stack->setCurrentWidget(domainView);
+    });
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+    if (closeAfterSave) {
+        event->accept();
+        return;
+    }
+
+    event->ignore();
+    domainView->saveBeforeClose([this] {
+        closeAfterSave = true;
+        close();
     });
 }
