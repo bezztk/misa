@@ -3,11 +3,13 @@
 
 #include <QFrame>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
 
 DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
@@ -25,6 +27,11 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     scrollArea->setWidget(cards);
     layout->addWidget(scrollArea);
+
+    connect(&apiClient, &ApiClient::domainNodesReceived, this,
+            [this](const int domainId, const std::vector<DomainNode> &nodes) {
+                renderDomainNodes(domainId, nodes);
+            });
 }
 
 void DomainView::renderDomains() {
@@ -37,6 +44,8 @@ void DomainView::renderDomains() {
 
     for (const MetadataItem &domain : AppState::metadata.domains) {
         auto *card = new QFrame(this);
+        card->setCursor(Qt::PointingHandCursor);
+        card->installEventFilter(this);
         card->setMaximumWidth(1000);
         card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         card->setStyleSheet(R"(
@@ -56,6 +65,7 @@ void DomainView::renderDomains() {
 
         auto *title = new QLabel(domain.name, card);
         title->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        title->setAttribute(Qt::WA_TransparentForMouseEvents);
         QFont titleFont = title->font();
         titleFont.setBold(true);
         titleFont.setPointSize(titleFont.pointSize() + 2);
@@ -63,10 +73,55 @@ void DomainView::renderDomains() {
         cardLayout->addWidget(title);
 
         cardsLayout->addWidget(card, 0, Qt::AlignHCenter);
-        domainCards.push_back(card);
+        domainCards.insert(domain.id, DomainCard{
+            .domain = domain,
+            .frame = card,
+            .isLoaded = false
+        });
     }
 
     updateCardWidths();
+}
+
+bool DomainView::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::MouseButtonRelease
+        && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+        for (auto it = domainCards.begin(); it != domainCards.end(); ++it) {
+            DomainCard &card = it.value();
+
+            if (card.frame == watched && !card.isLoaded) {
+                card.isLoaded = true;
+                apiClient.getDomainNodes(card.domain.id);
+                return true;
+            }
+        }
+    }
+
+    return QWidget::eventFilter(watched, event);
+}
+
+void DomainView::renderDomainNodes(
+    const int domainId,
+    const std::vector<DomainNode> &nodes
+) {
+    QVBoxLayout *layout = qobject_cast<QVBoxLayout *>(domainCards[domainId].frame->layout());
+
+    std::function<void(std::optional<int>, int)> addNodes;
+    addNodes = [&](const std::optional<int> parentId, const int depth) {
+        for (const DomainNode &node : nodes) {
+            if (node.parentId != parentId) {
+                continue;
+            }
+
+            auto *label = new QLabel(node.name, domainCards[domainId].frame);
+            label->setContentsMargins(depth * 18, 0, 0, 0);
+            label->setAttribute(Qt::WA_TransparentForMouseEvents);
+            layout->addWidget(label);
+            addNodes(node.id, depth + 1);
+        }
+    };
+
+    addNodes(std::nullopt, 0);
 }
 
 void DomainView::resizeEvent(QResizeEvent *event) {
@@ -77,7 +132,7 @@ void DomainView::resizeEvent(QResizeEvent *event) {
 void DomainView::updateCardWidths() {
     const int cardWidth = std::min(1000, scrollArea->viewport()->width() - 40);
 
-    for (QFrame *card : domainCards) {
-        card->setFixedWidth(cardWidth);
+    for (const DomainCard &card : domainCards) {
+        card.frame->setFixedWidth(cardWidth);
     }
 }

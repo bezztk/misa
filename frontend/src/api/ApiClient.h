@@ -3,6 +3,7 @@
 #include "../models/Task.h"
 #include "../models/Flashcard.h"
 #include "../models/Metadata.h"
+#include "../models/DomainNode.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -17,6 +18,7 @@ signals:
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
     void flashcardPreviewCalculated(const FlashcardReviewPreview& preview);
+    void domainNodesReceived(int domainId, const std::vector<DomainNode>& nodes);
 
 public:
     ApiClient();
@@ -29,6 +31,7 @@ public:
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
     void getFlashcardPreview(int id);
+    void getDomainNodes(int domainId);
 
 private:
     static constexpr auto SCHEME = "http";

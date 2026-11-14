@@ -100,6 +100,36 @@ void ApiClient::getMetadata() {
     });
 }
 
+void ApiClient::getDomainNodes(const int domainId) {
+    const QNetworkRequest networkRequest(buildUrl(
+        "/domains/" + QString::number(domainId) + "/nodes"
+    ));
+    QNetworkReply *reply = manager.get(networkRequest);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, domainId] {
+        std::vector<DomainNode> nodes;
+        const QJsonArray jsonArray = QJsonDocument::fromJson(reply->readAll()).array();
+
+        for (const QJsonValue &value : jsonArray) {
+            const QJsonObject object = value.toObject();
+            DomainNode node{
+                .id = object["id"].toInt(),
+                .domainId = object["domain_id"].toInt(),
+                .name = object["name"].toString()
+            };
+
+            if (!object["parent_id"].isNull()) {
+                node.parentId = object["parent_id"].toInt();
+            }
+
+            nodes.push_back(node);
+        }
+
+        emit domainNodesReceived(domainId, nodes);
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::getDueFlashcards() {
     const QNetworkRequest networkRequest(buildUrl(PATH_FLASHCARDS));
 
