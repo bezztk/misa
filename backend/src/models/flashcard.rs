@@ -63,3 +63,53 @@ pub struct FlashcardReview {
     pub duration_ms: Option<i32>,
     pub next_due_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreateFlashcard {
+    pub front: String,
+    pub back: String,
+    pub retention_class_id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewFlashcardRequest {
+    pub rating: i16,
+    pub duration_ms: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct FlashcardReviewContext {
+    pub review_state_id: i32,
+    pub stability: Option<f32>,
+    pub difficulty: Option<f32>,
+    pub last_reviewed_at: Option<DateTime<Utc>>,
+    pub desired_retention: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct FlashcardQueueContext {
+    pub id: i32,
+    pub front: String,
+    pub back: String,
+    pub review_state_id: i32,
+    pub stability: Option<f32>,
+    pub difficulty: Option<f32>,
+    pub last_reviewed_at: Option<DateTime<Utc>>,
+    pub desired_retention: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FlashcardQueueItem {
+    pub id: i32,
+    pub front: String,
+    pub back: String,
+    pub preview: FlashcardReviewPreview,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FlashcardReviewPreview {
+    pub again: f32,
+    pub hard: f32,
+    pub good: f32,
+    pub easy: f32,
+}
