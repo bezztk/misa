@@ -13,6 +13,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStyle>
@@ -253,16 +254,11 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             border: none;
         }
     )");
-    auto *editorLayout = new QVBoxLayout(editorWidget);
+    editorLayout = new QVBoxLayout(editorWidget);
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->setSpacing(0);
 
-    contentSplitter = new QSplitter(Qt::Vertical, editorWidget);
-    contentSplitter->setHandleWidth(1);
-    contentSplitter->setStyleSheet("QSplitter::handle { background: palette(mid); }");
-    editorLayout->addWidget(contentSplitter);
-
-    documentWidget = new QWidget(contentSplitter);
+    documentWidget = new QWidget(editorWidget);
     auto *documentLayout = new QVBoxLayout(documentWidget);
     documentLayout->setContentsMargins(0, 0, 0, 0);
     documentLayout->setSpacing(0);
@@ -287,22 +283,28 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     documentLayout->addWidget(header);
     documentLayout->addWidget(documentEditor, 1);
 
-    auto *flashcardWidget = new QWidget(contentSplitter);
-    flashcardWidget->setMinimumHeight(36);
+    flashcardWidget = new QWidget(editorWidget);
     auto *flashcardLayout = new QVBoxLayout(flashcardWidget);
     flashcardLayout->setContentsMargins(0, 0, 0, 0);
     flashcardLayout->setSpacing(0);
+
+    auto *flashcardSeparator = new QFrame(flashcardWidget);
+    flashcardSeparator->setFixedHeight(1);
+    flashcardSeparator->setStyleSheet("background: palette(mid); border: none;");
+    flashcardLayout->addWidget(flashcardSeparator);
+
     auto *flashcardHeader = new QWidget(flashcardWidget);
-    flashcardHeader->setMinimumHeight(36);
+    flashcardHeader->setFixedHeight(36);
     auto *flashcardHeaderLayout = new QHBoxLayout(flashcardHeader);
     flashcardHeaderLayout->setContentsMargins(10, 4, 10, 4);
-    auto *flashcardTitle = new QLabel("Lernkarten", flashcardHeader);
-    auto *addFlashcardButton = new QPushButton("+", flashcardHeader);
-    addFlashcardButton->setFixedSize(26, 26);
+    flashcardTitle = new QLabel("Lernkarten (0)", flashcardHeader);
+    auto *addFlashcardButton = new QPushButton("Lernkarte erstellen", flashcardHeader);
     addFlashcardButton->setToolTip("Lernkarte hinzufügen");
+    toggleFlashcardsButton = new QPushButton("Lernkarten ausblenden", flashcardHeader);
     flashcardHeaderLayout->addWidget(flashcardTitle);
     flashcardHeaderLayout->addStretch();
     flashcardHeaderLayout->addWidget(addFlashcardButton);
+    flashcardHeaderLayout->addWidget(toggleFlashcardsButton);
     flashcardLayout->addWidget(flashcardHeader);
 
     flashcardTable = new QTableView(flashcardWidget);
@@ -311,19 +313,19 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     flashcardTable->setSelectionMode(QAbstractItemView::SingleSelection);
     flashcardTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     flashcardTable->setMinimumHeight(0);
-    flashcardTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
+    flashcardTable->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     flashcardTable->setContextMenuPolicy(Qt::CustomContextMenu);
     flashcardModel = new QStandardItemModel(0, 2, flashcardTable);
     flashcardModel->setHorizontalHeaderLabels({"Front", "Back"});
     flashcardTable->setModel(flashcardModel);
     flashcardTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    connect(flashcardTable->horizontalHeader(), &QHeaderView::sectionResized,
+            this, [this] { updateFlashcardView(); });
     flashcardLayout->addWidget(flashcardTable, 1);
 
-    contentSplitter->addWidget(documentWidget);
-    contentSplitter->addWidget(flashcardWidget);
-    contentSplitter->setStretchFactor(0, 1);
-    contentSplitter->setStretchFactor(1, 0);
-    contentSplitter->setSizes({400, 36});
+    editorLayout->addWidget(documentWidget);
+    editorLayout->addStretch();
+    editorLayout->addWidget(flashcardWidget);
     editorWidget->hide();
 
     splitter->addWidget(treeView);
@@ -342,8 +344,12 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
                 item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
                 auto *countItem = new QStandardItem(
-                    QIcon(":/assets/icons/flashcards-white.png"),
-                    QString::number(node.flashcardCount)
+                    node.flashcardCount > 0
+                        ? QIcon(":/assets/icons/flashcards-white.png")
+                        : QIcon(),
+                    node.flashcardCount > 0
+                        ? QString::number(node.flashcardCount)
+                        : QString()
                 );
                 countItem->setData(node.id, Qt::UserRole);
                 countItem->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
@@ -416,6 +422,10 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         );
     });
     connect(addFlashcardButton, &QPushButton::clicked, this, &DomainView::createFlashcard);
+    connect(toggleFlashcardsButton, &QPushButton::clicked, this, [this] {
+        flashcardsExpanded = !flashcardsExpanded;
+        updateFlashcardView();
+    });
     connect(flashcardTable, &QTableView::doubleClicked, this,
             [this](const QModelIndex &index) { editFlashcard(index.row()); });
     connect(flashcardTable, &QTableView::customContextMenuRequested, this,
@@ -450,6 +460,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                     front->setData(flashcard.id, Qt::UserRole);
                     flashcardModel->appendRow({front, back});
                 }
+                updateFlashcardView();
             });
     connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
         if (currentDocumentNodeId == -1) {
@@ -499,11 +510,13 @@ void DomainView::continueDocumentChange() {
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     editorWidget->setVisible(nodeId != -1);
     documentWidget->setVisible(hasDocument);
+    editorLayout->setStretch(0, hasDocument ? 1 : 0);
+    editorLayout->setStretch(1, hasDocument ? 0 : 1);
+    updateFlashcardView();
 
     if (nodeId != -1) {
         apiClient.getNodeFlashcards(nodeId);
         if (hasDocument) {
-            contentSplitter->setSizes({400, 36});
             apiClient.getDocument(nodeId);
         }
     }
@@ -572,8 +585,12 @@ void DomainView::renderDomainTree(
                     item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 }
                 auto *countItem = new QStandardItem(
-                    QIcon(":/assets/icons/flashcards-white.png"),
-                    QString::number(node.flashcardCount)
+                    node.flashcardCount > 0
+                        ? QIcon(":/assets/icons/flashcards-white.png")
+                        : QIcon(),
+                    node.flashcardCount > 0
+                        ? QString::number(node.flashcardCount)
+                        : QString()
                 );
                 countItem->setData(node.id, Qt::UserRole);
                 countItem->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
@@ -697,7 +714,48 @@ void DomainView::updateFlashcardCount(const int nodeId, const int count) {
     QStandardItem *item = findDomainNodeItem(nodeId);
     item->setData(count, FLASHCARD_COUNT_ROLE);
     QStandardItem *countItem = model->itemFromIndex(item->index().siblingAtColumn(1));
-    countItem->setText(QString::number(count));
+    countItem->setIcon(
+        count > 0 ? QIcon(":/assets/icons/flashcards-white.png") : QIcon()
+    );
+    countItem->setText(count > 0 ? QString::number(count) : QString());
+}
+
+void DomainView::updateFlashcardView() {
+    const int count = flashcardModel->rowCount();
+    flashcardTitle->setText("Lernkarten (" + QString::number(count) + ")");
+    flashcardTitle->setVisible(count > 0);
+    toggleFlashcardsButton->setVisible(count > 0);
+    toggleFlashcardsButton->setText(
+        flashcardsExpanded ? "Lernkarten ausblenden" : "Lernkarten anzeigen"
+    );
+
+    flashcardTable->setVisible(flashcardsExpanded && count > 0);
+    int panelHeight = 37;
+
+    if (flashcardsExpanded && count > 0) {
+        flashcardTable->resizeRowsToContents();
+        const int maximumRowHeight = flashcardTable->fontMetrics().lineSpacing() * 4 + 8;
+        int height = flashcardTable->horizontalHeader()->height()
+            + flashcardTable->frameWidth() * 2;
+        for (int row = 0; row < count; ++row) {
+            flashcardTable->setRowHeight(
+                row,
+                qMin(flashcardTable->rowHeight(row), maximumRowHeight)
+            );
+            height += flashcardTable->rowHeight(row);
+        }
+
+        const int maximumPanelHeight = qMax(37, editorWidget->height() / 2);
+        panelHeight = qMin(37 + height, maximumPanelHeight);
+        flashcardTable->setFixedHeight(panelHeight - 37);
+    }
+
+    flashcardWidget->setFixedHeight(panelHeight);
+}
+
+void DomainView::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    updateFlashcardView();
 }
 
 QStandardItem *DomainView::findDomainItem(const int domainId) {

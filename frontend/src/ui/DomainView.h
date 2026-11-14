@@ -14,14 +14,18 @@ class QTimer;
 class QStandardItem;
 class QStandardItemModel;
 class QPlainTextEdit;
-class QSplitter;
+class QResizeEvent;
 class QTableView;
 class QTreeView;
+class QVBoxLayout;
 
 class DomainView : public QWidget {
 public:
     explicit DomainView(QWidget *parent = nullptr);
     void saveBeforeClose(std::function<void()> continuation);
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void renderDomainTree(
@@ -38,16 +42,20 @@ private:
     void createFlashcard();
     void editFlashcard(int row);
     void updateFlashcardCount(int nodeId, int count);
+    void updateFlashcardView();
 
     ApiClient apiClient;
     QTreeView *treeView;
     QStandardItemModel *model;
     QWidget *editorWidget;
-    QSplitter *contentSplitter;
+    QVBoxLayout *editorLayout;
     QWidget *documentWidget;
     QLabel *documentTitle;
     QWidget *saveStatus;
     QPlainTextEdit *documentEditor;
+    QWidget *flashcardWidget;
+    QLabel *flashcardTitle;
+    QPushButton *toggleFlashcardsButton;
     QTableView *flashcardTable;
     QStandardItemModel *flashcardModel;
     QTimer *autosaveTimer;
@@ -57,6 +65,7 @@ private:
     bool pendingNodeHasDocument = false;
     bool documentChangePending = false;
     bool documentLoadPending = false;
+    bool flashcardsExpanded = true;
     bool saveInProgress = false;
     QString savedContent;
     QString savingContent;
