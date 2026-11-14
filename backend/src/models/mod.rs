@@ -1,8 +1,11 @@
 pub mod calendar_entry;
-pub mod development_area;
 pub mod document;
-pub mod entity;
+pub mod domain;
 pub mod flashcard;
 pub mod metadata;
-pub mod task;
-pub mod topic;
+pub mod progression;
+pub mod pursuit;
+pub mod routine;
+pub mod session;
+pub mod skill;
+pub mod system_task;

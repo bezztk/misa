@@ -1,86 +1,95 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct TaskGroup {
-    pub id: i32,
-    pub name: String,
+macro_rules! lookup_model {
+    ($name:ident) => {
+        #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+        pub struct $name {
+            pub id: i32,
+            pub name: String,
+            pub display_name: String,
+        }
+    };
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct TaskStateRow {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
-}
+lookup_model!(PersonalRelevanceLevel);
+lookup_model!(LastingImpact);
+lookup_model!(CognitiveLevel);
+lookup_model!(PsychomotorLevel);
+lookup_model!(DocumentCompletenessLevel);
+lookup_model!(DocumentFlashcardStatus);
+lookup_model!(DocumentVerificationStatus);
+lookup_model!(DocumentVerificationLevel);
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct TaskPriority {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PersonalRelevanceLevelId {
+    Insignificant = 1,
+    Secondary = 2,
+    Significant = 3,
+    Essential = 4,
+    IdentityDefining = 5,
 }
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TaskState {
-    Open = 1,
-    InProgress = 2,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LastingImpactId {
+    Negligible = 1,
+    Minor = 2,
+    Noticeable = 3,
+    Profound = 4,
+    Transformative = 5,
+}
+
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CognitiveLevelId {
+    Remember = 1,
+    Understand = 2,
+    Apply = 3,
+    Analyze = 4,
+    Evaluate = 5,
+    Create = 6,
+}
+
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PsychomotorLevelId {
+    Imitation = 1,
+    Manipulation = 2,
+    Precision = 3,
+    Articulation = 4,
+    Naturalization = 5,
+}
+
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentCompletenessLevelId {
+    None = 1,
+    Partial = 2,
+    Substantial = 3,
+    Complete = 4,
+}
+
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentFlashcardStatusId {
+    Pending = 1,
+    PartiallyCompleted = 2,
     Completed = 3,
-    Cancelled = 4,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct TopicUnderstandingLevel {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentVerificationStatusId {
+    Unverified = 1,
+    PartiallyVerified = 2,
+    Verified = 3,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct DocumentCompletenessLevel {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct DocumentFlashcardStatus {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct DocumentVerificationStatus {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct DocumentVerificationLevel {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct FlashcardRetentionLevel {
-    pub id: i32,
-    pub name: String,
-    pub display_name: Option<String>,
-    pub desired_retention: f64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Metadata {
-    pub task_groups: Vec<TaskGroup>,
-    pub task_states: Vec<TaskStateRow>,
-    pub task_priorities: Vec<TaskPriority>,
-    pub topic_understanding_levels: Vec<TopicUnderstandingLevel>,
-    pub document_completeness_levels: Vec<DocumentCompletenessLevel>,
-    pub document_flashcard_statuses: Vec<DocumentFlashcardStatus>,
-    pub document_verification_statuses: Vec<DocumentVerificationStatus>,
-    pub document_verification_levels: Vec<DocumentVerificationLevel>,
-    pub flashcard_retention_levels: Vec<FlashcardRetentionLevel>,
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocumentVerificationLevelId {
+    SelfReviewed = 1,
+    CrossChecked = 2,
+    Validated = 3,
 }
