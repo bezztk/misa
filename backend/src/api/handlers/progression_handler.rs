@@ -1,0 +1,76 @@
+use crate::api::error::{ApiError, ApiResult};
+use crate::models::progression::{
+    AssignPursuitRequest, CreateProgressionRequest, CreateProgressionStageRequest,
+    ProgressionOverview, UpdateProgressionRequest,
+};
+use crate::repositories::progression_repository;
+use crate::validation::valid_name;
+use axum::Json;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use sqlx::PgPool;
+
+pub async fn get_progressions(State(pool): State<PgPool>) -> ApiResult<Json<ProgressionOverview>> {
+    Ok(Json(ProgressionOverview {
+        progressions: progression_repository::get_progressions(&pool).await?,
+        pursuits: progression_repository::get_pursuits(&pool).await?,
+    }))
+}
+
+pub async fn create_progression(
+    State(pool): State<PgPool>,
+    Json(payload): Json<CreateProgressionRequest>,
+) -> ApiResult<StatusCode> {
+    if !valid_name(&payload.name, 150) {
+        return Err(ApiError::BadRequest);
+    }
+    progression_repository::create_progression(&pool, payload.name.trim()).await?;
+    Ok(StatusCode::CREATED)
+}
+
+pub async fn update_progression(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<UpdateProgressionRequest>,
+) -> ApiResult<StatusCode> {
+    if !valid_name(&payload.name, 150) {
+        return Err(ApiError::BadRequest);
+    }
+    if !progression_repository::update_progression(
+        &pool,
+        id,
+        payload.name.trim(),
+        payload.personal_relevance_id,
+        payload.lasting_impact_id,
+    )
+    .await?
+    {
+        return Err(ApiError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn create_stage(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<CreateProgressionStageRequest>,
+) -> ApiResult<StatusCode> {
+    if !valid_name(&payload.name, 150) {
+        return Err(ApiError::BadRequest);
+    }
+    if !progression_repository::create_stage(&pool, id, payload.name.trim()).await? {
+        return Err(ApiError::NotFound);
+    }
+    Ok(StatusCode::CREATED)
+}
+
+pub async fn assign_pursuit(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<AssignPursuitRequest>,
+) -> ApiResult<StatusCode> {
+    if !progression_repository::assign_pursuit(&pool, id, payload.pursuit_id).await? {
+        return Err(ApiError::BadRequest);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}

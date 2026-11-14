@@ -21,3 +21,55 @@ pub struct ProgressionStage {
     pub is_completed: bool,
     pub completed_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProgressionStageDetails {
+    pub id: i32,
+    pub stage: i32,
+    pub name: Option<String>,
+    pub pursuits: Vec<ProgressionPursuit>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
+pub struct ProgressionPursuit {
+    pub id: i32,
+    pub name: String,
+    pub progression_stage_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProgressionDetails {
+    pub id: i32,
+    pub name: String,
+    pub personal_relevance_id: Option<i32>,
+    pub lasting_impact_id: Option<i32>,
+    pub stages: Vec<ProgressionStageDetails>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProgressionOverview {
+    pub progressions: Vec<ProgressionDetails>,
+    pub pursuits: Vec<ProgressionPursuit>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateProgressionRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProgressionRequest {
+    pub name: String,
+    pub personal_relevance_id: Option<i32>,
+    pub lasting_impact_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateProgressionStageRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignPursuitRequest {
+    pub pursuit_id: i32,
+}
