@@ -42,17 +42,17 @@ private:
     void continueDocumentChange();
     void startSave();
     void finishPendingActions();
-    void createFlashcard();
+    void createFlashcard(int nodeId);
     void editFlashcard(int row);
     void updateFlashcardCount(int nodeId, int count);
     void updateFlashcardView();
     void renderSkills(const std::vector<Skill> &skills);
     void showSkillContextMenu(const QPoint &position);
-    void createSkill(std::optional<int> parentSkillId = std::nullopt);
+    void createSkill(int nodeId, std::optional<int> parentSkillId = std::nullopt);
     void editSkill(const QModelIndex &index);
     void updateSkillCount(int nodeId, int count);
     void renderPursuits();
-    void createPursuit();
+    void createPursuit(int nodeId);
     void editPursuit(const QModelIndex &index);
     void updatePursuitCount(int nodeId, int count);
     void renderProgressions();
@@ -61,6 +61,10 @@ private:
     void editProgression(int progressionId);
     void addProgressionStage(int progressionId);
     void assignPursuit(int stageId);
+    void showAvailablePursuits(
+        int stageId,
+        const std::vector<ProgressionPursuit> &pursuits
+    );
 
     ApiClient apiClient;
     QTreeView *treeView;
@@ -91,11 +95,9 @@ private:
     QStandardItemModel *flashcardModel;
     QWidget *skillWidget;
     QLabel *noPursuitsLabel;
-    QPushButton *addPursuitButton;
     QTreeView *pursuitTreeView;
     QStandardItemModel *pursuitModel;
     QLabel *noSkillsLabel;
-    QPushButton *addSkillButton;
     QTreeView *skillTreeView;
     QStandardItemModel *skillModel;
     std::vector<Skill> currentSkills;

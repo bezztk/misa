@@ -29,6 +29,10 @@ signals:
     void nodePursuitsChanged(int nodeId);
     void progressionsReceived(const std::vector<Progression>& progressions,
                               const std::vector<ProgressionPursuit>& pursuits);
+    void availableProgressionPursuitsReceived(
+        int stageId,
+        const std::vector<ProgressionPursuit>& pursuits
+    );
     void progressionsChanged();
     void domainTreeReceived(
         const std::vector<MetadataItem>& domains,
@@ -64,6 +68,7 @@ public:
     void updatePursuitRequirements(int nodeId, int pursuitId,
                                    const UpdatePursuitRequirements& requirements);
     void getProgressions();
+    void getAvailableProgressionPursuits(int stageId);
     void createProgression(const QString& name);
     void updateProgression(int id, const QString& name,
                            std::optional<int> personalRelevanceId,

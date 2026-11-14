@@ -19,6 +19,7 @@
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QSplitterHandle>
 #include <QStandardItemModel>
 #include <QStyle>
 #include <QTableView>
@@ -85,6 +86,14 @@ static std::optional<int> selectedMetadata(const QComboBox *combo) {
     return combo->currentData().isValid()
         ? std::optional<int>(combo->currentData().toInt())
         : std::nullopt;
+}
+
+static int itemCount(const QStandardItem *parent) {
+    int count = parent->rowCount();
+    for (int row = 0; row < parent->rowCount(); ++row) {
+        count += itemCount(parent->child(row));
+    }
+    return count;
 }
 
 static void showMetadata(
@@ -638,10 +647,17 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             background: palette(base);
             border-bottom: 1px solid rgba(255, 255, 255, 0.25);
         }
+        QWidget#progressionHeader {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
         QFrame#stageCard {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.10);
-            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.025);
+            border: none;
+            border-right: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        QLabel#stageTitle {
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
         QTreeView#domainTree, QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
@@ -702,20 +718,17 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     progressionLayout->setSpacing(0);
 
     auto *progressionHeader = new QWidget(progressionWidget);
+    progressionHeader->setObjectName("progressionHeader");
     auto *progressionHeaderLayout = new QHBoxLayout(progressionHeader);
     progressionHeaderLayout->setContentsMargins(10, 4, 10, 4);
     auto *progressionTitle = new QLabel("Progressionen", progressionHeader);
     QFont progressionTitleFont = progressionTitle->font();
     progressionTitleFont.setBold(true);
     progressionTitle->setFont(progressionTitleFont);
-    auto *addProgressionButton = new QPushButton("+", progressionHeader);
-    addProgressionButton->setObjectName("squareButton");
-    addProgressionButton->setFixedSize(24, 24);
-    addProgressionButton->setToolTip("Progression hinzufügen");
-    auto *toggleProgressionButton = new QPushButton("⌃", progressionHeader);
-    toggleProgressionButton->setObjectName("squareButton");
-    toggleProgressionButton->setFixedSize(24, 24);
-    toggleProgressionButton->setToolTip("Progressionen minimieren");
+    auto *addProgressionButton = new QPushButton("Progression erstellen", progressionHeader);
+    addProgressionButton->setObjectName("compactButton");
+    auto *toggleProgressionButton = new QPushButton("Minimieren", progressionHeader);
+    toggleProgressionButton->setObjectName("compactButton");
     progressionHeaderLayout->addWidget(progressionTitle);
     progressionHeaderLayout->addStretch();
     progressionHeaderLayout->addWidget(addProgressionButton);
@@ -724,18 +737,23 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     progressionContent = new QWidget(progressionWidget);
     auto *progressionContentLayout = new QHBoxLayout(progressionContent);
-    progressionContentLayout->setContentsMargins(8, 4, 8, 8);
-    progressionContentLayout->setSpacing(8);
+    progressionContentLayout->setContentsMargins(0, 0, 0, 0);
+    progressionContentLayout->setSpacing(0);
 
-    progressionTreeView = new QTreeView(progressionContent);
+    auto *progressionListPanel = new QWidget(progressionContent);
+    progressionListPanel->setFixedWidth(400);
+    auto *progressionListLayout = new QVBoxLayout(progressionListPanel);
+    progressionListLayout->setContentsMargins(8, 4, 8, 8);
+    progressionListLayout->setSpacing(0);
+    progressionTreeView = new QTreeView(progressionListPanel);
     progressionTreeView->setHeaderHidden(true);
     progressionTreeView->setFrameShape(QFrame::NoFrame);
-    progressionTreeView->setFixedWidth(400);
     progressionTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     progressionTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     progressionModel = new QStandardItemModel(progressionTreeView);
     progressionTreeView->setModel(progressionModel);
-    progressionContentLayout->addWidget(progressionTreeView);
+    progressionListLayout->addWidget(progressionTreeView);
+    progressionContentLayout->addWidget(progressionListPanel);
 
     auto *progressionSeparator = new QFrame(progressionContent);
     progressionSeparator->setFixedWidth(1);
@@ -745,13 +763,21 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     progressionContentLayout->addWidget(progressionSeparator);
 
     auto *stageScrollArea = new QScrollArea(progressionContent);
+    stageScrollArea->setObjectName("progressionStages");
     stageScrollArea->setWidgetResizable(true);
     stageScrollArea->setFrameShape(QFrame::NoFrame);
     stageScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     auto *stageContent = new QWidget(stageScrollArea);
+    stageContent->setObjectName("progressionStageContent");
+    stageScrollArea->viewport()->setStyleSheet(
+        "QWidget#qt_scrollarea_viewport { background: rgba(255, 255, 255, 0.012); }"
+    );
+    stageContent->setStyleSheet(
+        "QWidget#progressionStageContent { background: rgba(255, 255, 255, 0.012); }"
+    );
     progressionStagesLayout = new QHBoxLayout(stageContent);
-    progressionStagesLayout->setContentsMargins(0, 0, 0, 0);
-    progressionStagesLayout->setSpacing(8);
+    progressionStagesLayout->setContentsMargins(8, 4, 8, 8);
+    progressionStagesLayout->setSpacing(6);
     stageScrollArea->setWidget(stageContent);
     progressionContentLayout->addWidget(stageScrollArea, 1);
     progressionLayout->addWidget(progressionContent, 1);
@@ -775,11 +801,8 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             [this, toggleProgressionButton, expanded = true]() mutable {
                 expanded = !expanded;
                 progressionContent->setVisible(expanded);
-                progressionWidget->setFixedHeight(expanded ? 300 : 34);
-                toggleProgressionButton->setText(expanded ? "⌃" : "⌄");
-                toggleProgressionButton->setToolTip(
-                    expanded ? "Progressionen minimieren" : "Progressionen anzeigen"
-                );
+                progressionWidget->setFixedHeight(expanded ? 200 : 40);
+                toggleProgressionButton->setText(expanded ? "Minimieren" : "Öffnen");
             });
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
@@ -884,14 +907,10 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *flashcardHeaderLayout = new QHBoxLayout(flashcardHeader);
     flashcardHeaderLayout->setContentsMargins(10, 4, 10, 4);
     flashcardTitle = new QLabel("Lernkarten (0)", flashcardHeader);
-    auto *addFlashcardButton = new QPushButton("Lernkarte erstellen", flashcardHeader);
-    addFlashcardButton->setObjectName("compactButton");
-    addFlashcardButton->setToolTip("Lernkarte hinzufügen");
     toggleFlashcardsButton = new QPushButton("Lernkarten ausblenden", flashcardHeader);
     toggleFlashcardsButton->setObjectName("compactButton");
     flashcardHeaderLayout->addWidget(flashcardTitle);
     flashcardHeaderLayout->addStretch();
-    flashcardHeaderLayout->addWidget(addFlashcardButton);
     flashcardHeaderLayout->addWidget(toggleFlashcardsButton);
     flashcardLayout->addWidget(flashcardHeader);
 
@@ -924,7 +943,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     skillWidget->setObjectName("skillPanel");
     skillWidget->setFixedWidth(300);
     skillWidget->setStyleSheet(R"(
-        QWidget#skillPanel {
+        QWidget#skillPanel, QWidget#sidebarContent,
+        QWidget#pursuitPanel, QWidget#skillsPanel,
+        QScrollArea#sidebarScrollArea {
             background: palette(base);
         }
         QTreeView#pursuitTree, QTreeView#skillTree {
@@ -936,12 +957,23 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     skillLayout->setContentsMargins(4, 0, 4, 0);
     skillLayout->setSpacing(0);
 
-    auto *sidebarSplitter = new QSplitter(Qt::Vertical, skillWidget);
-    sidebarSplitter->setHandleWidth(4);
-    sidebarSplitter->setStyleSheet(
-        "QSplitter::handle { background: rgba(255, 255, 255, 0.25); }"
+    auto *sidebarScrollArea = new QScrollArea(skillWidget);
+    sidebarScrollArea->setObjectName("sidebarScrollArea");
+    sidebarScrollArea->setWidgetResizable(true);
+    sidebarScrollArea->setFrameShape(QFrame::NoFrame);
+    sidebarScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    sidebarScrollArea->viewport()->setStyleSheet(
+        "QWidget#qt_scrollarea_viewport { background: palette(base); }"
     );
-    auto *pursuitPanel = new QWidget();
+    auto *sidebarContent = new QWidget(sidebarScrollArea);
+    sidebarContent->setObjectName("sidebarContent");
+    auto *sidebarContentLayout = new QVBoxLayout(sidebarContent);
+    sidebarContentLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarContentLayout->setSpacing(32);
+
+    auto *pursuitPanel = new QWidget(sidebarContent);
+    pursuitPanel->setObjectName("pursuitPanel");
+    pursuitPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *pursuitLayout = new QVBoxLayout(pursuitPanel);
     pursuitLayout->setContentsMargins(0, 6, 0, 4);
     pursuitLayout->setSpacing(4);
@@ -951,14 +983,10 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *pursuitTitle = new QLabel("Bestrebungen", pursuitPanel);
     QFont pursuitTitleFont = pursuitTitle->font();
     pursuitTitleFont.setBold(true);
+    pursuitTitleFont.setPointSize(pursuitTitleFont.pointSize() + 2);
     pursuitTitle->setFont(pursuitTitleFont);
-    addPursuitButton = new QPushButton("+", pursuitPanel);
-    addPursuitButton->setObjectName("squareButton");
-    addPursuitButton->setFixedSize(24, 24);
-    addPursuitButton->setToolTip("Bestrebung hinzufügen");
     pursuitHeaderLayout->addWidget(pursuitTitle);
     pursuitHeaderLayout->addStretch();
-    pursuitHeaderLayout->addWidget(addPursuitButton);
     pursuitLayout->addLayout(pursuitHeaderLayout);
 
     noPursuitsLabel = new QLabel("Noch keine Bestrebungen angelegt.", pursuitPanel);
@@ -972,12 +1000,15 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     pursuitTreeView->setFrameShape(QFrame::NoFrame);
     pursuitTreeView->setIndentation(14);
     pursuitTreeView->setUniformRowHeights(true);
+    pursuitTreeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     pursuitTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     pursuitModel = new QStandardItemModel(pursuitTreeView);
     pursuitTreeView->setModel(pursuitModel);
-    pursuitLayout->addWidget(pursuitTreeView, 1);
+    pursuitLayout->addWidget(pursuitTreeView);
 
-    auto *skillPanel = new QWidget();
+    auto *skillPanel = new QWidget(sidebarContent);
+    skillPanel->setObjectName("skillsPanel");
+    skillPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *skillPanelLayout = new QVBoxLayout(skillPanel);
     skillPanelLayout->setContentsMargins(0, 4, 0, 4);
     skillPanelLayout->setSpacing(4);
@@ -987,14 +1018,10 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     auto *skillTitle = new QLabel("Skillansicht", skillPanel);
     QFont skillTitleFont = skillTitle->font();
     skillTitleFont.setBold(true);
+    skillTitleFont.setPointSize(skillTitleFont.pointSize() + 2);
     skillTitle->setFont(skillTitleFont);
-    addSkillButton = new QPushButton("+", skillPanel);
-    addSkillButton->setObjectName("squareButton");
-    addSkillButton->setFixedSize(24, 24);
-    addSkillButton->setToolTip("Skill hinzufügen");
     skillHeaderLayout->addWidget(skillTitle);
     skillHeaderLayout->addStretch();
-    skillHeaderLayout->addWidget(addSkillButton);
     skillPanelLayout->addLayout(skillHeaderLayout);
 
     noSkillsLabel = new QLabel("Noch keine Skills angelegt.", skillPanel);
@@ -1008,36 +1035,17 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     skillTreeView->setFrameShape(QFrame::NoFrame);
     skillTreeView->setIndentation(14);
     skillTreeView->setUniformRowHeights(true);
+    skillTreeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     skillTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     skillTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     skillModel = new QStandardItemModel(skillTreeView);
     skillTreeView->setModel(skillModel);
-    skillPanelLayout->addWidget(skillTreeView, 1);
-    sidebarSplitter->addWidget(pursuitPanel);
-    sidebarSplitter->addWidget(skillPanel);
-    sidebarSplitter->setStretchFactor(0, 1);
-    sidebarSplitter->setStretchFactor(1, 1);
-    sidebarSplitter->setSizes({100, 100});
-    auto *sidebarHeaderLayout = new QHBoxLayout();
-    sidebarHeaderLayout->setContentsMargins(0, 2, 0, 2);
-    sidebarHeaderLayout->addStretch();
-    auto *toggleSidebarButton = new QPushButton("›", skillWidget);
-    toggleSidebarButton->setObjectName("squareButton");
-    toggleSidebarButton->setFixedSize(24, 24);
-    toggleSidebarButton->setToolTip("Seitenleiste minimieren");
-    sidebarHeaderLayout->addWidget(toggleSidebarButton);
-    skillLayout->addLayout(sidebarHeaderLayout);
-    skillLayout->addWidget(sidebarSplitter);
-    connect(toggleSidebarButton, &QPushButton::clicked, this,
-            [this, sidebarSplitter, toggleSidebarButton, expanded = true]() mutable {
-                expanded = !expanded;
-                sidebarSplitter->setVisible(expanded);
-                skillWidget->setFixedWidth(expanded ? 300 : 32);
-                toggleSidebarButton->setText(expanded ? "›" : "‹");
-                toggleSidebarButton->setToolTip(
-                    expanded ? "Seitenleiste minimieren" : "Seitenleiste anzeigen"
-                );
-            });
+    skillPanelLayout->addWidget(skillTreeView);
+    sidebarContentLayout->addWidget(pursuitPanel);
+    sidebarContentLayout->addWidget(skillPanel);
+    sidebarContentLayout->addStretch();
+    sidebarScrollArea->setWidget(sidebarContent);
+    skillLayout->addWidget(sidebarScrollArea);
     skillWidget->hide();
 
     splitter->addWidget(treeView);
@@ -1049,6 +1057,8 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     splitter->setCollapsible(0, false);
     splitter->setCollapsible(1, false);
     splitter->setCollapsible(2, false);
+    splitter->handle(2)->setEnabled(false);
+    splitter->handle(2)->setCursor(Qt::ArrowCursor);
     layout->addWidget(splitter);
 
     connect(&apiClient, &ApiClient::domainTreeReceived, this,
@@ -1156,7 +1166,6 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             nodeIndex.data(HAS_DOCUMENT_ROLE).toBool()
         );
     });
-    connect(addFlashcardButton, &QPushButton::clicked, this, &DomainView::createFlashcard);
     connect(toggleFlashcardsButton, &QPushButton::clicked, this, [this] {
         flashcardsExpanded = !flashcardsExpanded;
         updateFlashcardView();
@@ -1197,8 +1206,6 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 }
                 updateFlashcardView();
             });
-    connect(addSkillButton, &QPushButton::clicked, this,
-            [this] { createSkill(); });
     connect(skillTreeView, &QTreeView::customContextMenuRequested, this,
             [this](const QPoint &position) { showSkillContextMenu(position); });
     connect(skillTreeView, &QTreeView::doubleClicked, this,
@@ -1212,8 +1219,6 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                     renderSkills(skills);
                 }
             });
-    connect(addPursuitButton, &QPushButton::clicked, this,
-            &DomainView::createPursuit);
     connect(pursuitTreeView, &QTreeView::clicked, this,
             [this](const QModelIndex &index) { editPursuit(index); });
     connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
@@ -1256,6 +1261,11 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             });
     connect(&apiClient, &ApiClient::progressionsChanged, this,
             [this] { apiClient.getProgressions(); });
+    connect(&apiClient, &ApiClient::availableProgressionPursuitsReceived, this,
+            [this](const int stageId,
+                   const std::vector<ProgressionPursuit> &pursuits) {
+                showAvailablePursuits(stageId, pursuits);
+            });
     connect(&apiClient, &ApiClient::metadataReceived, this, [this] {
         apiClient.getDomainTree();
         apiClient.getProgressions();
@@ -1424,6 +1434,7 @@ void DomainView::renderProgressionStages() {
             QString::number(stage.stage) + ". " + stage.name,
             card
         );
+        title->setObjectName("stageTitle");
         QFont titleFont = title->font();
         titleFont.setBold(true);
         title->setFont(titleFont);
@@ -1499,13 +1510,18 @@ void DomainView::addProgressionStage(const int progressionId) {
 }
 
 void DomainView::assignPursuit(const int stageId) {
+    apiClient.getAvailableProgressionPursuits(stageId);
+}
+
+void DomainView::showAvailablePursuits(
+    const int stageId,
+    const std::vector<ProgressionPursuit> &pursuits
+) {
     QStringList names;
     std::vector<int> ids;
-    for (const ProgressionPursuit &pursuit : progressionPursuits) {
-        if (!pursuit.progressionStageId.has_value()) {
-            names.push_back(pursuit.name);
-            ids.push_back(pursuit.id);
-        }
+    for (const ProgressionPursuit &pursuit : pursuits) {
+        names.push_back(pursuit.name);
+        ids.push_back(pursuit.id);
     }
     if (names.empty()) {
         QMessageBox::information(
@@ -1612,7 +1628,12 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     if (!index.data(HAS_DOCUMENT_ROLE).toBool()) {
         createDocumentAction = menu.addAction("Dokument erstellen");
     }
+    menu.addSeparator();
+    QAction *createFlashcardAction = menu.addAction("Lernkarte hinzufügen");
+    QAction *createPursuitAction = menu.addAction("Bestrebung hinzufügen");
+    QAction *createSkillAction = menu.addAction("Skill hinzufügen");
     QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
+    const int nodeId = index.data(Qt::UserRole).toInt();
 
     if (selectedAction == createAction) {
         bool accepted;
@@ -1626,7 +1647,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         ).trimmed();
 
         if (accepted && !name.isEmpty()) {
-            apiClient.createDomainNode(index.data(Qt::UserRole).toInt(), name);
+            apiClient.createDomainNode(nodeId, name);
         }
     } else if (selectedAction == editAction) {
         QString name = index.data(NODE_NAME_ROLE).toString();
@@ -1653,7 +1674,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
                 verificationLevelId
             )) {
             apiClient.updateDomainNode(
-                index.data(Qt::UserRole).toInt(),
+                nodeId,
                 name,
                 cognitiveLevelId,
                 completenessLevelId,
@@ -1663,19 +1684,21 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             );
         }
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
-        apiClient.createDocument(index.data(Qt::UserRole).toInt());
+        apiClient.createDocument(nodeId);
+    } else if (selectedAction == createFlashcardAction) {
+        createFlashcard(nodeId);
+    } else if (selectedAction == createPursuitAction) {
+        createPursuit(nodeId);
+    } else if (selectedAction == createSkillAction) {
+        createSkill(nodeId);
     }
 }
 
-void DomainView::createFlashcard() {
-    if (currentNodeId == -1) {
-        return;
-    }
-
+void DomainView::createFlashcard(const int nodeId) {
     QString front;
     QString back;
     if (showFlashcardDialog(this, "Lernkarte erstellen", front, back)) {
-        apiClient.createFlashcard(currentNodeId, front, back);
+        apiClient.createFlashcard(nodeId, front, back);
     }
 }
 
@@ -1724,6 +1747,13 @@ void DomainView::renderSkills(const std::vector<Skill> &skills) {
     noSkillsLabel->setVisible(skills.empty());
     skillTreeView->setVisible(!skills.empty());
     skillTreeView->expandAll();
+    skillTreeView->setFixedHeight(
+        qMax(
+            40,
+            itemCount(skillModel->invisibleRootItem())
+                * skillTreeView->sizeHintForRow(0) + 6
+        )
+    );
     renderPursuits();
 }
 
@@ -1741,17 +1771,16 @@ void DomainView::showSkillContextMenu(const QPoint &position) {
     );
 
     if (selectedAction == createAction) {
-        createSkill(index.data(Qt::UserRole).toInt());
+        createSkill(currentNodeId, index.data(Qt::UserRole).toInt());
     } else if (selectedAction == editAction) {
         editSkill(index);
     }
 }
 
-void DomainView::createSkill(const std::optional<int> parentSkillId) {
-    if (currentNodeId == -1) {
-        return;
-    }
-
+void DomainView::createSkill(
+    const int nodeId,
+    const std::optional<int> parentSkillId
+) {
     QString name;
     std::optional<int> psychomotorLevelId;
     if (showSkillDialog(
@@ -1761,7 +1790,7 @@ void DomainView::createSkill(const std::optional<int> parentSkillId) {
             psychomotorLevelId
         )) {
         apiClient.createSkill(
-            currentNodeId,
+            nodeId,
             parentSkillId,
             name,
             psychomotorLevelId
@@ -1893,13 +1922,16 @@ void DomainView::renderPursuits() {
     noPursuitsLabel->setVisible(currentPursuits.empty());
     pursuitTreeView->setVisible(!currentPursuits.empty());
     pursuitTreeView->expandAll();
+    pursuitTreeView->setFixedHeight(
+        qMax(
+            40,
+            itemCount(pursuitModel->invisibleRootItem())
+                * pursuitTreeView->sizeHintForRow(0) + 6
+        )
+    );
 }
 
-void DomainView::createPursuit() {
-    if (currentNodeId == -1) {
-        return;
-    }
-
+void DomainView::createPursuit(const int nodeId) {
     bool accepted;
     const QString name = QInputDialog::getText(
         this,
@@ -1910,7 +1942,7 @@ void DomainView::createPursuit() {
         &accepted
     ).trimmed();
     if (accepted && !name.isEmpty()) {
-        apiClient.createPursuit(currentNodeId, name);
+        apiClient.createPursuit(nodeId, name);
     }
 }
 

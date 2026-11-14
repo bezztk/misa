@@ -316,6 +316,25 @@ void ApiClient::getProgressions() {
     });
 }
 
+void ApiClient::getAvailableProgressionPursuits(const int stageId) {
+    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/pursuits/available")));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, stageId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            std::vector<ProgressionPursuit> pursuits;
+            for (const QJsonValue &value
+                 : QJsonDocument::fromJson(reply->readAll()).array()) {
+                const QJsonObject pursuit = value.toObject();
+                pursuits.push_back({
+                    .id = pursuit["id"].toInt(),
+                    .name = pursuit["name"].toString()
+                });
+            }
+            emit availableProgressionPursuitsReceived(stageId, pursuits);
+        }
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::createProgression(const QString &name) {
     QNetworkRequest request(buildUrl("/progressions"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
