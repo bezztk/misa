@@ -2,10 +2,11 @@
 #define FRONTEND_TASK_H
 
 #include <QString>
+#include <optional>
 
 struct Task {
     int id;
-    int group_id;
+    std::optional<int> group_id;
     QString name;
     int state_id;
     int priority_id;

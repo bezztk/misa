@@ -32,14 +32,17 @@ protected:
     }
 };
 
-static QString taskGroupName(const int id) {
+static QString taskGroupName(const std::optional<int> id) {
+    if (!id.has_value()) {
+        return "—";
+    }
     for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
-        if (group.id == id) {
+        if (group.id == *id) {
             return group.name;
         }
     }
 
-    return QString::number(id);
+    return QString::number(*id);
 }
 
 static QString taskStateName(const int id) {

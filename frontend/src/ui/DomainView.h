@@ -36,6 +36,8 @@ private:
         const std::vector<DomainNode> &nodes
     );
     void showDomainNodeContextMenu(const QPoint &position);
+    void createRoutine(int nodeId, const QString& nodeName);
+    void editRoutine(const Routine& routine);
     QStandardItem *findDomainItem(int domainId);
     QStandardItem *findDomainNodeItem(int nodeId);
     void requestDocumentChange(int nodeId, bool hasDocument = false);

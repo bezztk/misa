@@ -38,6 +38,7 @@ add_executable(frontend
         src/models/Pursuit.h
         src/models/Progression.h
         src/models/CalendarEntry.h
+        src/models/Routine.h
 )
 target_link_libraries(frontend
         Qt6::Core

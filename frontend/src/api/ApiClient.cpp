@@ -40,6 +40,7 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .domainId = object["domain_id"].toInt(),
         .name = object["name"].toString(),
         .hasDocument = object["has_document"].toBool(),
+        .hasRoutine = object["has_routine"].toBool(),
         .flashcardCount = object["flashcard_count"].toInt(),
         .skillCount = object["skill_count"].toInt(),
         .pursuitCount = object["pursuit_count"].toInt()
@@ -65,6 +66,31 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     }
 
     return node;
+}
+
+static Routine parseRoutine(const QJsonObject &object) {
+    return Routine{
+        .id = object["id"].toInt(),
+        .systemTaskId = object["systemtask_id"].toInt(),
+        .domainNodeId = object["domain_node_id"].toInt(),
+        .name = object["name"].toString(),
+        .recurrenceRuleSet = object["recurrence_rule_set"].toString(),
+        .timezone = object["timezone"].toString(),
+        .estimatedDuration = object["estimated_duration"].toInt(),
+        .isOptional = object["is_optional"].toBool(),
+        .isActive = object["is_active"].toBool()
+    };
+}
+
+static QJsonObject routineJson(const SaveRoutine &routine) {
+    return QJsonObject{
+        {"name", routine.name},
+        {"recurrence_rule_set", routine.recurrenceRuleSet},
+        {"timezone", routine.timezone},
+        {"estimated_duration", routine.estimatedDuration},
+        {"is_optional", routine.isOptional},
+        {"is_active", routine.isActive}
+    };
 }
 
 static Skill parseSkill(const QJsonObject &object) {
@@ -817,7 +843,9 @@ void ApiClient::getTasks() {
 
             task.id = object["id"].toInt();
             task.name = object["name"].toString();
-            task.group_id = object["group_id"].toInt();
+            if (!object["group_id"].isNull()) {
+                task.group_id = object["group_id"].toInt();
+            }
             task.state_id = object["state_id"].toInt();
             task.priority_id = object["priority_id"].toInt();
 
@@ -986,6 +1014,66 @@ void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &ent
             qWarning() << "Calendar entry update failed:" << reply->errorString();
         }
 
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::getDomainNodeRoutine(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/routine"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit domainNodeRoutineReceived(
+                nodeId,
+                parseRoutine(QJsonDocument::fromJson(reply->readAll()).object())
+            );
+        } else {
+            qWarning() << "Loading routine failed:" << reply->errorString();
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createDomainNodeRoutine(const int nodeId, const SaveRoutine &routine) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/routine"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(request, QJsonDocument(routineJson(routine)).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+            emit domainNodeRoutineSaved(
+                nodeId,
+                parseRoutine(QJsonDocument::fromJson(reply->readAll()).object())
+            );
+        } else {
+            qWarning() << "Routine creation failed:" << reply->errorString();
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateDomainNodeRoutine(const int nodeId, const SaveRoutine &routine) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/routine"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.put(request, QJsonDocument(routineJson(routine)).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit domainNodeRoutineSaved(
+                nodeId,
+                parseRoutine(QJsonDocument::fromJson(reply->readAll()).object())
+            );
+        } else {
+            qWarning() << "Routine update failed:" << reply->errorString();
+        }
         reply->deleteLater();
     });
 }
