@@ -957,3 +957,35 @@ void ApiClient::createCalendarEntry(const CreateCalendarEntry &entry) {
         reply->deleteLater();
     });
 }
+
+void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &entry) {
+    QNetworkRequest request(buildUrl("/calendar-entries/" + QString::number(id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["name"] = entry.name;
+    json["start_at"] = entry.startAt.toUTC().toString(Qt::ISODate);
+    json["end_at"] = entry.endAt.has_value()
+        ? QJsonValue(entry.endAt->toUTC().toString(Qt::ISODate))
+        : QJsonValue(QJsonValue::Null);
+    json["is_reminder"] = entry.isReminder;
+    json["systemtask_id"] = entry.systemTaskId.has_value()
+        ? QJsonValue(*entry.systemTaskId)
+        : QJsonValue(QJsonValue::Null);
+
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
+            emit calendarEntryUpdated();
+        } else {
+            qWarning() << "Calendar entry update failed:" << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}

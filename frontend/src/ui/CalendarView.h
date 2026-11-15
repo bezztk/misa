@@ -3,6 +3,7 @@
 
 #include "../api/ApiClient.h"
 #include "../models/CalendarEntry.h"
+#include "../models/Task.h"
 
 #include <QWidget>
 
@@ -17,10 +18,13 @@ public:
 private:
     void renderEntries();
     void openCreateDialog();
+    void openEditDialog(const CalendarEntry& entry);
+    void openTaskEditDialog(const Task& task);
 
     ApiClient apiClient;
     QTreeWidget *tree;
     std::vector<CalendarEntry> entries;
+    std::vector<Task> tasks;
 };
 
 #endif // FRONTEND_CALENDARVIEW_H

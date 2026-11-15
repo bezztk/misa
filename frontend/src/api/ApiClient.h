@@ -22,6 +22,7 @@ signals:
     void taskDeleted();
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
+    void calendarEntryUpdated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
@@ -56,6 +57,7 @@ public:
     void deleteTask(int id);
     void getCalendarEntries();
     void createCalendarEntry(const CreateCalendarEntry& entry);
+    void updateCalendarEntry(int id, const CreateCalendarEntry& entry);
 
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
