@@ -4,12 +4,14 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDateTimeEdit>
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QMenu>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
@@ -192,6 +194,15 @@ void TaskView::renderTasks() {
         card->clicked = [this, task] {
             openEditDialog(task);
         };
+        card->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(card, &QWidget::customContextMenuRequested, this,
+                [this, card, task](const QPoint &position) {
+                    QMenu menu(card);
+                    QAction *scheduleAction = menu.addAction("Einplanen");
+                    if (menu.exec(card->mapToGlobal(position)) == scheduleAction) {
+                        openScheduleDialog(task);
+                    }
+                });
 
         cardsLayout->addWidget(card);
     }
@@ -294,4 +305,65 @@ void TaskView::openEditDialog(const Task &task) {
         .state_id = stateEdit->currentData().toInt(),
         .priority_id = priorityEdit->currentData().toInt()
     });
+}
+
+void TaskView::openScheduleDialog(const Task &task) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("Aufgabe einplanen");
+
+    auto *layout = new QFormLayout(&dialog);
+
+    auto *typeEdit = new QComboBox(&dialog);
+    typeEdit->addItem("Erinnerung", true);
+    typeEdit->addItem("Termin", false);
+    layout->addRow("Art", typeEdit);
+
+    auto *nameEdit = new QLineEdit(task.name, &dialog);
+    layout->addRow("Name", nameEdit);
+
+    const QDateTime initialStart = QDateTime::currentDateTime();
+    auto *startEdit = new QDateTimeEdit(initialStart, &dialog);
+    startEdit->setCalendarPopup(true);
+    startEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
+    layout->addRow("Start", startEdit);
+
+    auto *endLabel = new QLabel("Ende", &dialog);
+    auto *endEdit = new QDateTimeEdit(initialStart.addSecs(3600), &dialog);
+    endEdit->setCalendarPopup(true);
+    endEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
+    endEdit->setMinimumDateTime(initialStart.addSecs(60));
+    layout->addRow(endLabel, endEdit);
+
+    const auto updateType = [typeEdit, endLabel, endEdit] {
+        const bool isReminder = typeEdit->currentData().toBool();
+        endLabel->setVisible(!isReminder);
+        endEdit->setVisible(!isReminder);
+    };
+    connect(typeEdit, &QComboBox::currentIndexChanged, &dialog, updateType);
+    updateType();
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    const bool isReminder = typeEdit->currentData().toBool();
+    CreateCalendarEntry entry{
+        .name = nameEdit->text().trimmed(),
+        .startAt = startEdit->dateTime(),
+        .isReminder = isReminder,
+        .systemTaskId = task.id
+    };
+    if (!isReminder) {
+        entry.endAt = endEdit->dateTime();
+    }
+
+    apiClient.createCalendarEntry(entry);
 }

@@ -17,6 +17,7 @@ public:
 private:
     void openCreateDialog();
     void openEditDialog(const Task& task);
+    void openScheduleDialog(const Task& task);
 
     std::vector<Task> tasks;
     ApiClient apiClient;

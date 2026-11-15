@@ -914,6 +914,9 @@ void ApiClient::getCalendarEntries() {
                 if (!object["end_at"].isNull()) {
                     entry.endAt = QDateTime::fromString(object["end_at"].toString(), Qt::ISODate);
                 }
+                if (!object["systemtask_id"].isNull()) {
+                    entry.systemTaskId = object["systemtask_id"].toInt();
+                }
 
                 entries.push_back(entry);
             }
@@ -938,6 +941,9 @@ void ApiClient::createCalendarEntry(const CreateCalendarEntry &entry) {
         ? QJsonValue(entry.endAt->toUTC().toString(Qt::ISODate))
         : QJsonValue(QJsonValue::Null);
     json["is_reminder"] = entry.isReminder;
+    json["systemtask_id"] = entry.systemTaskId.has_value()
+        ? QJsonValue(*entry.systemTaskId)
+        : QJsonValue(QJsonValue::Null);
 
     QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
     connect(reply, &QNetworkReply::finished, this, [this, reply] {

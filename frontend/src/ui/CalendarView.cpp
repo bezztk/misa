@@ -7,6 +7,7 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
@@ -39,8 +40,14 @@ CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
         openCreateDialog();
     });
 
+    auto *refreshButton = new QPushButton("Aktualisieren", content);
+    connect(refreshButton, &QPushButton::clicked, this, [this] {
+        apiClient.getCalendarEntries();
+    });
+
     headerLayout->addWidget(title);
     headerLayout->addStretch();
+    headerLayout->addWidget(refreshButton);
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
 
@@ -109,6 +116,10 @@ void CalendarView::renderEntries() {
             item->setText(2, "Termin");
         }
         item->setText(1, entry.name);
+        if (entry.systemTaskId.has_value()) {
+            item->setIcon(1, QIcon(":/assets/icons/task-white.png"));
+            item->setToolTip(1, "Mit einer Aufgabe verknüpft");
+        }
 
         const QColor color = entry.isReminder() ? QColor("#FFB74D") : QColor("#64B5F6");
         for (int column = 0; column < tree->columnCount(); ++column) {
