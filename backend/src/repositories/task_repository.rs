@@ -5,6 +5,10 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> 
     sqlx::query_as::<_, TaskListItem>(
         "SELECT id, name, group_id, state_id, priority_id
          FROM systemtasks
+         WHERE NOT EXISTS (
+             SELECT 1 FROM systemtask_routines
+             WHERE systemtask_id = systemtasks.id
+         )
          ORDER BY id DESC",
     )
     .fetch_all(pool)

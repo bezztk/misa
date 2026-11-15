@@ -12,6 +12,11 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
         "SELECT dn.id, dn.domain_id, dn.parent_id, dn.cognitive_level_id, dn.name,
                 dn.is_system_value, dn.last_reviewed_at,
                 EXISTS (SELECT 1 FROM documents WHERE domain_node_id = dn.id) AS has_document,
+                EXISTS (
+                    SELECT 1 FROM systemtask_routines r
+                    JOIN systemtasks st ON st.id = r.systemtask_id
+                    WHERE st.domain_node_id = dn.id
+                ) AS has_routine,
                 COUNT(f.id) AS flashcard_count,
                 (SELECT COUNT(*) FROM skills WHERE domain_node_id = dn.id) AS skill_count,
                 (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = dn.id) AS pursuit_count,
@@ -39,6 +44,7 @@ pub async fn create_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
+                   FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
                    NULL::INTEGER AS completeness_level_id,
@@ -64,6 +70,7 @@ pub async fn create_root_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
+                   FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
                    NULL::INTEGER AS completeness_level_id,
@@ -110,6 +117,11 @@ pub async fn update_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at,
                    EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.id) AS has_document,
+                   EXISTS (
+                       SELECT 1 FROM systemtask_routines r
+                       JOIN systemtasks st ON st.id = r.systemtask_id
+                       WHERE st.domain_node_id = domain_nodes.id
+                   ) AS has_routine,
                    (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.id) AS flashcard_count,
                    (SELECT COUNT(*) FROM skills WHERE domain_node_id = domain_nodes.id) AS skill_count,
                    (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = domain_nodes.id) AS pursuit_count,

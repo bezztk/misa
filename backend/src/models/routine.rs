@@ -11,6 +11,29 @@ pub struct SystemTaskRoutine {
     pub is_active: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
+pub struct DomainNodeRoutine {
+    pub id: i32,
+    pub systemtask_id: i32,
+    pub domain_node_id: i32,
+    pub name: String,
+    pub recurrence_rule_set: String,
+    pub timezone: String,
+    pub estimated_duration: i32,
+    pub is_optional: bool,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveDomainNodeRoutineRequest {
+    pub name: String,
+    pub recurrence_rule_set: String,
+    pub timezone: String,
+    pub estimated_duration: i32,
+    pub is_optional: bool,
+    pub is_active: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct SystemTaskRoutineExecutionState {
     pub id: i32,

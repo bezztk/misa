@@ -6,6 +6,7 @@ use axum::response::{IntoResponse, Response};
 pub enum ApiError {
     BadRequest,
     NotFound,
+    Conflict,
     Internal(Box<dyn std::error::Error + Send + Sync>),
 }
 
@@ -16,6 +17,7 @@ impl IntoResponse for ApiError {
         let status = match &self {
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::Conflict => StatusCode::CONFLICT,
             Self::Internal(error) => {
                 eprintln!("Request failed: {error}");
                 StatusCode::INTERNAL_SERVER_ERROR
