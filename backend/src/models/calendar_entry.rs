@@ -15,6 +15,7 @@ pub struct CalendarEntry {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCalendarEntryRequest {
+    pub systemtask_id: Option<i32>,
     pub name: String,
     pub start_at: DateTime<Utc>,
     pub end_at: Option<DateTime<Utc>>,

@@ -17,10 +17,11 @@ pub async fn create_calendar_entry(
     entry: &CreateCalendarEntryRequest,
 ) -> Result<i32, sqlx::Error> {
     sqlx::query_scalar(
-        "INSERT INTO calendar_entries (name, start_at, end_at, is_locked)
-         VALUES ($1, $2, $3, false)
+        "INSERT INTO calendar_entries (systemtask_id, name, start_at, end_at, is_locked)
+         VALUES ($1, $2, $3, $4, false)
          RETURNING id",
     )
+    .bind(entry.systemtask_id)
     .bind(entry.name.trim())
     .bind(entry.start_at)
     .bind(entry.end_at)
