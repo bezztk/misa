@@ -20,6 +20,8 @@ add_executable(frontend
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
+        src/ui/CalendarView.cpp
+        src/ui/CalendarView.h
         src/ui/TaskView.cpp
         src/ui/TaskView.h
         src/models/Task.h
@@ -35,6 +37,7 @@ add_executable(frontend
         src/models/Skill.h
         src/models/Pursuit.h
         src/models/Progression.h
+        src/models/CalendarEntry.h
 )
 target_link_libraries(frontend
         Qt6::Core

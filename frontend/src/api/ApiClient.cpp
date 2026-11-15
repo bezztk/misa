@@ -1,6 +1,7 @@
 ﻿#include "ApiClient.h"
 #include "../models/AppState.h"
 #include "../models/Task.h"
+#include "../models/CalendarEntry.h"
 #include <QNetworkReply>
 #include <QJsonParseError>
 #include <QJsonDocument>
@@ -889,6 +890,62 @@ void ApiClient::deleteTask(const int id) {
             emit taskDeleted();
         } else {
             qWarning() << "Task deletion failed:" << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::getCalendarEntries() {
+    const QNetworkRequest request(buildUrl(PATH_CALENDAR_ENTRIES));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            std::vector<CalendarEntry> entries;
+            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
+                const QJsonObject object = value.toObject();
+                CalendarEntry entry{
+                    .id = object["id"].toInt(),
+                    .name = object["name"].toString(),
+                    .startAt = QDateTime::fromString(object["start_at"].toString(), Qt::ISODate)
+                };
+
+                if (!object["end_at"].isNull()) {
+                    entry.endAt = QDateTime::fromString(object["end_at"].toString(), Qt::ISODate);
+                }
+
+                entries.push_back(entry);
+            }
+
+            emit calendarEntriesReceived(entries);
+        } else {
+            qWarning() << "Loading calendar entries failed:" << reply->errorString();
+        }
+
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createCalendarEntry(const CreateCalendarEntry &entry) {
+    QNetworkRequest request(buildUrl(PATH_CALENDAR_ENTRIES));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["name"] = entry.name;
+    json["start_at"] = entry.startAt.toUTC().toString(Qt::ISODate);
+    json["end_at"] = entry.endAt.has_value()
+        ? QJsonValue(entry.endAt->toUTC().toString(Qt::ISODate))
+        : QJsonValue(QJsonValue::Null);
+    json["is_reminder"] = entry.isReminder;
+
+    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+            emit calendarEntryCreated();
+        } else {
+            qWarning() << "Calendar entry creation failed:" << reply->errorString();
         }
 
         reply->deleteLater();

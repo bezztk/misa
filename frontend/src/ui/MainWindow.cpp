@@ -1,6 +1,7 @@
 ﻿#include "MainWindow.h"
 #include "TaskView.h"
 #include "DomainView.h"
+#include "CalendarView.h"
 
 #include <QVBoxLayout>
 #include <QWidget>
@@ -77,6 +78,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     learningButton->setStyleSheet(navButtonStyle);
     navLayout->addWidget(learningButton, 0, Qt::AlignCenter);
 
+    auto *calendarButton = new QPushButton(navbar);
+    calendarButton->setToolTip("Kalender");
+    calendarButton->setFixedSize(36,36);
+    calendarButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
+    calendarButton->setIconSize(QSize(24, 24));
+    calendarButton->setCheckable(true);
+    calendarButton->setAutoExclusive(true);
+    calendarButton->setStyleSheet(navButtonStyle);
+    navLayout->addWidget(calendarButton, 0, Qt::AlignCenter);
+
     auto *domainButton = new QPushButton(navbar);
     domainButton->setToolTip("Verwirklichung");
     domainButton->setFixedSize(36,36);
@@ -93,6 +104,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     auto *taskView = new TaskView();
     auto *learningView = new LearningView();
+    auto *calendarView = new CalendarView();
     domainView = new DomainView();
 
     connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::renderTasks);
@@ -100,6 +112,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     stack->addWidget(taskView);
     stack->addWidget(learningView);
+    stack->addWidget(calendarView);
     stack->addWidget(domainView);
 
     stack->setCurrentIndex(0);
@@ -130,6 +143,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     connect(learningButton, &QPushButton::clicked, this, [stack, learningView] {
         stack->setCurrentWidget(learningView);
+    });
+
+    connect(calendarButton, &QPushButton::clicked, this, [stack, calendarView] {
+        stack->setCurrentWidget(calendarView);
     });
 
     connect(domainButton, &QPushButton::clicked, this, [this, stack] {

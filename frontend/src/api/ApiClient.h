@@ -8,6 +8,7 @@
 #include "../models/Skill.h"
 #include "../models/Pursuit.h"
 #include "../models/Progression.h"
+#include "../models/CalendarEntry.h"
 #include <QNetworkAccessManager>
 
 class ApiClient : public QObject {
@@ -19,6 +20,8 @@ signals:
     void taskCreated();
     void taskUpdated();
     void taskDeleted();
+    void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
+    void calendarEntryCreated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
@@ -51,6 +54,8 @@ public:
     void createTask(const CreateTask& task);
     void updateTask(int id, const UpdateTask& task);
     void deleteTask(int id);
+    void getCalendarEntries();
+    void createCalendarEntry(const CreateCalendarEntry& entry);
 
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
@@ -95,6 +100,7 @@ private:
     static constexpr auto BASE_PATH = "/api";
     static constexpr auto PATH_TASKS = "/tasks";
     static constexpr auto PATH_METADATA = "/metadata";
+    static constexpr auto PATH_CALENDAR_ENTRIES = "/calendar-entries";
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
 
     static QUrl buildUrl(const QString& path);
