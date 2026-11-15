@@ -8,6 +8,10 @@ use sqlx::PgPool;
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
         .route(
+            "/routines/generate-executions",
+            axum::routing::post(routine_handler::generate_executions),
+        )
+        .route(
             "/calendar-entries",
             get(calendar_entry_handler::get_calendar_entries)
                 .post(calendar_entry_handler::create_calendar_entry),

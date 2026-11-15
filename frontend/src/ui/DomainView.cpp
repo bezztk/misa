@@ -164,11 +164,21 @@ static bool showRoutineDialog(
     untilLayout->addWidget(untilEdit);
     layout->addRow("Enddatum", untilRow);
 
+    auto *durationEnabled = new QCheckBox("Dauer verwenden", &dialog);
+    durationEnabled->setChecked(!existing.has_value() || existing->estimatedDuration.has_value());
     auto *durationEdit = new QSpinBox(&dialog);
     durationEdit->setRange(1, 1440);
     durationEdit->setSuffix(" Minuten");
-    durationEdit->setValue(existing.has_value() ? existing->estimatedDuration : 30);
-    layout->addRow("Geschätzte Dauer", durationEdit);
+    durationEdit->setValue(
+        existing.has_value() && existing->estimatedDuration.has_value()
+            ? *existing->estimatedDuration : 30
+    );
+    auto *durationRow = new QWidget(&dialog);
+    auto *durationLayout = new QHBoxLayout(durationRow);
+    durationLayout->setContentsMargins(0, 0, 0, 0);
+    durationLayout->addWidget(durationEnabled);
+    durationLayout->addWidget(durationEdit);
+    layout->addRow("Geschätzte Dauer", durationRow);
 
     auto *optionalEdit = new QCheckBox(&dialog);
     optionalEdit->setChecked(existing.has_value() && existing->isOptional);
@@ -179,6 +189,8 @@ static bool showRoutineDialog(
     layout->addRow("Aktiv", activeEdit);
 
     QObject::connect(fixedTimeEdit, &QCheckBox::toggled, timeEdit, &QWidget::setEnabled);
+    QObject::connect(durationEnabled, &QCheckBox::toggled,
+                     durationEdit, &QWidget::setEnabled);
     QObject::connect(countEnabled, &QCheckBox::toggled, &dialog, [untilEnabled](const bool checked) {
         if (checked) untilEnabled->setChecked(false);
     });
@@ -234,6 +246,7 @@ static bool showRoutineDialog(
         }
     }
     timeEdit->setEnabled(fixedTimeEdit->isChecked());
+    durationEdit->setEnabled(durationEnabled->isChecked());
 
     auto *buttons = new QDialogButtonBox(
         QDialogButtonBox::Save | QDialogButtonBox::Cancel,
@@ -298,7 +311,8 @@ static bool showRoutineDialog(
             .name = nameEdit->text().trimmed(),
             .recurrenceRuleSet = startLine + "\r\nRRULE:" + ruleParts.join(';'),
             .timezone = "Europe/Berlin",
-            .estimatedDuration = durationEdit->value(),
+            .estimatedDuration = durationEnabled->isChecked()
+                ? std::optional<int>(durationEdit->value()) : std::nullopt,
             .isOptional = optionalEdit->isChecked(),
             .isActive = activeEdit->isChecked()
         };

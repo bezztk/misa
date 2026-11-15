@@ -1,13 +1,28 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::routine::{DomainNodeRoutine, SaveDomainNodeRoutineRequest};
 use crate::repositories::routine_repository::{self, CreateRoutineResult};
+use crate::services::routine_execution_service;
 use crate::validation::valid_name;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::{NaiveDate, NaiveDateTime, Timelike};
+use serde::Serialize;
 use sqlx::PgPool;
 use std::collections::HashMap;
+
+#[derive(Serialize)]
+pub struct GenerateExecutionsResponse {
+    pub generated: usize,
+}
+
+pub async fn generate_executions(
+    State(pool): State<PgPool>,
+) -> ApiResult<Json<GenerateExecutionsResponse>> {
+    Ok(Json(GenerateExecutionsResponse {
+        generated: routine_execution_service::generate_next_executions(&pool).await?,
+    }))
+}
 
 pub async fn get_domain_node_routine(
     State(pool): State<PgPool>,
@@ -49,7 +64,9 @@ pub async fn update_domain_node_routine(
 fn validate(payload: &SaveDomainNodeRoutineRequest) -> ApiResult<()> {
     if !valid_name(&payload.name, 150)
         || payload.timezone != "Europe/Berlin"
-        || payload.estimated_duration <= 0
+        || payload
+            .estimated_duration
+            .is_some_and(|duration| duration <= 0)
         || !valid_rrule_set(&payload.recurrence_rule_set)
     {
         return Err(ApiError::BadRequest);

@@ -2,6 +2,7 @@
 #define FRONTEND_ROUTINE_H
 
 #include <QString>
+#include <optional>
 
 struct Routine {
     int id;
@@ -10,7 +11,7 @@ struct Routine {
     QString name;
     QString recurrenceRuleSet;
     QString timezone;
-    int estimatedDuration;
+    std::optional<int> estimatedDuration;
     bool isOptional;
     bool isActive;
 };
@@ -19,7 +20,7 @@ struct SaveRoutine {
     QString name;
     QString recurrenceRuleSet;
     QString timezone;
-    int estimatedDuration;
+    std::optional<int> estimatedDuration;
     bool isOptional;
     bool isActive;
 };

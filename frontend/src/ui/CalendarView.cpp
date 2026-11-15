@@ -47,8 +47,14 @@ CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
         apiClient.getCalendarEntries();
     });
 
+    auto *routinesButton = new QPushButton("Routinen berechnen", content);
+    connect(routinesButton, &QPushButton::clicked, this, [this] {
+        apiClient.generateRoutineExecutions();
+    });
+
     headerLayout->addWidget(title);
     headerLayout->addStretch();
+    headerLayout->addWidget(routinesButton);
     headerLayout->addWidget(refreshButton);
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
@@ -118,6 +124,9 @@ CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
         apiClient.getCalendarEntries();
     });
     connect(&apiClient, &ApiClient::calendarEntryUpdated, this, [this] {
+        apiClient.getCalendarEntries();
+    });
+    connect(&apiClient, &ApiClient::routineExecutionsGenerated, this, [this] {
         apiClient.getCalendarEntries();
     });
     connect(&apiClient, &ApiClient::taskReceived, this,

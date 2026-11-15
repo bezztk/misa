@@ -26,6 +26,7 @@ signals:
     void calendarEntryUpdated();
     void domainNodeRoutineReceived(int nodeId, const Routine& routine);
     void domainNodeRoutineSaved(int nodeId, const Routine& routine);
+    void routineExecutionsGenerated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
@@ -64,6 +65,7 @@ public:
     void getDomainNodeRoutine(int nodeId);
     void createDomainNodeRoutine(int nodeId, const SaveRoutine& routine);
     void updateDomainNodeRoutine(int nodeId, const SaveRoutine& routine);
+    void generateRoutineExecutions();
 
     void getDueFlashcards();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);

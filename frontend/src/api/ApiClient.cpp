@@ -69,28 +69,34 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
 }
 
 static Routine parseRoutine(const QJsonObject &object) {
-    return Routine{
+    Routine routine{
         .id = object["id"].toInt(),
         .systemTaskId = object["systemtask_id"].toInt(),
         .domainNodeId = object["domain_node_id"].toInt(),
         .name = object["name"].toString(),
         .recurrenceRuleSet = object["recurrence_rule_set"].toString(),
         .timezone = object["timezone"].toString(),
-        .estimatedDuration = object["estimated_duration"].toInt(),
         .isOptional = object["is_optional"].toBool(),
         .isActive = object["is_active"].toBool()
     };
+    if (!object["estimated_duration"].isNull()) {
+        routine.estimatedDuration = object["estimated_duration"].toInt();
+    }
+    return routine;
 }
 
 static QJsonObject routineJson(const SaveRoutine &routine) {
-    return QJsonObject{
+    QJsonObject json{
         {"name", routine.name},
         {"recurrence_rule_set", routine.recurrenceRuleSet},
         {"timezone", routine.timezone},
-        {"estimated_duration", routine.estimatedDuration},
         {"is_optional", routine.isOptional},
         {"is_active", routine.isActive}
     };
+    json["estimated_duration"] = routine.estimatedDuration.has_value()
+        ? QJsonValue(*routine.estimatedDuration)
+        : QJsonValue(QJsonValue::Null);
+    return json;
 }
 
 static Skill parseSkill(const QJsonObject &object) {
@@ -1073,6 +1079,21 @@ void ApiClient::updateDomainNodeRoutine(const int nodeId, const SaveRoutine &rou
             );
         } else {
             qWarning() << "Routine update failed:" << reply->errorString();
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::generateRoutineExecutions() {
+    QNetworkRequest request(buildUrl("/routines/generate-executions"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(request, QByteArray());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError) {
+            emit routineExecutionsGenerated();
+        } else {
+            qWarning() << "Routine execution generation failed:" << reply->errorString();
         }
         reply->deleteLater();
     });

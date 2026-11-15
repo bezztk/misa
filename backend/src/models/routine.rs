@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
@@ -19,7 +19,7 @@ pub struct DomainNodeRoutine {
     pub name: String,
     pub recurrence_rule_set: String,
     pub timezone: String,
-    pub estimated_duration: i32,
+    pub estimated_duration: Option<i32>,
     pub is_optional: bool,
     pub is_active: bool,
 }
@@ -29,7 +29,7 @@ pub struct SaveDomainNodeRoutineRequest {
     pub name: String,
     pub recurrence_rule_set: String,
     pub timezone: String,
-    pub estimated_duration: i32,
+    pub estimated_duration: Option<i32>,
     pub is_optional: bool,
     pub is_active: bool,
 }
@@ -56,5 +56,6 @@ pub struct SystemTaskRoutineExecution {
     pub routine_id: i32,
     pub state_id: i32,
     pub is_optional: bool,
-    pub occurrence_at: DateTime<Utc>,
+    pub occurrence_on: NaiveDate,
+    pub scheduled_at: Option<DateTime<Utc>>,
 }
