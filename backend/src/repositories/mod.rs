@@ -1,3 +1,4 @@
+pub mod calendar_entry_repository;
 pub mod document_repository;
 pub mod domain_repository;
 pub mod flashcard_repository;

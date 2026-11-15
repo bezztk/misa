@@ -12,3 +12,11 @@ pub struct CalendarEntry {
     pub end_at: Option<DateTime<Utc>>,
     pub is_locked: bool,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCalendarEntryRequest {
+    pub name: String,
+    pub start_at: DateTime<Utc>,
+    pub end_at: Option<DateTime<Utc>>,
+    pub is_reminder: bool,
+}

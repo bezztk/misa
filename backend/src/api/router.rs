@@ -1,12 +1,17 @@
 use crate::api::handlers::{
-    document_handler, domain_handler, flashcard_handler, metadata_handler, progression_handler,
-    pursuit_handler, skill_handler, task_handler,
+    calendar_entry_handler, document_handler, domain_handler, flashcard_handler, metadata_handler,
+    progression_handler, pursuit_handler, skill_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route(
+            "/calendar-entries",
+            get(calendar_entry_handler::get_calendar_entries)
+                .post(calendar_entry_handler::create_calendar_entry),
+        )
         .route("/domain-tree", get(domain_handler::get_domain_tree))
         .route(
             "/domain-nodes/{parent_id}/children",
