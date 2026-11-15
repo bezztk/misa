@@ -28,3 +28,24 @@ pub async fn create_calendar_entry(
     .fetch_one(pool)
     .await
 }
+
+pub async fn update_calendar_entry(
+    pool: &PgPool,
+    id: i32,
+    entry: &CreateCalendarEntryRequest,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE calendar_entries
+         SET systemtask_id = $1, name = $2, start_at = $3, end_at = $4
+         WHERE id = $5",
+    )
+    .bind(entry.systemtask_id)
+    .bind(entry.name.trim())
+    .bind(entry.start_at)
+    .bind(entry.end_at)
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
