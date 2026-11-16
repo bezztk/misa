@@ -21,6 +21,7 @@ pub struct DomainNode {
     pub flashcard_count: i64,
     pub skill_count: i64,
     pub pursuit_count: i64,
+    pub task_count: i64,
     pub completeness_level_id: Option<i32>,
     pub flashcard_status_id: Option<i32>,
     pub verification_status_id: Option<i32>,

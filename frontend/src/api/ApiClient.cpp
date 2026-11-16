@@ -43,7 +43,8 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .hasRoutine = object["has_routine"].toBool(),
         .flashcardCount = object["flashcard_count"].toInt(),
         .skillCount = object["skill_count"].toInt(),
-        .pursuitCount = object["pursuit_count"].toInt()
+        .pursuitCount = object["pursuit_count"].toInt(),
+        .taskCount = object["task_count"].toInt()
     };
 
     if (!object["parent_id"].isNull()) {
@@ -889,7 +890,9 @@ void ApiClient::createTask(const CreateTask &task) {
 
     QJsonObject json;
     json["name"] = task.name;
-    json["group_id"] = task.group_id;
+    json["group_id"] = task.group_id.has_value()
+        ? QJsonValue(*task.group_id)
+        : QJsonValue(QJsonValue::Null);
     json["priority_id"] = task.priority_id;
     json["pursuit_id"] = task.pursuit_id.has_value()
         ? QJsonValue(*task.pursuit_id)

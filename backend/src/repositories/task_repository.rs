@@ -18,7 +18,7 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> 
 pub async fn create_task(
     pool: &PgPool,
     name: &str,
-    group_id: i32,
+    group_id: Option<i32>,
     priority_id: i32,
     pursuit_id: Option<i32>,
 ) -> Result<i32, sqlx::Error> {

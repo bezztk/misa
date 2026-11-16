@@ -20,6 +20,10 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
                 COUNT(f.id) AS flashcard_count,
                 (SELECT COUNT(*) FROM skills WHERE domain_node_id = dn.id) AS skill_count,
                 (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = dn.id) AS pursuit_count,
+                (SELECT COUNT(*)
+                 FROM systemtasks st
+                 JOIN pursuits p ON p.id = st.pursuit_id
+                 WHERE p.domain_node_id = dn.id) AS task_count,
                 d.completeness_level_id, d.flashcard_status_id,
                 d.verification_status_id, d.verification_level_id
          FROM domain_nodes dn
@@ -47,6 +51,7 @@ pub async fn create_domain_node(
                    FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
+                   0::BIGINT AS task_count,
                    NULL::INTEGER AS completeness_level_id,
                    NULL::INTEGER AS flashcard_status_id,
                    NULL::INTEGER AS verification_status_id,
@@ -73,6 +78,7 @@ pub async fn create_root_domain_node(
                    FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
+                   0::BIGINT AS task_count,
                    NULL::INTEGER AS completeness_level_id,
                    NULL::INTEGER AS flashcard_status_id,
                    NULL::INTEGER AS verification_status_id,
@@ -125,6 +131,10 @@ pub async fn update_domain_node(
                    (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.id) AS flashcard_count,
                    (SELECT COUNT(*) FROM skills WHERE domain_node_id = domain_nodes.id) AS skill_count,
                    (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = domain_nodes.id) AS pursuit_count,
+                   (SELECT COUNT(*)
+                    FROM systemtasks st
+                    JOIN pursuits p ON p.id = st.pursuit_id
+                    WHERE p.domain_node_id = domain_nodes.id) AS task_count,
                    (SELECT completeness_level_id FROM documents WHERE domain_node_id = domain_nodes.id) AS completeness_level_id,
                    (SELECT flashcard_status_id FROM documents WHERE domain_node_id = domain_nodes.id) AS flashcard_status_id,
                    (SELECT verification_status_id FROM documents WHERE domain_node_id = domain_nodes.id) AS verification_status_id,

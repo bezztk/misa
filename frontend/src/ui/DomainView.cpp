@@ -34,6 +34,7 @@
 #include <QVBoxLayout>
 
 #include <functional>
+#include <algorithm>
 
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
@@ -47,6 +48,7 @@ static constexpr int NODE_NAME_ROLE = Qt::UserRole + 9;
 static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
 static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
 static constexpr int HAS_ROUTINE_ROLE = Qt::UserRole + 12;
+static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 
@@ -409,6 +411,7 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
     item->setData(node.skillCount, SKILL_COUNT_ROLE);
     item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
+    item->setData(node.taskCount, TASK_COUNT_ROLE);
     item->setData(node.hasRoutine, HAS_ROUTINE_ROLE);
     setOptionalRole(item, COGNITIVE_LEVEL_ROLE, node.cognitiveLevelId);
     setOptionalRole(item, COMPLETENESS_LEVEL_ROLE, node.completenessLevelId);
@@ -419,17 +422,7 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
 
 static void refreshDomainNodeText(QStandardItem *item) {
     QString text = item->data(NODE_NAME_ROLE).toString();
-    const QVariant cognitiveLevel = item->data(COGNITIVE_LEVEL_ROLE);
     item->setToolTip({});
-    if (cognitiveLevel.isValid()) {
-        text += "  C" + QString::number(cognitiveLevel.toInt());
-        for (const MetadataItem &level : AppState::metadata.cognitive_levels) {
-            if (level.id == cognitiveLevel.toInt()) {
-                item->setToolTip("Kognitives Niveau: " + metadataName(level));
-                break;
-            }
-        }
-    }
     const int flashcardCount = item->data(FLASHCARD_COUNT_ROLE).toInt();
     if (flashcardCount > 0) {
         text += QString::fromUtf8("  ▣ ") + QString::number(flashcardCount);
@@ -441,6 +434,10 @@ static void refreshDomainNodeText(QStandardItem *item) {
     const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
     if (pursuitCount > 0) {
         text += QString::fromUtf8("  ↑ ") + QString::number(pursuitCount);
+    }
+    const int taskCount = item->data(TASK_COUNT_ROLE).toInt();
+    if (taskCount > 0) {
+        text += QString::fromUtf8("  ☑ ") + QString::number(taskCount);
     }
     item->setText(text);
 }
@@ -991,7 +988,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
     progressionWidget = new QWidget(this);
     progressionWidget->setObjectName("progressionPanel");
-    progressionWidget->setFixedHeight(200);
+    progressionWidget->setFixedHeight(40);
     auto *progressionLayout = new QVBoxLayout(progressionWidget);
     progressionLayout->setContentsMargins(0, 0, 0, 0);
     progressionLayout->setSpacing(0);
@@ -1006,7 +1003,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     progressionTitle->setFont(progressionTitleFont);
     auto *addProgressionButton = new QPushButton("Progression erstellen", progressionHeader);
     addProgressionButton->setObjectName("compactButton");
-    auto *toggleProgressionButton = new QPushButton("Minimieren", progressionHeader);
+    auto *toggleProgressionButton = new QPushButton("Öffnen", progressionHeader);
     toggleProgressionButton->setObjectName("compactButton");
     progressionHeaderLayout->addWidget(progressionTitle);
     progressionHeaderLayout->addStretch();
@@ -1060,6 +1057,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     stageScrollArea->setWidget(stageContent);
     progressionContentLayout->addWidget(stageScrollArea, 1);
     progressionLayout->addWidget(progressionContent, 1);
+    progressionContent->hide();
     layout->addWidget(progressionWidget);
 
     connect(addProgressionButton, &QPushButton::clicked, this, [this] {
@@ -1077,7 +1075,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
         }
     });
     connect(toggleProgressionButton, &QPushButton::clicked, this,
-            [this, toggleProgressionButton, expanded = true]() mutable {
+            [this, toggleProgressionButton, expanded = false]() mutable {
                 expanded = !expanded;
                 progressionContent->setVisible(expanded);
                 progressionWidget->setFixedHeight(expanded ? 200 : 40);
@@ -1521,12 +1519,14 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 updatePursuitCount(nodeId, static_cast<int>(pursuits.size()));
                 if (nodeId == currentNodeId) {
                     currentPursuits = pursuits;
+                    updateCurrentTaskCount();
                     renderPursuits();
                 }
             });
     connect(&apiClient, &ApiClient::taskReceived, this,
             [this](const std::vector<Task> &tasks) {
                 currentTasks = tasks;
+                updateCurrentTaskCount();
                 renderPursuits();
             });
     connect(&apiClient, &ApiClient::taskCreated, this,
@@ -2303,12 +2303,6 @@ void DomainView::createPursuitTask(const int pursuitId) {
     auto *nameEdit = new QLineEdit(&dialog);
     layout->addRow("Name", nameEdit);
 
-    auto *groupEdit = new QComboBox(&dialog);
-    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
-        groupEdit->addItem(group.name, group.id);
-    }
-    layout->addRow("Gruppe", groupEdit);
-
     auto *priorityEdit = new QComboBox(&dialog);
     for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
@@ -2329,7 +2323,7 @@ void DomainView::createPursuitTask(const int pursuitId) {
 
     apiClient.createTask(CreateTask{
         .name = nameEdit->text().trimmed(),
-        .group_id = groupEdit->currentData().toInt(),
+        .group_id = std::nullopt,
         .priority_id = priorityEdit->currentData().toInt(),
         .pursuit_id = pursuitId
     });
@@ -2376,6 +2370,30 @@ void DomainView::editPursuit(const QModelIndex &index) {
 void DomainView::updatePursuitCount(const int nodeId, const int count) {
     QStandardItem *item = findDomainNodeItem(nodeId);
     item->setData(count, PURSUIT_COUNT_ROLE);
+    refreshDomainNodeText(item);
+}
+
+void DomainView::updateCurrentTaskCount() {
+    if (currentNodeId == -1) {
+        return;
+    }
+
+    const int count = static_cast<int>(std::count_if(
+        currentTasks.begin(),
+        currentTasks.end(),
+        [this](const Task &task) {
+            return task.pursuit_id.has_value()
+                && std::any_of(
+                    currentPursuits.begin(),
+                    currentPursuits.end(),
+                    [&task](const Pursuit &pursuit) {
+                        return task.pursuit_id == pursuit.id;
+                    }
+                );
+        }
+    ));
+    QStandardItem *item = findDomainNodeItem(currentNodeId);
+    item->setData(count, TASK_COUNT_ROLE);
     refreshDomainNodeText(item);
 }
 

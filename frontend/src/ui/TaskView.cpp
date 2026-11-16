@@ -38,12 +38,6 @@ static QString metadataName(const std::vector<MetadataItem> &items, const int id
     return QString::number(id);
 }
 
-static QString taskGroupName(const std::optional<int> id) {
-    return id.has_value()
-        ? metadataName(AppState::metadata.systemtask_groups, *id)
-        : QStringLiteral("—");
-}
-
 static QString taskStateName(const int id) {
     return metadataName(AppState::metadata.systemtask_states, id);
 }
@@ -104,15 +98,14 @@ TaskView::TaskView(QWidget *parent) : QWidget(parent) {
     contentLayout->addLayout(headerLayout);
 
     taskList = new QTreeWidget(content);
-    taskList->setColumnCount(4);
-    taskList->setHeaderLabels({"Aufgabe", "Status", "Gruppe", "Priorität"});
+    taskList->setColumnCount(3);
+    taskList->setHeaderLabels({"Aufgabe", "Status", "Priorität"});
     taskList->setRootIsDecorated(false);
     taskList->setAlternatingRowColors(true);
     taskList->setUniformRowHeights(true);
     taskList->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     taskList->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     taskList->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    taskList->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     taskList->setContextMenuPolicy(Qt::CustomContextMenu);
     contentLayout->addWidget(taskList, 1);
     layout->addWidget(content, 1);
@@ -248,8 +241,7 @@ void TaskView::renderTasks() {
         item->setData(0, TASK_ID_ROLE, task.id);
         item->setText(0, task.name);
         item->setText(1, taskStateName(task.state_id));
-        item->setText(2, taskGroupName(task.group_id));
-        item->setText(3, taskPriorityName(task.priority_id));
+        item->setText(2, taskPriorityName(task.priority_id));
         if (closed) {
             for (int column = 0; column < taskList->columnCount(); ++column) {
                 item->setForeground(column, QColor("#777777"));

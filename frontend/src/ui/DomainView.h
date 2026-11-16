@@ -60,6 +60,7 @@ private:
     void createPursuit(int nodeId);
     void editPursuit(const QModelIndex &index);
     void updatePursuitCount(int nodeId, int count);
+    void updateCurrentTaskCount();
     void renderProgressions();
     void renderProgressionStages();
     void showProgressionContextMenu(const QPoint &position);

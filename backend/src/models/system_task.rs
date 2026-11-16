@@ -78,7 +78,7 @@ pub struct TaskListItem {
 #[derive(Debug, Deserialize)]
 pub struct CreateTaskRequest {
     pub name: String,
-    pub group_id: i32,
+    pub group_id: Option<i32>,
     pub priority_id: i32,
     pub pursuit_id: Option<i32>,
 }

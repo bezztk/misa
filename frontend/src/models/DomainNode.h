@@ -16,6 +16,7 @@ struct DomainNode {
     int flashcardCount;
     int skillCount;
     int pursuitCount;
+    int taskCount;
     std::optional<int> completenessLevelId;
     std::optional<int> flashcardStatusId;
     std::optional<int> verificationStatusId;

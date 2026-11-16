@@ -44,17 +44,11 @@ CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
 
     auto *refreshButton = new QPushButton("Aktualisieren", content);
     connect(refreshButton, &QPushButton::clicked, this, [this] {
-        apiClient.getCalendarEntries();
-    });
-
-    auto *routinesButton = new QPushButton("Routinen berechnen", content);
-    connect(routinesButton, &QPushButton::clicked, this, [this] {
         apiClient.generateRoutineExecutions();
     });
 
     headerLayout->addWidget(title);
     headerLayout->addStretch();
-    headerLayout->addWidget(routinesButton);
     headerLayout->addWidget(refreshButton);
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
