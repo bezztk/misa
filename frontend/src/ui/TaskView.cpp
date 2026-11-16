@@ -2,221 +2,305 @@
 #include "../models/AppState.h"
 
 #include <QComboBox>
+#include <QDateTimeEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QDateTimeEdit>
+#include <QFont>
 #include <QFormLayout>
 #include <QFrame>
+#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMouseEvent>
+#include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
-#include <QScrollArea>
+#include <QRegularExpression>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 
-#include <functional>
+#include <algorithm>
 
-class ClickableFrame : public QFrame {
-public:
-    std::function<void()> clicked;
+static constexpr int NAVIGATION_TYPE_ROLE = Qt::UserRole;
+static constexpr int NAVIGATION_ID_ROLE = Qt::UserRole + 1;
+static constexpr int TASK_ID_ROLE = Qt::UserRole;
 
-protected:
-    void mouseReleaseEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton && rect().contains(event->position().toPoint())) {
-            clicked();
-        }
+static constexpr int NAVIGATION_ALL = 0;
+static constexpr int NAVIGATION_GROUP = 1;
+static constexpr int NAVIGATION_PURSUIT = 2;
 
-        QFrame::mouseReleaseEvent(event);
-    }
-};
-
-static QString taskGroupName(const std::optional<int> id) {
-    if (!id.has_value()) {
-        return "—";
-    }
-    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
-        if (group.id == *id) {
-            return group.name;
+static QString metadataName(const std::vector<MetadataItem> &items, const int id) {
+    for (const MetadataItem &item : items) {
+        if (item.id == id) {
+            return item.display_name.value_or(item.name);
         }
     }
-
-    return QString::number(*id);
-}
-
-static QString taskStateName(const int id) {
-    for (const MetadataItem &state : AppState::metadata.systemtask_states) {
-        if (state.id == id) {
-            return state.display_name.value_or(state.name);
-        }
-    }
-
     return QString::number(id);
 }
 
-static QString priorityColor(const int id) {
-    switch (id) {
-        case 4: return "#F02D63";
-        case 3: return "#FF633F";
-        case 2: return "#66BB6A";
-        default: return "#78909C";
-    }
+static QString taskGroupName(const std::optional<int> id) {
+    return id.has_value()
+        ? metadataName(AppState::metadata.systemtask_groups, *id)
+        : QStringLiteral("—");
 }
 
-static QString taskStateColor(const int id) {
-    switch (id) {
-        case 2: return "#64B5F6";
-        case 3: return "#66BB6A";
-        case 4: return "#EF5350";
-        default: return "#777777";
-    }
+static QString taskStateName(const int id) {
+    return metadataName(AppState::metadata.systemtask_states, id);
+}
+
+static QString taskPriorityName(const int id) {
+    return metadataName(AppState::metadata.systemtask_priorities, id);
+}
+
+static bool isActive(const Task &task) {
+    return task.state_id == 1 || task.state_id == 2;
 }
 
 TaskView::TaskView(QWidget *parent) : QWidget(parent) {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto *sidebar = new QWidget(this);
+    sidebar->setFixedWidth(250);
+    auto *sidebarLayout = new QVBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(16, 20, 12, 20);
+    sidebarLayout->setSpacing(10);
+
+    auto *sidebarTitle = new QLabel("Aufgaben", sidebar);
+    QFont sidebarTitleFont = sidebarTitle->font();
+    sidebarTitleFont.setBold(true);
+    sidebarTitleFont.setPointSize(sidebarTitleFont.pointSize() + 2);
+    sidebarTitle->setFont(sidebarTitleFont);
+    sidebarLayout->addWidget(sidebarTitle);
+
+    navigation = new QListWidget(sidebar);
+    navigation->setFrameShape(QFrame::NoFrame);
+    sidebarLayout->addWidget(navigation, 1);
+    layout->addWidget(sidebar);
+
+    auto *separator = new QFrame(this);
+    separator->setFixedWidth(1);
+    separator->setStyleSheet("background: rgba(255, 255, 255, 0.20); border: none;");
+    layout->addWidget(separator);
 
     auto *content = new QWidget(this);
-    content->setMaximumWidth(820);
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(24, 20, 24, 20);
     contentLayout->setSpacing(14);
 
     auto *headerLayout = new QHBoxLayout();
-    auto *title = new QLabel("Aufgaben", content);
+    auto *title = new QLabel("Alle Aufgaben", content);
     QFont titleFont = title->font();
     titleFont.setBold(true);
     titleFont.setPointSize(titleFont.pointSize() + 4);
     title->setFont(titleFont);
 
     auto *createButton = new QPushButton("Neue Aufgabe", content);
-    createButton->setMinimumWidth(120);
-    connect(createButton, &QPushButton::clicked, this, [this] {
-        openCreateDialog();
-    });
+    connect(createButton, &QPushButton::clicked, this, [this] { openCreateDialog(); });
     headerLayout->addWidget(title);
     headerLayout->addStretch();
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
 
-    auto *scrollArea = new QScrollArea(content);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("QScrollArea { background: transparent; }");
-
-    auto *cards = new QWidget(scrollArea);
-    cardsLayout = new QVBoxLayout(cards);
-    cardsLayout->setContentsMargins(0, 0, 0, 0);
-    cardsLayout->setSpacing(8);
-    scrollArea->setWidget(cards);
-    contentLayout->addWidget(scrollArea, 1);
-
-    layout->addStretch();
+    taskList = new QTreeWidget(content);
+    taskList->setColumnCount(4);
+    taskList->setHeaderLabels({"Aufgabe", "Status", "Gruppe", "Priorität"});
+    taskList->setRootIsDecorated(false);
+    taskList->setAlternatingRowColors(true);
+    taskList->setUniformRowHeights(true);
+    taskList->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    taskList->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    taskList->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    taskList->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    taskList->setContextMenuPolicy(Qt::CustomContextMenu);
+    contentLayout->addWidget(taskList, 1);
     layout->addWidget(content, 1);
-    layout->addStretch();
+
+    connect(navigation, &QListWidget::currentItemChanged, this,
+            [this, title](QListWidgetItem *current) {
+                if (!current) {
+                    return;
+                }
+                selectedNavigationType = current->data(NAVIGATION_TYPE_ROLE).toInt();
+                selectedNavigationId = current->data(NAVIGATION_ID_ROLE).toInt();
+                QString text = current->text();
+                text.remove(QRegularExpression(" \\([0-9]+\\)$"));
+                title->setText(text);
+                renderTasks();
+            });
+    connect(taskList, &QTreeWidget::itemDoubleClicked, this,
+            [this](QTreeWidgetItem *item) {
+                if (const Task *task = taskById(item->data(0, TASK_ID_ROLE).toInt())) {
+                    openEditDialog(*task);
+                }
+            });
+    connect(taskList, &QWidget::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                QTreeWidgetItem *item = taskList->itemAt(position);
+                if (!item) {
+                    return;
+                }
+                const Task *task = taskById(item->data(0, TASK_ID_ROLE).toInt());
+                if (!task) {
+                    return;
+                }
+                QMenu menu(taskList);
+                QAction *scheduleAction = menu.addAction("Einplanen");
+                if (menu.exec(taskList->viewport()->mapToGlobal(position)) == scheduleAction) {
+                    openScheduleDialog(*task);
+                }
+            });
 
     connect(&apiClient, &ApiClient::taskReceived, this,
             [this](const std::vector<Task> &receivedTasks) {
                 tasks = receivedTasks;
+                renderNavigation();
                 renderTasks();
             });
-    connect(&apiClient, &ApiClient::taskUpdated, this, [this] {
-        apiClient.getTasks();
-    });
-    connect(&apiClient, &ApiClient::taskCreated, this, [this] {
-        apiClient.getTasks();
-    });
-    connect(&apiClient, &ApiClient::taskDeleted, this, [this] {
-        apiClient.getTasks();
-    });
+    connect(&apiClient, &ApiClient::taskPursuitsReceived, this,
+            [this](const std::vector<TaskPursuit> &receivedPursuits) {
+                pursuits = receivedPursuits;
+                renderNavigation();
+                renderTasks();
+            });
+    connect(&apiClient, &ApiClient::taskUpdated, this, [this] { apiClient.getTasks(); });
+    connect(&apiClient, &ApiClient::taskCreated, this, [this] { apiClient.getTasks(); });
+    connect(&apiClient, &ApiClient::taskDeleted, this, [this] { apiClient.getTasks(); });
 
+    refreshTasks();
+}
+
+void TaskView::refreshTasks() {
     apiClient.getTasks();
+    apiClient.getTaskPursuits();
+}
+
+void TaskView::renderNavigation() {
+    const int previousType = selectedNavigationType;
+    const int previousId = selectedNavigationId;
+    navigation->clear();
+
+    const auto countFor = [this](const int type, const int id) {
+        return static_cast<int>(std::count_if(tasks.begin(), tasks.end(),
+            [type, id](const Task &task) {
+                if (!isActive(task)) {
+                    return false;
+                }
+                if (type == NAVIGATION_GROUP) {
+                    return task.group_id == id;
+                }
+                if (type == NAVIGATION_PURSUIT) {
+                    return task.pursuit_id == id;
+                }
+                return true;
+            }));
+    };
+    const auto addEntry = [this, &countFor, previousType, previousId](
+                              const QString &name, const int type, const int id) {
+        auto *item = new QListWidgetItem(
+            name + " (" + QString::number(countFor(type, id)) + ")",
+            navigation
+        );
+        item->setData(NAVIGATION_TYPE_ROLE, type);
+        item->setData(NAVIGATION_ID_ROLE, id);
+        if (type == previousType && id == previousId) {
+            navigation->setCurrentItem(item);
+        }
+    };
+    const auto addHeading = [this](const QString &text) {
+        auto *item = new QListWidgetItem(text, navigation);
+        QFont font = item->font();
+        font.setBold(true);
+        item->setFont(font);
+        item->setFlags(Qt::NoItemFlags);
+    };
+
+    addEntry("Alle Aufgaben", NAVIGATION_ALL, 0);
+    addHeading("Aufgabengruppen");
+    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
+        addEntry(group.name, NAVIGATION_GROUP, group.id);
+    }
+    addHeading("Bestrebungen");
+    for (const TaskPursuit &pursuit : pursuits) {
+        addEntry(pursuit.name, NAVIGATION_PURSUIT, pursuit.id);
+    }
+
+    if (!navigation->currentItem()) {
+        navigation->setCurrentRow(0);
+    }
 }
 
 void TaskView::renderTasks() {
-    while (QLayoutItem *item = cardsLayout->takeAt(0)) {
-        delete item->widget();
-        delete item;
-    }
+    taskList->clear();
 
-    if (tasks.empty()) {
-        auto *emptyLabel = new QLabel("Noch keine Aufgaben angelegt.");
-        emptyLabel->setAlignment(Qt::AlignCenter);
-        emptyLabel->setStyleSheet("color: #777777; padding: 28px;");
-        cardsLayout->addWidget(emptyLabel);
+    const auto matchesSelection = [this](const Task &task) {
+        if (selectedNavigationType == NAVIGATION_GROUP) {
+            return task.group_id == selectedNavigationId;
+        }
+        if (selectedNavigationType == NAVIGATION_PURSUIT) {
+            return task.pursuit_id == selectedNavigationId;
+        }
+        return true;
+    };
+    const auto addTask = [this](const Task &task, const bool closed) {
+        auto *item = new QTreeWidgetItem(taskList);
+        item->setData(0, TASK_ID_ROLE, task.id);
+        item->setText(0, task.name);
+        item->setText(1, taskStateName(task.state_id));
+        item->setText(2, taskGroupName(task.group_id));
+        item->setText(3, taskPriorityName(task.priority_id));
+        if (closed) {
+            for (int column = 0; column < taskList->columnCount(); ++column) {
+                item->setForeground(column, QColor("#777777"));
+            }
+        }
+    };
+
+    bool hasActive = false;
+    bool hasClosed = false;
+    for (const Task &task : tasks) {
+        if (matchesSelection(task) && isActive(task)) {
+            addTask(task, false);
+            hasActive = true;
+        }
     }
 
     for (const Task &task : tasks) {
-        auto *card = new ClickableFrame();
-        card->setObjectName("taskCard");
-        card->setCursor(Qt::PointingHandCursor);
-        card->setStyleSheet(QString(
-            "QFrame#taskCard {"
-            "  background: rgba(255, 255, 255, 0.04);"
-            "  border: 1px solid rgba(255, 255, 255, 0.10);"
-            "  border-left: 3px solid %1;"
-            "  border-radius: 6px;"
-            "}"
-            "QFrame#taskCard:hover { background: rgba(255, 255, 255, 0.07); }"
-            "QFrame#taskCard QLabel { border: none; background: transparent; }"
-        ).arg(priorityColor(task.priority_id)));
-
-        auto *cardLayout = new QVBoxLayout(card);
-        cardLayout->setContentsMargins(12, 9, 12, 9);
-        cardLayout->setSpacing(4);
-
-        auto *topRow = new QHBoxLayout();
-        topRow->setContentsMargins(0, 0, 0, 0);
-        topRow->setSpacing(6);
-        auto *taskTitle = new QLabel(task.name, card);
-        taskTitle->setWordWrap(true);
-        QFont taskTitleFont = taskTitle->font();
-        taskTitleFont.setBold(true);
-        taskTitle->setFont(taskTitleFont);
-        taskTitle->setAttribute(Qt::WA_TransparentForMouseEvents);
-
-        auto *status = new QLabel(taskStateName(task.state_id), card);
-        status->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        status->setStyleSheet(
-            "color: " + taskStateColor(task.state_id)
-            + "; padding: 2px 6px; background: rgba(255,255,255,0.05);"
-            + " border-radius: 4px;"
-        );
-        status->setAttribute(Qt::WA_TransparentForMouseEvents);
-
-        topRow->addWidget(taskTitle, 1);
-        topRow->addWidget(status);
-        cardLayout->addLayout(topRow);
-
-        auto *group = new QLabel(taskGroupName(task.group_id), card);
-        group->setStyleSheet("color: #777777; font-size: 11px;");
-        group->setAttribute(Qt::WA_TransparentForMouseEvents);
-        cardLayout->addWidget(group);
-
-        card->clicked = [this, task] {
-            openEditDialog(task);
-        };
-        card->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(card, &QWidget::customContextMenuRequested, this,
-                [this, card, task](const QPoint &position) {
-                    QMenu menu(card);
-                    QAction *scheduleAction = menu.addAction("Einplanen");
-                    if (menu.exec(card->mapToGlobal(position)) == scheduleAction) {
-                        openScheduleDialog(task);
-                    }
-                });
-
-        cardsLayout->addWidget(card);
+        if (matchesSelection(task) && !isActive(task)) {
+            if (!hasClosed) {
+                auto *separator = new QTreeWidgetItem(taskList);
+                separator->setText(0, "Abgeschlossen und abgebrochen");
+                QFont font = separator->font(0);
+                font.setBold(true);
+                separator->setFont(0, font);
+                separator->setForeground(0, QColor("#777777"));
+                separator->setFlags(Qt::NoItemFlags);
+                separator->setFirstColumnSpanned(true);
+                hasClosed = true;
+            }
+            addTask(task, true);
+        }
     }
 
-    cardsLayout->addStretch();
+    if (!hasActive && !hasClosed) {
+        auto *empty = new QTreeWidgetItem(taskList);
+        empty->setText(0, "Keine Aufgaben in dieser Ansicht.");
+        empty->setForeground(0, QColor("#777777"));
+        empty->setFlags(Qt::NoItemFlags);
+        empty->setFirstColumnSpanned(true);
+    }
+}
+
+const Task *TaskView::taskById(const int id) const {
+    const auto task = std::find_if(tasks.begin(), tasks.end(),
+                                   [id](const Task &item) { return item.id == id; });
+    return task == tasks.end() ? nullptr : &*task;
 }
 
 void TaskView::openCreateDialog() {
     QDialog dialog(this);
-    dialog.setWindowTitle("Task erstellen");
-
+    dialog.setWindowTitle("Aufgabe erstellen");
     auto *layout = new QFormLayout(&dialog);
 
     auto *nameEdit = new QLineEdit(&dialog);
@@ -235,8 +319,7 @@ void TaskView::openCreateDialog() {
     layout->addRow("Priorität", priorityEdit);
 
     auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
     );
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -249,14 +332,14 @@ void TaskView::openCreateDialog() {
     apiClient.createTask(CreateTask{
         .name = nameEdit->text().trimmed(),
         .group_id = groupEdit->currentData().toInt(),
-        .priority_id = priorityEdit->currentData().toInt()
+        .priority_id = priorityEdit->currentData().toInt(),
+        .pursuit_id = std::nullopt
     });
 }
 
 void TaskView::openEditDialog(const Task &task) {
     QDialog dialog(this);
-    dialog.setWindowTitle("Task bearbeiten");
-
+    dialog.setWindowTitle("Aufgabe bearbeiten");
     auto *layout = new QFormLayout(&dialog);
 
     auto *nameEdit = new QLineEdit(task.name, &dialog);
@@ -277,8 +360,7 @@ void TaskView::openEditDialog(const Task &task) {
     layout->addRow("Priorität", priorityEdit);
 
     auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
     );
     auto *deleteButton = buttons->addButton("Löschen", QDialogButtonBox::DestructiveRole);
     bool deleteRequested = false;
@@ -293,12 +375,10 @@ void TaskView::openEditDialog(const Task &task) {
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
-
     if (deleteRequested) {
         apiClient.deleteTask(task.id);
         return;
     }
-
     if (nameEdit->text().trimmed().isEmpty()) {
         return;
     }
@@ -313,7 +393,6 @@ void TaskView::openEditDialog(const Task &task) {
 void TaskView::openScheduleDialog(const Task &task) {
     QDialog dialog(this);
     dialog.setWindowTitle("Aufgabe einplanen");
-
     auto *layout = new QFormLayout(&dialog);
 
     auto *typeEdit = new QComboBox(&dialog);
@@ -346,8 +425,7 @@ void TaskView::openScheduleDialog(const Task &task) {
     updateType();
 
     auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
     );
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -367,6 +445,5 @@ void TaskView::openScheduleDialog(const Task &task) {
     if (!isReminder) {
         entry.endAt = endEdit->dateTime();
     }
-
     apiClient.createCalendarEntry(entry);
 }

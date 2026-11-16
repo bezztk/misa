@@ -852,6 +852,9 @@ void ApiClient::getTasks() {
             if (!object["group_id"].isNull()) {
                 task.group_id = object["group_id"].toInt();
             }
+            if (!object["pursuit_id"].isNull()) {
+                task.pursuit_id = object["pursuit_id"].toInt();
+            }
             task.state_id = object["state_id"].toInt();
             task.priority_id = object["priority_id"].toInt();
 
@@ -864,6 +867,22 @@ void ApiClient::getTasks() {
     });
 }
 
+void ApiClient::getTaskPursuits() {
+    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/pursuits")));
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        std::vector<TaskPursuit> pursuits;
+        for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
+            const QJsonObject object = value.toObject();
+            pursuits.push_back(TaskPursuit{
+                .id = object["id"].toInt(),
+                .name = object["name"].toString()
+            });
+        }
+        emit taskPursuitsReceived(pursuits);
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::createTask(const CreateTask &task) {
     QNetworkRequest networkRequest(buildUrl(PATH_TASKS));
     networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -872,6 +891,9 @@ void ApiClient::createTask(const CreateTask &task) {
     json["name"] = task.name;
     json["group_id"] = task.group_id;
     json["priority_id"] = task.priority_id;
+    json["pursuit_id"] = task.pursuit_id.has_value()
+        ? QJsonValue(*task.pursuit_id)
+        : QJsonValue(QJsonValue::Null);
 
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
 

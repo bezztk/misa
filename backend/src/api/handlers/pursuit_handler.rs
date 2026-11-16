@@ -1,6 +1,6 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::pursuit::{
-    CreatePursuitRequest, PursuitDetails, UpdatePursuitRequirementsRequest,
+    CreatePursuitRequest, PursuitDetails, PursuitListItem, UpdatePursuitRequirementsRequest,
 };
 use crate::repositories::pursuit_repository;
 use crate::validation::valid_name;
@@ -8,6 +8,10 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use sqlx::PgPool;
+
+pub async fn get_all_pursuits(State(pool): State<PgPool>) -> ApiResult<Json<Vec<PursuitListItem>>> {
+    Ok(Json(pursuit_repository::get_all_pursuits(&pool).await?))
+}
 
 pub async fn get_pursuits(
     State(pool): State<PgPool>,

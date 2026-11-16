@@ -26,6 +26,7 @@ class DomainView : public QWidget {
 public:
     explicit DomainView(QWidget *parent = nullptr);
     void saveBeforeClose(std::function<void()> continuation);
+    void refreshTasks();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -54,6 +55,8 @@ private:
     void editSkill(const QModelIndex &index);
     void updateSkillCount(int nodeId, int count);
     void renderPursuits();
+    void showPursuitContextMenu(const QPoint &position);
+    void createPursuitTask(int pursuitId);
     void createPursuit(int nodeId);
     void editPursuit(const QModelIndex &index);
     void updatePursuitCount(int nodeId, int count);
@@ -104,6 +107,7 @@ private:
     QStandardItemModel *skillModel;
     std::vector<Skill> currentSkills;
     std::vector<Pursuit> currentPursuits;
+    std::vector<Task> currentTasks;
     QTimer *autosaveTimer;
     int currentNodeId = -1;
     int currentDocumentNodeId = -1;

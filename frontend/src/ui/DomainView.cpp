@@ -1281,6 +1281,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     pursuitTreeView->setUniformRowHeights(true);
     pursuitTreeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     pursuitTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    pursuitTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     pursuitModel = new QStandardItemModel(pursuitTreeView);
     pursuitTreeView->setModel(pursuitModel);
     pursuitLayout->addWidget(pursuitTreeView);
@@ -1511,6 +1512,8 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
             });
     connect(pursuitTreeView, &QTreeView::clicked, this,
             [this](const QModelIndex &index) { editPursuit(index); });
+    connect(pursuitTreeView, &QTreeView::customContextMenuRequested, this,
+            [this](const QPoint &position) { showPursuitContextMenu(position); });
     connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
             [this](const int nodeId) { apiClient.getNodePursuits(nodeId); });
     connect(&apiClient, &ApiClient::nodePursuitsReceived, this,
@@ -1521,6 +1524,13 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                     renderPursuits();
                 }
             });
+    connect(&apiClient, &ApiClient::taskReceived, this,
+            [this](const std::vector<Task> &tasks) {
+                currentTasks = tasks;
+                renderPursuits();
+            });
+    connect(&apiClient, &ApiClient::taskCreated, this,
+            [this] { apiClient.getTasks(); });
     connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
         if (currentDocumentNodeId == -1) {
             return;
@@ -1559,6 +1569,7 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     connect(&apiClient, &ApiClient::metadataReceived, this, [this] {
         apiClient.getDomainTree();
         apiClient.getProgressions();
+        apiClient.getTasks();
     });
 
     apiClient.getMetadata();
@@ -1568,6 +1579,10 @@ void DomainView::saveBeforeClose(std::function<void()> continuation) {
     closeContinuation = std::move(continuation);
     autosaveTimer->stop();
     finishPendingActions();
+}
+
+void DomainView::refreshTasks() {
+    apiClient.getTasks();
 }
 
 void DomainView::requestDocumentChange(const int nodeId, const bool hasDocument) {
@@ -2244,6 +2259,14 @@ void DomainView::renderPursuits() {
                 }
             }
         }
+
+        for (const Task &task : currentTasks) {
+            if (task.pursuit_id == pursuit.id) {
+                auto *taskItem = new QStandardItem("Aufgabe: " + task.name);
+                taskItem->setIcon(QIcon(":/assets/icons/task-white.png"));
+                pursuitItem->appendRow(taskItem);
+            }
+        }
         pursuitModel->appendRow(pursuitItem);
     }
 
@@ -2257,6 +2280,59 @@ void DomainView::renderPursuits() {
                 * pursuitTreeView->sizeHintForRow(0) + 6
         )
     );
+}
+
+void DomainView::showPursuitContextMenu(const QPoint &position) {
+    const QModelIndex index = pursuitTreeView->indexAt(position);
+    if (!index.isValid() || !index.data(Qt::UserRole).isValid()) {
+        return;
+    }
+
+    QMenu menu(pursuitTreeView);
+    QAction *createTaskAction = menu.addAction("Aufgabe erstellen");
+    if (menu.exec(pursuitTreeView->viewport()->mapToGlobal(position)) == createTaskAction) {
+        createPursuitTask(index.data(Qt::UserRole).toInt());
+    }
+}
+
+void DomainView::createPursuitTask(const int pursuitId) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("Aufgabe erstellen");
+    auto *layout = new QFormLayout(&dialog);
+
+    auto *nameEdit = new QLineEdit(&dialog);
+    layout->addRow("Name", nameEdit);
+
+    auto *groupEdit = new QComboBox(&dialog);
+    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
+        groupEdit->addItem(group.name, group.id);
+    }
+    layout->addRow("Gruppe", groupEdit);
+
+    auto *priorityEdit = new QComboBox(&dialog);
+    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
+        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    }
+    layout->addRow("Priorität", priorityEdit);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    apiClient.createTask(CreateTask{
+        .name = nameEdit->text().trimmed(),
+        .group_id = groupEdit->currentData().toInt(),
+        .priority_id = priorityEdit->currentData().toInt(),
+        .pursuit_id = pursuitId
+    });
 }
 
 void DomainView::createPursuit(const int nodeId) {

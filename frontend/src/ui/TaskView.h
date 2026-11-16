@@ -1,28 +1,36 @@
-﻿#ifndef FRONTEND_TASKVIEW_H
+#ifndef FRONTEND_TASKVIEW_H
 #define FRONTEND_TASKVIEW_H
 
 #include "../api/ApiClient.h"
 #include "../models/Task.h"
 
-#include <vector>
 #include <QWidget>
 
-class QVBoxLayout;
+#include <vector>
+
+class QListWidget;
+class QTreeWidget;
 
 class TaskView : public QWidget {
 public:
-    explicit TaskView(QWidget* parent = nullptr);
+    explicit TaskView(QWidget *parent = nullptr);
     void renderTasks();
+    void refreshTasks();
 
 private:
+    void renderNavigation();
     void openCreateDialog();
-    void openEditDialog(const Task& task);
-    void openScheduleDialog(const Task& task);
+    void openEditDialog(const Task &task);
+    void openScheduleDialog(const Task &task);
+    const Task *taskById(int id) const;
 
     std::vector<Task> tasks;
+    std::vector<TaskPursuit> pursuits;
     ApiClient apiClient;
-    QVBoxLayout* cardsLayout;
+    QListWidget *navigation;
+    QTreeWidget *taskList;
+    int selectedNavigationType = 0;
+    int selectedNavigationId = 0;
 };
 
-
-#endif //FRONTEND_TASKVIEW_H
+#endif // FRONTEND_TASKVIEW_H

@@ -7,6 +7,7 @@
 struct Task {
     int id;
     std::optional<int> group_id;
+    std::optional<int> pursuit_id;
     QString name;
     int state_id;
     int priority_id;
@@ -16,6 +17,12 @@ struct CreateTask {
     QString name;
     int group_id;
     int priority_id;
+    std::optional<int> pursuit_id;
+};
+
+struct TaskPursuit {
+    int id;
+    QString name;
 };
 
 struct UpdateTask {

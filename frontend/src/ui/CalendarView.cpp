@@ -62,7 +62,7 @@ CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
     tree = new QTreeWidget(content);
     tree->setColumnCount(3);
     tree->setHeaderLabels({"Zeit", "Name", "Art"});
-    tree->setRootIsDecorated(true);
+    tree->setRootIsDecorated(false);
     tree->setAlternatingRowColors(true);
     tree->setUniformRowHeights(true);
     tree->header()->setStretchLastSection(false);
@@ -146,18 +146,17 @@ void CalendarView::renderEntries() {
 
     std::sort(entries.begin(), entries.end(), [](const CalendarEntry &left,
                                                   const CalendarEntry &right) {
-        return left.startAt < right.startAt;
+        return left.startAt > right.startAt;
     });
 
     QDate currentDate;
-    QTreeWidgetItem *dateItem = nullptr;
     const QLocale locale(QLocale::German, QLocale::Germany);
 
     for (const CalendarEntry &entry : entries) {
         const QDateTime localStart = entry.startAt.toLocalTime();
         if (localStart.date() != currentDate) {
             currentDate = localStart.date();
-            dateItem = new QTreeWidgetItem(tree);
+            auto *dateItem = new QTreeWidgetItem(tree);
             dateItem->setText(0, locale.toString(currentDate, "dddd, d. MMMM yyyy"));
             QFont dateFont = dateItem->font(0);
             dateFont.setBold(true);
@@ -165,7 +164,7 @@ void CalendarView::renderEntries() {
             dateItem->setFirstColumnSpanned(true);
         }
 
-        auto *item = new QTreeWidgetItem(dateItem);
+        auto *item = new QTreeWidgetItem(tree);
         item->setData(0, Qt::UserRole, entry.id);
         if (entry.isReminder()) {
             item->setText(0, localStart.toString("HH:mm"));
@@ -190,7 +189,6 @@ void CalendarView::renderEntries() {
         }
     }
 
-    tree->expandAll();
 }
 
 void CalendarView::openCreateDialog() {

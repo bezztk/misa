@@ -21,6 +21,7 @@ signals:
     void taskCreated();
     void taskUpdated();
     void taskDeleted();
+    void taskPursuitsReceived(const std::vector<TaskPursuit>& pursuits);
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
     void calendarEntryUpdated();
@@ -56,6 +57,7 @@ public:
     ApiClient();
     void getMetadata();
     void getTasks();
+    void getTaskPursuits();
     void createTask(const CreateTask& task);
     void updateTask(int id, const UpdateTask& task);
     void deleteTask(int id);

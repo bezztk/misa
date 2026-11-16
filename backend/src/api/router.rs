@@ -91,6 +91,7 @@ pub fn create_router(pool: PgPool) -> Router {
             "/pursuits/available",
             get(progression_handler::get_available_pursuits),
         )
+        .route("/pursuits", get(pursuit_handler::get_all_pursuits))
         .route(
             "/progression-stages/{id}/pursuits",
             axum::routing::post(progression_handler::assign_pursuit),
