@@ -51,24 +51,16 @@ pub async fn create_root_domain_node(
 pub async fn update_domain_node(
     State(pool): State<PgPool>,
     Path(id): Path<i32>,
-    Json(payload): Json<DomainNodeUpdateRequest>,
+    Json(mut payload): Json<DomainNodeUpdateRequest>,
 ) -> ApiResult<Json<DomainNode>> {
     if !valid_name(&payload.name, 150) {
         return Err(ApiError::BadRequest);
     }
 
-    let node = domain_repository::update_domain_node(
-        &pool,
-        id,
-        payload.name.trim(),
-        payload.cognitive_level_id,
-        payload.completeness_level_id,
-        payload.flashcard_status_id,
-        payload.verification_status_id,
-        payload.verification_level_id,
-    )
-    .await?
-    .ok_or(ApiError::NotFound)?;
+    payload.name = payload.name.trim().to_string();
+    let node = domain_repository::update_domain_node(&pool, id, &payload)
+        .await?
+        .ok_or(ApiError::NotFound)?;
 
     Ok(Json(node))
 }

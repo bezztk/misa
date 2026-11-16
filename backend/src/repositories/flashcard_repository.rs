@@ -1,27 +1,19 @@
 use crate::models::flashcard::{
     EditableFlashcard, FlashcardQueueContext, FlashcardRetentionClassId, FlashcardReviewContext,
 };
-use crate::services::flashcard_review_service;
-use chrono::Utc;
-use sqlx::PgPool;
+use chrono::{DateTime, Utc};
+use sqlx::{PgConnection, PgPool};
 
-#[derive(Debug)]
-pub enum ReviewFlashcardError {
-    NotFound,
-    Database(sqlx::Error),
-    Calculation(fsrs::FSRSError),
-}
-
-impl From<sqlx::Error> for ReviewFlashcardError {
-    fn from(error: sqlx::Error) -> Self {
-        Self::Database(error)
-    }
-}
-
-impl From<fsrs::FSRSError> for ReviewFlashcardError {
-    fn from(error: fsrs::FSRSError) -> Self {
-        Self::Calculation(error)
-    }
+pub struct NewFlashcardReview {
+    pub flashcard_id: i32,
+    pub rating: i16,
+    pub duration_ms: i32,
+    pub review_state_before_id: i32,
+    pub review_state_after_id: i32,
+    pub stability: f32,
+    pub difficulty: f32,
+    pub reviewed_at: DateTime<Utc>,
+    pub next_due_at: DateTime<Utc>,
 }
 
 pub async fn create_flashcard(
@@ -117,52 +109,38 @@ pub async fn delete_flashcard(pool: &PgPool, id: i32) -> Result<bool, sqlx::Erro
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn review_flashcard(
-    pool: &PgPool,
+pub async fn get_flashcard_review_context(
+    connection: &mut PgConnection,
     id: i32,
-    rating: i16,
-    duration_ms: i32,
-) -> Result<(), ReviewFlashcardError> {
-    let mut tx = pool.begin().await?;
-    let context = sqlx::query_as::<_, FlashcardReviewContext>(
+) -> Result<Option<FlashcardReviewContext>, sqlx::Error> {
+    sqlx::query_as::<_, FlashcardReviewContext>(
         "SELECT
             f.review_state_id,
             f.stability,
             f.difficulty,
             f.last_reviewed_at,
-            r.desired_retention::REAL AS desired_retention
+             r.desired_retention::REAL AS desired_retention,
+             (
+                 SELECT fr.rating
+                 FROM flashcard_reviews fr
+                 WHERE fr.flashcard_id = f.id
+                 ORDER BY fr.reviewed_at DESC, fr.id DESC
+                 LIMIT 1
+             ) AS last_rating
          FROM flashcards f
          JOIN flashcard_retention_classes r ON r.id = f.retention_class_id
          WHERE f.id = $1
          FOR UPDATE OF f",
     )
     .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(ReviewFlashcardError::NotFound)?;
+    .fetch_optional(connection)
+    .await
+}
 
-    let last_rating = sqlx::query_scalar::<_, i16>(
-        "SELECT rating
-         FROM flashcard_reviews
-         WHERE flashcard_id = $1
-         ORDER BY reviewed_at DESC, id DESC
-         LIMIT 1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let schedule = flashcard_review_service::calculate_review_schedule(
-        context.review_state_id,
-        last_rating,
-        context.stability,
-        context.difficulty,
-        context.last_reviewed_at,
-        context.desired_retention,
-        rating,
-        Utc::now(),
-    )?;
-
+pub async fn save_flashcard_review(
+    connection: &mut PgConnection,
+    review: &NewFlashcardReview,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE flashcards
          SET review_state_id = $1,
@@ -172,13 +150,13 @@ pub async fn review_flashcard(
              due_at = $5
          WHERE id = $6",
     )
-    .bind(schedule.review_state_id)
-    .bind(schedule.stability)
-    .bind(schedule.difficulty)
-    .bind(schedule.reviewed_at)
-    .bind(schedule.next_due_at)
-    .bind(id)
-    .execute(&mut *tx)
+    .bind(review.review_state_after_id)
+    .bind(review.stability)
+    .bind(review.difficulty)
+    .bind(review.reviewed_at)
+    .bind(review.next_due_at)
+    .bind(review.flashcard_id)
+    .execute(&mut *connection)
     .await?;
 
     sqlx::query(
@@ -188,18 +166,17 @@ pub async fn review_flashcard(
              reviewed_at, duration_ms, next_due_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
-    .bind(id)
-    .bind(rating)
-    .bind(schedule.stability)
-    .bind(schedule.difficulty)
-    .bind(context.review_state_id)
-    .bind(schedule.review_state_id)
-    .bind(schedule.reviewed_at)
-    .bind(duration_ms)
-    .bind(schedule.next_due_at)
-    .execute(&mut *tx)
+    .bind(review.flashcard_id)
+    .bind(review.rating)
+    .bind(review.stability)
+    .bind(review.difficulty)
+    .bind(review.review_state_before_id)
+    .bind(review.review_state_after_id)
+    .bind(review.reviewed_at)
+    .bind(review.duration_ms)
+    .bind(review.next_due_at)
+    .execute(connection)
     .await?;
 
-    tx.commit().await?;
     Ok(())
 }

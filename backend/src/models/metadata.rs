@@ -26,7 +26,7 @@ lookup_model!(DocumentFlashcardStatus);
 lookup_model!(DocumentVerificationStatus);
 lookup_model!(DocumentVerificationLevel);
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata {
     pub personal_relevance_levels: Vec<PersonalRelevanceLevel>,
     pub lasting_impacts: Vec<LastingImpact>,

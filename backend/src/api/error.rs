@@ -1,4 +1,4 @@
-use crate::repositories::flashcard_repository::ReviewFlashcardError;
+use crate::services::flashcard_review_service::FlashcardServiceError;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
@@ -40,12 +40,12 @@ impl From<fsrs::FSRSError> for ApiError {
     }
 }
 
-impl From<ReviewFlashcardError> for ApiError {
-    fn from(error: ReviewFlashcardError) -> Self {
+impl From<FlashcardServiceError> for ApiError {
+    fn from(error: FlashcardServiceError) -> Self {
         match error {
-            ReviewFlashcardError::NotFound => Self::NotFound,
-            ReviewFlashcardError::Database(error) => error.into(),
-            ReviewFlashcardError::Calculation(error) => error.into(),
+            FlashcardServiceError::NotFound => Self::NotFound,
+            FlashcardServiceError::Database(error) => error.into(),
+            FlashcardServiceError::Calculation(error) => error.into(),
         }
     }
 }

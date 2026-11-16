@@ -96,6 +96,7 @@ pub struct FlashcardReviewContext {
     pub difficulty: Option<f32>,
     pub last_reviewed_at: Option<DateTime<Utc>>,
     pub desired_retention: f32,
+    pub last_rating: Option<i16>,
 }
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
