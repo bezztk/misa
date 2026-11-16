@@ -1,8 +1,7 @@
 #include "TaskView.h"
-#include "../models/AppState.h"
+#include "CalendarEntryDialog.h"
 
 #include <QComboBox>
-#include <QDateTimeEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFont>
@@ -38,19 +37,20 @@ static QString metadataName(const std::vector<MetadataItem> &items, const int id
     return QString::number(id);
 }
 
-static QString taskStateName(const int id) {
-    return metadataName(AppState::metadata.systemtask_states, id);
+static QString taskStateName(const Metadata &metadata, const int id) {
+    return metadataName(metadata.systemtask_states, id);
 }
 
-static QString taskPriorityName(const int id) {
-    return metadataName(AppState::metadata.systemtask_priorities, id);
+static QString taskPriorityName(const Metadata &metadata, const int id) {
+    return metadataName(metadata.systemtask_priorities, id);
 }
 
 static bool isActive(const Task &task) {
     return task.state_id == 1 || task.state_id == 2;
 }
 
-TaskView::TaskView(QWidget *parent) : QWidget(parent) {
+TaskView::TaskView(ApiClient &client, QWidget *parent)
+    : QWidget(parent), apiClient(client) {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -157,16 +157,16 @@ TaskView::TaskView(QWidget *parent) : QWidget(parent) {
                 renderNavigation();
                 renderTasks();
             });
-    connect(&apiClient, &ApiClient::taskUpdated, this, [this] { apiClient.getTasks(); });
-    connect(&apiClient, &ApiClient::taskCreated, this, [this] { apiClient.getTasks(); });
-    connect(&apiClient, &ApiClient::taskDeleted, this, [this] { apiClient.getTasks(); });
-
-    refreshTasks();
 }
 
 void TaskView::refreshTasks() {
     apiClient.getTasks();
     apiClient.getTaskPursuits();
+}
+
+void TaskView::refreshMetadata() {
+    renderNavigation();
+    renderTasks();
 }
 
 void TaskView::renderNavigation() {
@@ -211,7 +211,7 @@ void TaskView::renderNavigation() {
 
     addEntry("Alle Aufgaben", NAVIGATION_ALL, 0);
     addHeading("Aufgabengruppen");
-    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
+    for (const MetadataItem &group : apiClient.metadata().systemtask_groups) {
         addEntry(group.name, NAVIGATION_GROUP, group.id);
     }
     addHeading("Bestrebungen");
@@ -240,8 +240,8 @@ void TaskView::renderTasks() {
         auto *item = new QTreeWidgetItem(taskList);
         item->setData(0, TASK_ID_ROLE, task.id);
         item->setText(0, task.name);
-        item->setText(1, taskStateName(task.state_id));
-        item->setText(2, taskPriorityName(task.priority_id));
+        item->setText(1, taskStateName(apiClient.metadata(), task.state_id));
+        item->setText(2, taskPriorityName(apiClient.metadata(), task.priority_id));
         if (closed) {
             for (int column = 0; column < taskList->columnCount(); ++column) {
                 item->setForeground(column, QColor("#777777"));
@@ -299,13 +299,13 @@ void TaskView::openCreateDialog() {
     layout->addRow("Name", nameEdit);
 
     auto *groupEdit = new QComboBox(&dialog);
-    for (const MetadataItem &group : AppState::metadata.systemtask_groups) {
+    for (const MetadataItem &group : apiClient.metadata().systemtask_groups) {
         groupEdit->addItem(group.name, group.id);
     }
     layout->addRow("Gruppe", groupEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
+    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
     }
     layout->addRow("Priorität", priorityEdit);
@@ -338,14 +338,14 @@ void TaskView::openEditDialog(const Task &task) {
     layout->addRow("Name", nameEdit);
 
     auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : AppState::metadata.systemtask_states) {
+    for (const MetadataItem &state : apiClient.metadata().systemtask_states) {
         stateEdit->addItem(state.display_name.value_or(state.name), state.id);
     }
     stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
     layout->addRow("Status", stateEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
+    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
     }
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));
@@ -383,59 +383,15 @@ void TaskView::openEditDialog(const Task &task) {
 }
 
 void TaskView::openScheduleDialog(const Task &task) {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Aufgabe einplanen");
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *typeEdit = new QComboBox(&dialog);
-    typeEdit->addItem("Erinnerung", true);
-    typeEdit->addItem("Termin", false);
-    layout->addRow("Art", typeEdit);
-
-    auto *nameEdit = new QLineEdit(task.name, &dialog);
-    layout->addRow("Name", nameEdit);
-
     const QDateTime initialStart = QDateTime::currentDateTime();
-    auto *startEdit = new QDateTimeEdit(initialStart, &dialog);
-    startEdit->setCalendarPopup(true);
-    startEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    layout->addRow("Start", startEdit);
-
-    auto *endLabel = new QLabel("Ende", &dialog);
-    auto *endEdit = new QDateTimeEdit(initialStart.addSecs(3600), &dialog);
-    endEdit->setCalendarPopup(true);
-    endEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    endEdit->setMinimumDateTime(initialStart.addSecs(60));
-    layout->addRow(endLabel, endEdit);
-
-    const auto updateType = [typeEdit, endLabel, endEdit] {
-        const bool isReminder = typeEdit->currentData().toBool();
-        endLabel->setVisible(!isReminder);
-        endEdit->setVisible(!isReminder);
-    };
-    connect(typeEdit, &QComboBox::currentIndexChanged, &dialog, updateType);
-    updateType();
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    const bool isReminder = typeEdit->currentData().toBool();
-    CreateCalendarEntry entry{
-        .name = nameEdit->text().trimmed(),
-        .startAt = startEdit->dateTime(),
-        .isReminder = isReminder,
+    const auto entry = showCalendarEntryDialog(this, "Aufgabe einplanen", {
+        .name = task.name,
+        .startAt = initialStart,
+        .endAt = initialStart.addSecs(3600),
+        .isReminder = true,
         .systemTaskId = task.id
-    };
-    if (!isReminder) {
-        entry.endAt = endEdit->dateTime();
+    });
+    if (entry) {
+        apiClient.createCalendarEntry(*entry);
     }
-    apiClient.createCalendarEntry(entry);
 }

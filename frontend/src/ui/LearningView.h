@@ -11,7 +11,7 @@ class QHideEvent;
 
 class LearningView : public QWidget {
 public:
-    explicit LearningView(QWidget* parent = nullptr);
+    explicit LearningView(ApiClient &apiClient, QWidget* parent = nullptr);
     void refreshMetadata();
 
 protected:
@@ -42,7 +42,8 @@ private:
     void rateFlashcard(FlashcardRating);
     void updateMetadataBanner();
 
-    ApiClient apiClient;
+    ApiClient &apiClient;
+    bool ratingPending = false;
 
     QDateTime flashcard_shown_at;
     QDateTime opened_answer_at;

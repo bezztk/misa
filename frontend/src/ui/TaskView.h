@@ -13,9 +13,10 @@ class QTreeWidget;
 
 class TaskView : public QWidget {
 public:
-    explicit TaskView(QWidget *parent = nullptr);
+    explicit TaskView(ApiClient &apiClient, QWidget *parent = nullptr);
     void renderTasks();
     void refreshTasks();
+    void refreshMetadata();
 
 private:
     void renderNavigation();
@@ -26,7 +27,7 @@ private:
 
     std::vector<Task> tasks;
     std::vector<TaskPursuit> pursuits;
-    ApiClient apiClient;
+    ApiClient &apiClient;
     QListWidget *navigation;
     QTreeWidget *taskList;
     int selectedNavigationType = 0;

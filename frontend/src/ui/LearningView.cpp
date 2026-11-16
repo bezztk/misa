@@ -1,7 +1,5 @@
 ﻿#include "LearningView.h"
 
-#include "../models/AppState.h"
-
 #include <QHideEvent>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -33,8 +31,8 @@ static QString flashcardStateName(const int state) {
     }
 }
 
-static QString retentionLevelText(const int id) {
-    for (const FlashcardRetentionClass &level : AppState::metadata.flashcard_retention_classes) {
+static QString retentionLevelText(const Metadata &metadata, const int id) {
+    for (const FlashcardRetentionClass &level : metadata.flashcard_retention_classes) {
         if (level.id == id) {
             return QString("%1 (%2 %)")
                 .arg(level.display_name.value_or(level.name))
@@ -49,7 +47,8 @@ static QString metricText(const std::optional<float> value) {
     return value ? QString::number(*value, 'f', 2) : "–";
 }
 
-LearningView::LearningView(QWidget *parent) : QWidget(parent) {
+LearningView::LearningView(ApiClient &client, QWidget *parent)
+    : QWidget(parent), apiClient(client) {
     auto *outerLayout = new QHBoxLayout(this);
     outerLayout->setContentsMargins(0, 0, 0, 0);
 
@@ -198,8 +197,14 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
     connect(refreshButton, &QPushButton::clicked, this, &LearningView::reloadFlashcards);
 
     connect(&apiClient, &ApiClient::flashcardRated, this, [this] {
+        ratingPending = false;
+        ratingWidget->setEnabled(true);
         ++currentIndex;
         showCurrentFlashcard();
+    });
+    connect(&apiClient, &ApiClient::flashcardRatingFailed, this, [this] {
+        ratingPending = false;
+        ratingWidget->setEnabled(true);
     });
 
     connect(againButton, &QPushButton::clicked, this, [this] {
@@ -219,9 +224,13 @@ LearningView::LearningView(QWidget *parent) : QWidget(parent) {
 };
 
 void LearningView::reloadFlashcards() {
-    flashcards.clear();
-    currentIndex = 0;
-    showStartScreen();
+    if (ratingPending) {
+        return;
+    }
+
+    if (flashcards.empty()) {
+        showStartScreen();
+    }
     apiClient.getDueFlashcards();
 }
 
@@ -242,6 +251,12 @@ void LearningView::showStartScreen() {
 }
 
 void LearningView::rateFlashcard(FlashcardRating rating) {
+    if (ratingPending || currentIndex >= flashcards.size()) {
+        return;
+    }
+
+    ratingPending = true;
+    ratingWidget->setEnabled(false);
     const auto ms = static_cast<int>(flashcard_shown_at.msecsTo(opened_answer_at));
 
     apiClient.rateFlashcard(
@@ -311,7 +326,7 @@ void LearningView::updateMetadataBanner() {
         "</table>"
     ).arg(
         flashcardStateName(flashcard.review_state_id).toHtmlEscaped(),
-        retentionLevelText(flashcard.retention_class_id).toHtmlEscaped(),
+        retentionLevelText(apiClient.metadata(), flashcard.retention_class_id).toHtmlEscaped(),
         metricText(flashcard.stability),
         metricText(flashcard.difficulty),
         QString::number(flashcard.learning_step)

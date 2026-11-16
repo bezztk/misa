@@ -1,14 +1,57 @@
 ﻿#include "ApiClient.h"
-#include "../models/AppState.h"
-#include "../models/Task.h"
-#include "../models/CalendarEntry.h"
 #include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QJsonParseError>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 
-ApiClient::ApiClient() = default;
+ApiClient::ApiClient(QObject *parent) : QObject(parent) {
+    connect(&manager, &QNetworkAccessManager::finished, this,
+            [this](QNetworkReply *reply) {
+                if (requestSucceeded(reply)) {
+                    return;
+                }
+
+                const int status = reply->attribute(
+                    QNetworkRequest::HttpStatusCodeAttribute
+                ).toInt();
+                const QString detail = status > 0
+                    ? QString("HTTP %1").arg(status)
+                    : reply->errorString();
+                emit requestFailed(
+                    QString("%1: %2").arg(reply->request().url().path(), detail)
+                );
+            });
+}
+
+const Metadata &ApiClient::metadata() const {
+    return loadedMetadata;
+}
+
+bool ApiClient::requestSucceeded(const QNetworkReply *reply) const {
+    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    return reply->error() == QNetworkReply::NoError && status >= 200 && status < 300;
+}
+
+bool ApiClient::readJson(
+    QNetworkReply *reply,
+    const QString &operation,
+    QJsonDocument &document
+) {
+    if (!requestSucceeded(reply)) {
+        return false;
+    }
+
+    QJsonParseError error;
+    document = QJsonDocument::fromJson(reply->readAll(), &error);
+    if (error.error == QJsonParseError::NoError && !document.isNull()) {
+        return true;
+    }
+
+    emit requestFailed(operation + ": Ungültige Serverantwort");
+    return false;
+}
 
 static MetadataItem parseMetadataItem(const QJsonValue &value) {
     const QJsonObject object = value.toObject();
@@ -100,351 +143,6 @@ static QJsonObject routineJson(const SaveRoutine &routine) {
     return json;
 }
 
-static Skill parseSkill(const QJsonObject &object) {
-    Skill skill{
-        .id = object["id"].toInt(),
-        .domainNodeId = object["domain_node_id"].toInt(),
-        .name = object["name"].toString()
-    };
-
-    if (!object["parent_skill_id"].isNull()) {
-        skill.parentSkillId = object["parent_skill_id"].toInt();
-    }
-    if (!object["psychomotor_level_id"].isNull()) {
-        skill.psychomotorLevelId = object["psychomotor_level_id"].toInt();
-    }
-
-    return skill;
-}
-
-void ApiClient::getNodeSkills(const int nodeId) {
-    const QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/skills"
-    ));
-    QNetworkReply *reply = manager.get(request);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            std::vector<Skill> skills;
-            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
-                skills.push_back(parseSkill(value.toObject()));
-            }
-            emit nodeSkillsReceived(nodeId, skills);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createSkill(
-    const int nodeId,
-    const std::optional<int> parentSkillId,
-    const QString &name,
-    const std::optional<int> psychomotorLevelId
-) {
-    QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/skills"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["parent_skill_id"] = parentSkillId.has_value()
-        ? QJsonValue(*parentSkillId) : QJsonValue(QJsonValue::Null);
-    json["name"] = name;
-    json["psychomotor_level_id"] = psychomotorLevelId.has_value()
-        ? QJsonValue(*psychomotorLevelId) : QJsonValue(QJsonValue::Null);
-    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit nodeSkillsChanged(nodeId);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updateSkill(
-    const int nodeId,
-    const int id,
-    const QString &name,
-    const std::optional<int> psychomotorLevelId
-) {
-    QNetworkRequest request(buildUrl("/skills/" + QString::number(id)));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["name"] = name;
-    json["psychomotor_level_id"] = psychomotorLevelId.has_value()
-        ? QJsonValue(*psychomotorLevelId) : QJsonValue(QJsonValue::Null);
-    QNetworkReply *reply = manager.sendCustomRequest(
-        request,
-        "PATCH",
-        QJsonDocument(json).toJson()
-    );
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit nodeSkillsChanged(nodeId);
-        }
-        reply->deleteLater();
-    });
-}
-
-static std::optional<int> optionalJsonInt(
-    const QJsonObject &object,
-    const QString &name
-) {
-    return object[name].isNull()
-        ? std::nullopt
-        : std::optional<int>(object[name].toInt());
-}
-
-static Pursuit parsePursuit(const QJsonObject &object) {
-    Pursuit pursuit{
-        .id = object["id"].toInt(),
-        .domainNodeId = object["domain_node_id"].toInt(),
-        .name = object["name"].toString()
-    };
-
-    for (const QJsonValue &value : object["requirements"].toArray()) {
-        const QJsonObject requirement = value.toObject();
-        pursuit.requirements.push_back({
-            .id = requirement["id"].toInt(),
-            .requirementTypeId = requirement["requirement_type_id"].toInt(),
-            .skillId = optionalJsonInt(requirement, "skill_id"),
-            .cognitiveLevelId = optionalJsonInt(requirement, "cognitive_level_id"),
-            .psychomotorLevelId = optionalJsonInt(requirement, "psychomotor_level_id"),
-            .completenessLevelId = optionalJsonInt(requirement, "completeness_level_id"),
-            .flashcardStatusId = optionalJsonInt(requirement, "flashcard_status_id"),
-            .verificationStatusId = optionalJsonInt(requirement, "verification_status_id"),
-            .verificationLevelId = optionalJsonInt(requirement, "verification_level_id")
-        });
-    }
-    return pursuit;
-}
-
-void ApiClient::getNodePursuits(const int nodeId) {
-    const QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/pursuits"
-    ));
-    QNetworkReply *reply = manager.get(request);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            std::vector<Pursuit> pursuits;
-            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
-                pursuits.push_back(parsePursuit(value.toObject()));
-            }
-            emit nodePursuitsReceived(nodeId, pursuits);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createPursuit(const int nodeId, const QString &name) {
-    QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/pursuits"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.post(
-        request,
-        QJsonDocument(QJsonObject{{"name", name}}).toJson()
-    );
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit nodePursuitsChanged(nodeId);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updatePursuitRequirements(
-    const int nodeId,
-    const int pursuitId,
-    const UpdatePursuitRequirements &requirements
-) {
-    QNetworkRequest request(buildUrl(
-        "/pursuits/" + QString::number(pursuitId) + "/requirements"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["cognitive_level_id"] = requirements.cognitiveLevelId.has_value()
-        ? QJsonValue(*requirements.cognitiveLevelId) : QJsonValue(QJsonValue::Null);
-    json["completeness_level_id"] = requirements.completenessLevelId.has_value()
-        ? QJsonValue(*requirements.completenessLevelId) : QJsonValue(QJsonValue::Null);
-    json["flashcard_status_id"] = requirements.flashcardStatusId.has_value()
-        ? QJsonValue(*requirements.flashcardStatusId) : QJsonValue(QJsonValue::Null);
-    json["verification_status_id"] = requirements.verificationStatusId.has_value()
-        ? QJsonValue(*requirements.verificationStatusId) : QJsonValue(QJsonValue::Null);
-    json["verification_level_id"] = requirements.verificationLevelId.has_value()
-        ? QJsonValue(*requirements.verificationLevelId) : QJsonValue(QJsonValue::Null);
-    QJsonArray skills;
-    for (const PursuitSkillRequirement &skill : requirements.skills) {
-        skills.append(QJsonObject{
-            {"skill_id", skill.skillId},
-            {"psychomotor_level_id", skill.psychomotorLevelId}
-        });
-    }
-    json["skills"] = skills;
-    QNetworkReply *reply = manager.put(request, QJsonDocument(json).toJson());
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit nodePursuitsChanged(nodeId);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getProgressions() {
-    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/progressions")));
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
-            std::vector<ProgressionPursuit> pursuits;
-            for (const QJsonValue &value : object["pursuits"].toArray()) {
-                const QJsonObject pursuit = value.toObject();
-                ProgressionPursuit item{
-                    .id = pursuit["id"].toInt(),
-                    .name = pursuit["name"].toString()
-                };
-                if (!pursuit["progression_stage_id"].isNull()) {
-                    item.progressionStageId = pursuit["progression_stage_id"].toInt();
-                }
-                pursuits.push_back(item);
-            }
-
-            std::vector<Progression> progressions;
-            for (const QJsonValue &value : object["progressions"].toArray()) {
-                const QJsonObject progression = value.toObject();
-                Progression item{
-                    .id = progression["id"].toInt(),
-                    .name = progression["name"].toString()
-                };
-                if (!progression["personal_relevance_id"].isNull()) {
-                    item.personalRelevanceId = progression["personal_relevance_id"].toInt();
-                }
-                if (!progression["lasting_impact_id"].isNull()) {
-                    item.lastingImpactId = progression["lasting_impact_id"].toInt();
-                }
-                for (const QJsonValue &stageValue : progression["stages"].toArray()) {
-                    const QJsonObject stage = stageValue.toObject();
-                    ProgressionStage stageItem{
-                        .id = stage["id"].toInt(),
-                        .stage = stage["stage"].toInt(),
-                        .name = stage["name"].toString()
-                    };
-                    for (const QJsonValue &pursuitValue : stage["pursuits"].toArray()) {
-                        const QJsonObject pursuit = pursuitValue.toObject();
-                        stageItem.pursuits.push_back({
-                            .id = pursuit["id"].toInt(),
-                            .name = pursuit["name"].toString(),
-                            .progressionStageId = stageItem.id
-                        });
-                    }
-                    item.stages.push_back(stageItem);
-                }
-                progressions.push_back(item);
-            }
-            emit progressionsReceived(progressions, pursuits);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getAvailableProgressionPursuits(const int stageId) {
-    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/pursuits/available")));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, stageId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            std::vector<ProgressionPursuit> pursuits;
-            for (const QJsonValue &value
-                 : QJsonDocument::fromJson(reply->readAll()).array()) {
-                const QJsonObject pursuit = value.toObject();
-                pursuits.push_back({
-                    .id = pursuit["id"].toInt(),
-                    .name = pursuit["name"].toString()
-                });
-            }
-            emit availableProgressionPursuitsReceived(stageId, pursuits);
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createProgression(const QString &name) {
-    QNetworkRequest request(buildUrl("/progressions"));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.post(
-        request,
-        QJsonDocument(QJsonObject{{"name", name}}).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit progressionsChanged();
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updateProgression(
-    const int id,
-    const QString &name,
-    const std::optional<int> personalRelevanceId,
-    const std::optional<int> lastingImpactId
-) {
-    QNetworkRequest request(buildUrl("/progressions/" + QString::number(id)));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["name"] = name;
-    json["personal_relevance_id"] = personalRelevanceId.has_value()
-        ? QJsonValue(*personalRelevanceId) : QJsonValue(QJsonValue::Null);
-    json["lasting_impact_id"] = lastingImpactId.has_value()
-        ? QJsonValue(*lastingImpactId) : QJsonValue(QJsonValue::Null);
-    QNetworkReply *reply = manager.sendCustomRequest(
-        request,
-        "PATCH",
-        QJsonDocument(json).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit progressionsChanged();
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createProgressionStage(const int progressionId, const QString &name) {
-    QNetworkRequest request(buildUrl(
-        "/progressions/" + QString::number(progressionId) + "/stages"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.post(
-        request,
-        QJsonDocument(QJsonObject{{"name", name}}).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit progressionsChanged();
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::assignPursuitToStage(const int stageId, const int pursuitId) {
-    QNetworkRequest request(buildUrl(
-        "/progression-stages/" + QString::number(stageId) + "/pursuits"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.post(
-        request,
-        QJsonDocument(QJsonObject{{"pursuit_id", pursuitId}}).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit progressionsChanged();
-        }
-        reply->deleteLater();
-    });
-}
-
 void ApiClient::getNodeFlashcards(const int nodeId) {
     const QNetworkRequest request(buildUrl(
         "/domain-nodes/" + QString::number(nodeId) + "/flashcards"
@@ -452,18 +150,25 @@ void ApiClient::getNodeFlashcards(const int nodeId) {
     QNetworkReply *reply = manager.get(request);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            std::vector<Flashcard> flashcards;
-            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
-                const QJsonObject object = value.toObject();
-                flashcards.push_back({
-                    .id = object["id"].toInt(),
-                    .front = object["front"].toString(),
-                    .back = object["back"].toString()
-                });
+        QJsonDocument response;
+        if (!readJson(reply, "Lernkarten laden", response) || !response.isArray()) {
+            if (!response.isNull() && !response.isArray()) {
+                emit requestFailed("Lernkarten laden: Unerwartetes Datenformat");
             }
-            emit nodeFlashcardsReceived(nodeId, flashcards);
+            reply->deleteLater();
+            return;
         }
+
+        std::vector<Flashcard> flashcards;
+        for (const QJsonValue &value : response.array()) {
+            const QJsonObject object = value.toObject();
+            flashcards.push_back({
+                .id = object["id"].toInt(),
+                .front = object["front"].toString(),
+                .back = object["back"].toString()
+            });
+        }
+        emit nodeFlashcardsReceived(nodeId, flashcards);
         reply->deleteLater();
     });
 }
@@ -481,7 +186,7 @@ void ApiClient::createFlashcard(
     QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
+        if (requestSucceeded(reply)) {
             emit nodeFlashcardsChanged(nodeId);
         }
         reply->deleteLater();
@@ -504,7 +209,7 @@ void ApiClient::updateFlashcard(
     );
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
+        if (requestSucceeded(reply)) {
             emit nodeFlashcardsChanged(nodeId);
         }
         reply->deleteLater();
@@ -516,7 +221,7 @@ void ApiClient::deleteFlashcard(const int nodeId, const int id) {
     QNetworkReply *reply = manager.deleteResource(request);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
+        if (requestSucceeded(reply)) {
             emit nodeFlashcardsChanged(nodeId);
         }
         reply->deleteLater();
@@ -557,11 +262,30 @@ QUrl ApiClient::buildUrl(const QString &path) {
 }
 
 void ApiClient::getMetadata() {
+    if (metadataLoaded) {
+        emit metadataReceived();
+        return;
+    }
+    if (metadataLoading) {
+        return;
+    }
+
+    metadataLoading = true;
     const QNetworkRequest networkRequest(buildUrl(PATH_METADATA));
     QNetworkReply *reply = manager.get(networkRequest);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+        metadataLoading = false;
+        QJsonDocument response;
+        if (!readJson(reply, "Metadaten laden", response) || !response.isObject()) {
+            if (!response.isNull() && !response.isObject()) {
+                emit requestFailed("Metadaten laden: Unerwartetes Datenformat");
+            }
+            reply->deleteLater();
+            return;
+        }
+
+        const QJsonObject object = response.object();
         Metadata metadata;
 
         metadata.personal_relevance_levels = parseMetadataItems(object["personal_relevance_levels"].toArray());
@@ -604,8 +328,8 @@ void ApiClient::getMetadata() {
             });
         }
 
-        AppState::metadata = metadata;
-        AppState::metadataLoaded = true;
+        loadedMetadata = std::move(metadata);
+        metadataLoaded = true;
         emit metadataReceived();
         reply->deleteLater();
     });
@@ -616,7 +340,15 @@ void ApiClient::getDomainTree() {
     QNetworkReply *reply = manager.get(networkRequest);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
+        QJsonDocument response;
+        if (!readJson(reply, "Domänen laden", response) || !response.isObject()) {
+            if (!response.isNull() && !response.isObject()) {
+                emit requestFailed("Domänen laden: Unerwartetes Datenformat");
+            }
+            reply->deleteLater();
+            return;
+        }
+        const QJsonObject object = response.object();
         const std::vector<MetadataItem> domains = parseMetadataItems(object["domains"].toArray());
         std::vector<DomainNode> nodes;
 
@@ -640,10 +372,12 @@ void ApiClient::createDomainNode(const int parentId, const QString &name) {
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
-            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
-            emit domainNodeCreated(parseDomainNode(object));
+        QJsonDocument response;
+        if (readJson(reply, "Bereich konnte nicht erstellt werden", response)
+            && response.isObject()) {
+            emit domainNodeCreated(parseDomainNode(response.object()));
+        } else if (!response.isNull() && !response.isObject()) {
+            emit requestFailed("Bereich konnte nicht erstellt werden: Ungültige Serverantwort");
         }
 
         reply->deleteLater();
@@ -661,10 +395,12 @@ void ApiClient::createRootDomainNode(const int domainId, const QString &name) {
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
-            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
-            emit domainNodeCreated(parseDomainNode(object));
+        QJsonDocument response;
+        if (readJson(reply, "Wurzelbereich konnte nicht erstellt werden", response)
+            && response.isObject()) {
+            emit domainNodeCreated(parseDomainNode(response.object()));
+        } else if (!response.isNull() && !response.isObject()) {
+            emit requestFailed("Wurzelbereich konnte nicht erstellt werden: Ungültige Serverantwort");
         }
 
         reply->deleteLater();
@@ -703,10 +439,12 @@ void ApiClient::updateDomainNode(
     );
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200) {
-            const QJsonObject object = QJsonDocument::fromJson(reply->readAll()).object();
-            emit domainNodeUpdated(parseDomainNode(object));
+        QJsonDocument response;
+        if (readJson(reply, "Bereich konnte nicht aktualisiert werden", response)
+            && response.isObject()) {
+            emit domainNodeUpdated(parseDomainNode(response.object()));
+        } else if (!response.isNull() && !response.isObject()) {
+            emit requestFailed("Bereich konnte nicht aktualisiert werden: Ungültige Serverantwort");
         }
 
         reply->deleteLater();
@@ -720,12 +458,16 @@ void ApiClient::createDocument(const int nodeId) {
     QNetworkReply *reply = manager.post(request, QByteArray());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit documentCreated(parseDocument(
-                QJsonDocument::fromJson(reply->readAll()).object()
-            ));
+        QJsonDocument response;
+        if (!readJson(reply, "Dokument erstellen", response) || !response.isObject()) {
+            if (!response.isNull() && !response.isObject()) {
+                emit requestFailed("Dokument erstellen: Unerwartetes Datenformat");
+            }
+            reply->deleteLater();
+            return;
         }
 
+        emit documentCreated(parseDocument(response.object()));
         reply->deleteLater();
     });
 }
@@ -736,13 +478,18 @@ void ApiClient::getDocument(const int nodeId) {
     ));
     QNetworkReply *reply = manager.get(request);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit documentReceived(parseDocument(
-                QJsonDocument::fromJson(reply->readAll()).object()
-            ));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        QJsonDocument response;
+        if (!readJson(reply, "Dokument laden", response) || !response.isObject()) {
+            if (!response.isNull() && !response.isObject()) {
+                emit requestFailed("Dokument laden: Unerwartetes Datenformat");
+            }
+            emit documentLoadFailed(nodeId);
+            reply->deleteLater();
+            return;
         }
 
+        emit documentReceived(parseDocument(response.object()));
         reply->deleteLater();
     });
 }
@@ -757,10 +504,10 @@ void ApiClient::updateDocument(const int nodeId, const QString &content) {
     json["content"] = content;
     QNetworkReply *reply = manager.put(request, QJsonDocument(json).toJson());
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         emit documentUpdated(
-            reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200
+            nodeId,
+            requestSucceeded(reply)
         );
         reply->deleteLater();
     });
@@ -772,10 +519,18 @@ void ApiClient::getDueFlashcards() {
     QNetworkReply *reply = manager.get(networkRequest);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        QJsonDocument response;
+        if (!readJson(reply, "Lernkarten laden", response) || !response.isArray()) {
+            if (!response.isNull() && !response.isArray()) {
+                emit requestFailed("Lernkarten laden: Unerwartetes Datenformat");
+            }
+            reply->deleteLater();
+            return;
+        }
+
         std::vector<FlashcardReviewQueueItem> flashcards;
 
-        const QByteArray data = reply->readAll();
-        const QJsonArray jsonArray = QJsonDocument::fromJson(data).array();
+        const QJsonArray jsonArray = response.array();
 
         for (const QJsonValue &value: jsonArray) {
             FlashcardReviewQueueItem flashcard;
@@ -822,227 +577,10 @@ void ApiClient::rateFlashcard(const int id, const ReviewFlashcard reviewFlashcar
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
+        if (requestSucceeded(reply)) {
             emit flashcardRated();
         } else {
-            qWarning() << "Flashcard review failed: " << reply->errorString();
-        }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getTasks() {
-    const QNetworkRequest networkRequest(buildUrl(PATH_TASKS));
-
-    QNetworkReply *reply = manager.get(networkRequest);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        std::vector<Task> tasks;
-
-        const QByteArray data = reply->readAll();
-        const QJsonArray jsonArray = QJsonDocument::fromJson(data).array();
-
-        for (const QJsonValue &value: jsonArray) {
-            Task task;
-            QJsonObject object = value.toObject();
-
-            task.id = object["id"].toInt();
-            task.name = object["name"].toString();
-            if (!object["group_id"].isNull()) {
-                task.group_id = object["group_id"].toInt();
-            }
-            if (!object["pursuit_id"].isNull()) {
-                task.pursuit_id = object["pursuit_id"].toInt();
-            }
-            task.state_id = object["state_id"].toInt();
-            task.priority_id = object["priority_id"].toInt();
-
-            tasks.push_back(task);
-        }
-
-        emit taskReceived(tasks);
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getTaskPursuits() {
-    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/pursuits")));
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        std::vector<TaskPursuit> pursuits;
-        for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
-            const QJsonObject object = value.toObject();
-            pursuits.push_back(TaskPursuit{
-                .id = object["id"].toInt(),
-                .name = object["name"].toString()
-            });
-        }
-        emit taskPursuitsReceived(pursuits);
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createTask(const CreateTask &task) {
-    QNetworkRequest networkRequest(buildUrl(PATH_TASKS));
-    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QJsonObject json;
-    json["name"] = task.name;
-    json["group_id"] = task.group_id.has_value()
-        ? QJsonValue(*task.group_id)
-        : QJsonValue(QJsonValue::Null);
-    json["priority_id"] = task.priority_id;
-    json["pursuit_id"] = task.pursuit_id.has_value()
-        ? QJsonValue(*task.pursuit_id)
-        : QJsonValue(QJsonValue::Null);
-
-    QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
-            emit taskCreated();
-        } else {
-            qWarning() << "Task creation failed:" << reply->errorString();
-        }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updateTask(const int id, const UpdateTask &task) {
-    QNetworkRequest networkRequest(buildUrl("/tasks/" + QString::number(id)));
-    networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QJsonObject json;
-    json["name"] = task.name;
-    json["state_id"] = task.state_id;
-    json["priority_id"] = task.priority_id;
-
-    QNetworkReply *reply = manager.sendCustomRequest(
-        networkRequest,
-        "PATCH",
-        QJsonDocument(json).toJson()
-    );
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
-            emit taskUpdated();
-        } else {
-            qWarning() << "Task update failed:" << reply->errorString();
-        }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::deleteTask(const int id) {
-    const QNetworkRequest networkRequest(buildUrl("/tasks/" + QString::number(id)));
-    QNetworkReply *reply = manager.deleteResource(networkRequest);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
-            emit taskDeleted();
-        } else {
-            qWarning() << "Task deletion failed:" << reply->errorString();
-        }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getCalendarEntries() {
-    const QNetworkRequest request(buildUrl(PATH_CALENDAR_ENTRIES));
-    QNetworkReply *reply = manager.get(request);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
-            std::vector<CalendarEntry> entries;
-            for (const QJsonValue &value : QJsonDocument::fromJson(reply->readAll()).array()) {
-                const QJsonObject object = value.toObject();
-                CalendarEntry entry{
-                    .id = object["id"].toInt(),
-                    .name = object["name"].toString(),
-                    .startAt = QDateTime::fromString(object["start_at"].toString(), Qt::ISODate)
-                };
-
-                if (!object["end_at"].isNull()) {
-                    entry.endAt = QDateTime::fromString(object["end_at"].toString(), Qt::ISODate);
-                }
-                if (!object["systemtask_id"].isNull()) {
-                    entry.systemTaskId = object["systemtask_id"].toInt();
-                }
-
-                entries.push_back(entry);
-            }
-
-            emit calendarEntriesReceived(entries);
-        } else {
-            qWarning() << "Loading calendar entries failed:" << reply->errorString();
-        }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createCalendarEntry(const CreateCalendarEntry &entry) {
-    QNetworkRequest request(buildUrl(PATH_CALENDAR_ENTRIES));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QJsonObject json;
-    json["name"] = entry.name;
-    json["start_at"] = entry.startAt.toUTC().toString(Qt::ISODate);
-    json["end_at"] = entry.endAt.has_value()
-        ? QJsonValue(entry.endAt->toUTC().toString(Qt::ISODate))
-        : QJsonValue(QJsonValue::Null);
-    json["is_reminder"] = entry.isReminder;
-    json["systemtask_id"] = entry.systemTaskId.has_value()
-        ? QJsonValue(*entry.systemTaskId)
-        : QJsonValue(QJsonValue::Null);
-
-    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
-            emit calendarEntryCreated();
-        } else {
-            qWarning() << "Calendar entry creation failed:" << reply->errorString();
-        }
-
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &entry) {
-    QNetworkRequest request(buildUrl("/calendar-entries/" + QString::number(id)));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QJsonObject json;
-    json["name"] = entry.name;
-    json["start_at"] = entry.startAt.toUTC().toString(Qt::ISODate);
-    json["end_at"] = entry.endAt.has_value()
-        ? QJsonValue(entry.endAt->toUTC().toString(Qt::ISODate))
-        : QJsonValue(QJsonValue::Null);
-    json["is_reminder"] = entry.isReminder;
-    json["systemtask_id"] = entry.systemTaskId.has_value()
-        ? QJsonValue(*entry.systemTaskId)
-        : QJsonValue(QJsonValue::Null);
-
-    QNetworkReply *reply = manager.sendCustomRequest(
-        request,
-        "PATCH",
-        QJsonDocument(json).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
-            emit calendarEntryUpdated();
-        } else {
-            qWarning() << "Calendar entry update failed:" << reply->errorString();
+            emit flashcardRatingFailed();
         }
 
         reply->deleteLater();
@@ -1056,13 +594,12 @@ void ApiClient::getDomainNodeRoutine(const int nodeId) {
     QNetworkReply *reply = manager.get(request);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit domainNodeRoutineReceived(
-                nodeId,
-                parseRoutine(QJsonDocument::fromJson(reply->readAll()).object())
-            );
-        } else {
-            qWarning() << "Loading routine failed:" << reply->errorString();
+        QJsonDocument response;
+        if (readJson(reply, "Routine konnte nicht geladen werden", response)
+            && response.isObject()) {
+            emit domainNodeRoutineReceived(nodeId, parseRoutine(response.object()));
+        } else if (!response.isNull() && !response.isObject()) {
+            emit requestFailed("Routine konnte nicht geladen werden: Ungültige Serverantwort");
         }
         reply->deleteLater();
     });
@@ -1076,14 +613,12 @@ void ApiClient::createDomainNodeRoutine(const int nodeId, const SaveRoutine &rou
     QNetworkReply *reply = manager.post(request, QJsonDocument(routineJson(routine)).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError
-            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
-            emit domainNodeRoutineSaved(
-                nodeId,
-                parseRoutine(QJsonDocument::fromJson(reply->readAll()).object())
-            );
-        } else {
-            qWarning() << "Routine creation failed:" << reply->errorString();
+        QJsonDocument response;
+        if (readJson(reply, "Routine konnte nicht erstellt werden", response)
+            && response.isObject()) {
+            emit domainNodeRoutineSaved(nodeId, parseRoutine(response.object()));
+        } else if (!response.isNull() && !response.isObject()) {
+            emit requestFailed("Routine konnte nicht erstellt werden: Ungültige Serverantwort");
         }
         reply->deleteLater();
     });
@@ -1097,13 +632,12 @@ void ApiClient::updateDomainNodeRoutine(const int nodeId, const SaveRoutine &rou
     QNetworkReply *reply = manager.put(request, QJsonDocument(routineJson(routine)).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (reply->error() == QNetworkReply::NoError) {
-            emit domainNodeRoutineSaved(
-                nodeId,
-                parseRoutine(QJsonDocument::fromJson(reply->readAll()).object())
-            );
-        } else {
-            qWarning() << "Routine update failed:" << reply->errorString();
+        QJsonDocument response;
+        if (readJson(reply, "Routine konnte nicht aktualisiert werden", response)
+            && response.isObject()) {
+            emit domainNodeRoutineSaved(nodeId, parseRoutine(response.object()));
+        } else if (!response.isNull() && !response.isObject()) {
+            emit requestFailed("Routine konnte nicht aktualisiert werden: Ungültige Serverantwort");
         }
         reply->deleteLater();
     });
@@ -1115,7 +649,7 @@ void ApiClient::generateRoutineExecutions() {
     QNetworkReply *reply = manager.post(request, QByteArray());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (reply->error() == QNetworkReply::NoError) {
+        if (requestSucceeded(reply)) {
             emit routineExecutionsGenerated();
         } else {
             qWarning() << "Routine execution generation failed:" << reply->errorString();

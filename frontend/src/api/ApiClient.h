@@ -12,11 +12,15 @@
 #include "../models/Routine.h"
 #include <QNetworkAccessManager>
 
+class QJsonDocument;
+class QNetworkReply;
+
 class ApiClient : public QObject {
     Q_OBJECT
 
 signals:
     void metadataReceived();
+    void requestFailed(const QString& message);
     void taskReceived(const std::vector<Task>& tasks);
     void taskCreated();
     void taskUpdated();
@@ -30,6 +34,7 @@ signals:
     void routineExecutionsGenerated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
+    void flashcardRatingFailed();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
     void nodeFlashcardsChanged(int nodeId);
     void nodeSkillsReceived(int nodeId, const std::vector<Skill>& skills);
@@ -51,10 +56,12 @@ signals:
     void domainNodeUpdated(const DomainNode& node);
     void documentCreated(const Document& document);
     void documentReceived(const Document& document);
-    void documentUpdated(bool successful);
+    void documentLoadFailed(int nodeId);
+    void documentUpdated(int nodeId, bool successful);
 
 public:
-    ApiClient();
+    explicit ApiClient(QObject *parent = nullptr);
+    const Metadata& metadata() const;
     void getMetadata();
     void getTasks();
     void getTaskPursuits();
@@ -116,8 +123,13 @@ private:
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
 
     static QUrl buildUrl(const QString& path);
+    bool requestSucceeded(const QNetworkReply *reply) const;
+    bool readJson(QNetworkReply *reply, const QString& operation, QJsonDocument& document);
 
     QNetworkAccessManager manager;
+    Metadata loadedMetadata;
+    bool metadataLoaded = false;
+    bool metadataLoading = false;
 };
 
 #endif //FRONTEND_APICLIENT_H

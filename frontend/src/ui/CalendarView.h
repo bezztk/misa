@@ -13,7 +13,7 @@ class QTreeWidget;
 
 class CalendarView : public QWidget {
 public:
-    explicit CalendarView(QWidget *parent = nullptr);
+    explicit CalendarView(ApiClient &apiClient, QWidget *parent = nullptr);
 
 private:
     void renderEntries();
@@ -21,7 +21,7 @@ private:
     void openEditDialog(const CalendarEntry& entry);
     void openTaskEditDialog(const Task& task);
 
-    ApiClient apiClient;
+    ApiClient &apiClient;
     QTreeWidget *tree;
     std::vector<CalendarEntry> entries;
     std::vector<Task> tasks;

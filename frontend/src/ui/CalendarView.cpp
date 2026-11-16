@@ -1,8 +1,7 @@
 #include "CalendarView.h"
-#include "../models/AppState.h"
+#include "CalendarEntryDialog.h"
 
 #include <QComboBox>
-#include <QDateTimeEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -20,7 +19,8 @@
 
 #include <algorithm>
 
-CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
+CalendarView::CalendarView(ApiClient &client, QWidget *parent)
+    : QWidget(parent), apiClient(client) {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
@@ -127,12 +127,7 @@ CalendarView::CalendarView(QWidget *parent) : QWidget(parent) {
             [this](const std::vector<Task> &receivedTasks) {
                 tasks = receivedTasks;
             });
-    connect(&apiClient, &ApiClient::taskUpdated, this, [this] {
-        apiClient.getTasks();
-    });
-
     apiClient.getCalendarEntries();
-    apiClient.getTasks();
 }
 
 void CalendarView::renderEntries() {
@@ -186,137 +181,34 @@ void CalendarView::renderEntries() {
 }
 
 void CalendarView::openCreateDialog() {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Kalendereintrag erstellen");
-
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *typeEdit = new QComboBox(&dialog);
-    typeEdit->addItem("Erinnerung", true);
-    typeEdit->addItem("Termin", false);
-    layout->addRow("Art", typeEdit);
-
-    auto *nameEdit = new QLineEdit(&dialog);
-    layout->addRow("Name", nameEdit);
-
     const QDateTime initialStart = QDateTime::currentDateTime();
-    auto *startEdit = new QDateTimeEdit(initialStart, &dialog);
-    startEdit->setCalendarPopup(true);
-    startEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    layout->addRow("Start", startEdit);
-
-    auto *endLabel = new QLabel("Ende", &dialog);
-    auto *endEdit = new QDateTimeEdit(initialStart.addSecs(3600), &dialog);
-    endEdit->setCalendarPopup(true);
-    endEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    endEdit->setMinimumDateTime(initialStart.addSecs(60));
-    layout->addRow(endLabel, endEdit);
-
-    const auto updateType = [typeEdit, endLabel, endEdit] {
-        const bool isReminder = typeEdit->currentData().toBool();
-        endLabel->setVisible(!isReminder);
-        endEdit->setVisible(!isReminder);
-    };
-    connect(typeEdit, &QComboBox::currentIndexChanged, &dialog, updateType);
-    connect(startEdit, &QDateTimeEdit::dateTimeChanged, &dialog,
-            [endEdit](const QDateTime &start) {
-                endEdit->setMinimumDateTime(start.addSecs(60));
-            });
-    updateType();
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
+    const auto entry = showCalendarEntryDialog(this, "Kalendereintrag erstellen", {
+        .startAt = initialStart,
+        .endAt = initialStart.addSecs(3600),
+        .isReminder = true
+    });
+    if (entry) {
+        apiClient.createCalendarEntry(*entry);
     }
-
-    const bool isReminder = typeEdit->currentData().toBool();
-    CreateCalendarEntry entry{
-        .name = nameEdit->text().trimmed(),
-        .startAt = startEdit->dateTime(),
-        .isReminder = isReminder
-    };
-    if (!isReminder) {
-        entry.endAt = endEdit->dateTime();
-    }
-
-    apiClient.createCalendarEntry(entry);
 }
 
 void CalendarView::openEditDialog(const CalendarEntry &entry) {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Kalendereintrag bearbeiten");
-
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *typeEdit = new QComboBox(&dialog);
-    typeEdit->addItem("Erinnerung", true);
-    typeEdit->addItem("Termin", false);
-    typeEdit->setCurrentIndex(entry.isReminder() ? 0 : 1);
-    layout->addRow("Art", typeEdit);
-
-    auto *nameEdit = new QLineEdit(entry.name, &dialog);
-    layout->addRow("Name", nameEdit);
-
-    auto *startEdit = new QDateTimeEdit(entry.startAt.toLocalTime(), &dialog);
-    startEdit->setCalendarPopup(true);
-    startEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    layout->addRow("Start", startEdit);
-
-    auto *endLabel = new QLabel("Ende", &dialog);
-    auto *endEdit = new QDateTimeEdit(
-        entry.endAt.has_value()
-            ? entry.endAt->toLocalTime()
-            : entry.startAt.toLocalTime().addSecs(3600),
-        &dialog
-    );
-    endEdit->setCalendarPopup(true);
-    endEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
-    endEdit->setMinimumDateTime(startEdit->dateTime().addSecs(60));
-    layout->addRow(endLabel, endEdit);
-
-    const auto updateType = [typeEdit, endLabel, endEdit] {
-        const bool isReminder = typeEdit->currentData().toBool();
-        endLabel->setVisible(!isReminder);
-        endEdit->setVisible(!isReminder);
-    };
-    connect(typeEdit, &QComboBox::currentIndexChanged, &dialog, updateType);
-    connect(startEdit, &QDateTimeEdit::dateTimeChanged, &dialog,
-            [endEdit](const QDateTime &start) {
-                endEdit->setMinimumDateTime(start.addSecs(60));
-            });
-    updateType();
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    const bool isReminder = typeEdit->currentData().toBool();
-    CreateCalendarEntry updatedEntry{
-        .name = nameEdit->text().trimmed(),
-        .startAt = startEdit->dateTime(),
-        .isReminder = isReminder,
+    const auto updatedEntry = showCalendarEntryDialog(
+        this,
+        "Kalendereintrag bearbeiten",
+        {
+        .name = entry.name,
+        .startAt = entry.startAt.toLocalTime(),
+        .endAt = entry.endAt.has_value()
+            ? std::optional(entry.endAt->toLocalTime())
+            : std::nullopt,
+        .isReminder = entry.isReminder(),
         .systemTaskId = entry.systemTaskId
-    };
-    if (!isReminder) {
-        updatedEntry.endAt = endEdit->dateTime();
+        }
+    );
+    if (updatedEntry) {
+        apiClient.updateCalendarEntry(entry.id, *updatedEntry);
     }
-
-    apiClient.updateCalendarEntry(entry.id, updatedEntry);
 }
 
 void CalendarView::openTaskEditDialog(const Task &task) {
@@ -329,14 +221,14 @@ void CalendarView::openTaskEditDialog(const Task &task) {
     layout->addRow("Name", nameEdit);
 
     auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : AppState::metadata.systemtask_states) {
+    for (const MetadataItem &state : apiClient.metadata().systemtask_states) {
         stateEdit->addItem(state.display_name.value_or(state.name), state.id);
     }
     stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
     layout->addRow("Status", stateEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
+    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
     }
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));

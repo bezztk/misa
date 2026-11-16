@@ -15,7 +15,8 @@ class QPushButton;
 class QTimer;
 class QStandardItem;
 class QStandardItemModel;
-class QPlainTextEdit;
+class DocumentEditor;
+class SaveStatus;
 class QResizeEvent;
 class QTableView;
 class QTreeView;
@@ -24,7 +25,7 @@ class QVBoxLayout;
 
 class DomainView : public QWidget {
 public:
-    explicit DomainView(QWidget *parent = nullptr);
+    explicit DomainView(ApiClient &apiClient, QWidget *parent = nullptr);
     void saveBeforeClose(std::function<void()> continuation);
     void refreshTasks();
 
@@ -72,7 +73,7 @@ private:
         const std::vector<ProgressionPursuit> &pursuits
     );
 
-    ApiClient apiClient;
+    ApiClient &apiClient;
     QTreeView *treeView;
     QStandardItemModel *model;
     QWidget *progressionWidget;
@@ -92,8 +93,8 @@ private:
     QLabel *flashcardStatusLabel;
     QLabel *verificationStatusLabel;
     QLabel *verificationLevelLabel;
-    QWidget *saveStatus;
-    QPlainTextEdit *documentEditor;
+    SaveStatus *saveStatus;
+    DocumentEditor *documentEditor;
     QWidget *flashcardWidget;
     QLabel *flashcardTitle;
     QPushButton *toggleFlashcardsButton;
@@ -118,6 +119,7 @@ private:
     bool documentLoadPending = false;
     bool flashcardsExpanded = true;
     bool saveInProgress = false;
+    int savingDocumentNodeId = -1;
     QString savedContent;
     QString savingContent;
     std::function<void()> closeContinuation;

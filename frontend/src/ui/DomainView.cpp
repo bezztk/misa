@@ -1,5 +1,6 @@
 #include "DomainView.h"
-#include "../models/AppState.h"
+#include "DocumentEditor.h"
+#include "RoutineDialog.h"
 
 #include <QFrame>
 #include <QComboBox>
@@ -15,7 +16,6 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
-#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -26,7 +26,6 @@
 #include <QStyle>
 #include <QSpinBox>
 #include <QTableView>
-#include <QTextBlock>
 #include <QTimer>
 #include <QTimeEdit>
 #include <QTimeZone>
@@ -52,286 +51,14 @@ static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 
-static bool parseNumberList(const QString &text, const int minimum, const int maximum,
-                            QString &normalized) {
-    if (text.trimmed().isEmpty()) {
-        normalized.clear();
-        return true;
-    }
-
-    QStringList values;
-    for (const QString &part : text.split(',')) {
-        bool valid;
-        const int value = part.trimmed().toInt(&valid);
-        if (!valid || value < minimum || value > maximum) {
-            return false;
-        }
-        values.append(QString::number(value));
-    }
-    normalized = values.join(',');
-    return true;
-}
-
-static QString rruleValue(const QString &rule, const QString &key) {
-    for (const QString &part : rule.split(';')) {
-        if (part.startsWith(key + '=')) {
-            return part.mid(key.size() + 1);
-        }
-    }
-    return {};
-}
-
-static bool showRoutineDialog(
-    QWidget *parent,
-    const QString &title,
-    SaveRoutine &routine,
-    const std::optional<Routine> existing = std::nullopt
-) {
-    QDialog dialog(parent);
-    dialog.setWindowTitle(title);
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *nameEdit = new QLineEdit(
-        existing.has_value() ? existing->name : routine.name,
-        &dialog
-    );
-    layout->addRow("Name", nameEdit);
-
-    auto *startDateEdit = new QDateEdit(QDate::currentDate(), &dialog);
-    startDateEdit->setCalendarPopup(true);
-    startDateEdit->setDisplayFormat("dd.MM.yyyy");
-    layout->addRow("Startdatum", startDateEdit);
-
-    auto *fixedTimeEdit = new QCheckBox("Feste Uhrzeit", &dialog);
-    auto *timeEdit = new QTimeEdit(QTime(9, 0), &dialog);
-    timeEdit->setDisplayFormat("HH:mm");
-    auto *timeRow = new QWidget(&dialog);
-    auto *timeLayout = new QHBoxLayout(timeRow);
-    timeLayout->setContentsMargins(0, 0, 0, 0);
-    timeLayout->addWidget(fixedTimeEdit);
-    timeLayout->addWidget(timeEdit);
-    timeLayout->addStretch();
-    layout->addRow("Uhrzeit", timeRow);
-
-    auto *frequencyEdit = new QComboBox(&dialog);
-    frequencyEdit->addItem("Täglich", "DAILY");
-    frequencyEdit->addItem("Wöchentlich", "WEEKLY");
-    frequencyEdit->addItem("Monatlich", "MONTHLY");
-    frequencyEdit->addItem("Jährlich", "YEARLY");
-    layout->addRow("Häufigkeit", frequencyEdit);
-
-    auto *intervalEdit = new QSpinBox(&dialog);
-    intervalEdit->setRange(1, 999);
-    layout->addRow("Intervall", intervalEdit);
-
-    const QStringList dayLabels{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"};
-    const QStringList dayValues{"MO", "TU", "WE", "TH", "FR", "SA", "SU"};
-    std::vector<QCheckBox *> dayEdits;
-    auto *daysRow = new QWidget(&dialog);
-    auto *daysLayout = new QHBoxLayout(daysRow);
-    daysLayout->setContentsMargins(0, 0, 0, 0);
-    for (const QString &label : dayLabels) {
-        auto *dayEdit = new QCheckBox(label, daysRow);
-        dayEdits.push_back(dayEdit);
-        daysLayout->addWidget(dayEdit);
-    }
-    layout->addRow("Wochentage", daysRow);
-
-    auto *monthDaysEdit = new QLineEdit(&dialog);
-    monthDaysEdit->setPlaceholderText("z. B. 1,15,31");
-    layout->addRow("Monatstage", monthDaysEdit);
-
-    auto *monthsEdit = new QLineEdit(&dialog);
-    monthsEdit->setPlaceholderText("z. B. 1,6,12");
-    layout->addRow("Monate", monthsEdit);
-
-    auto *countEnabled = new QCheckBox("Begrenzen", &dialog);
-    auto *countEdit = new QSpinBox(&dialog);
-    countEdit->setRange(1, 100000);
-    auto *countRow = new QWidget(&dialog);
-    auto *countLayout = new QHBoxLayout(countRow);
-    countLayout->setContentsMargins(0, 0, 0, 0);
-    countLayout->addWidget(countEnabled);
-    countLayout->addWidget(countEdit);
-    layout->addRow("Anzahl", countRow);
-
-    auto *untilEnabled = new QCheckBox("Begrenzen", &dialog);
-    auto *untilEdit = new QDateEdit(QDate::currentDate().addYears(1), &dialog);
-    untilEdit->setCalendarPopup(true);
-    untilEdit->setDisplayFormat("dd.MM.yyyy");
-    auto *untilRow = new QWidget(&dialog);
-    auto *untilLayout = new QHBoxLayout(untilRow);
-    untilLayout->setContentsMargins(0, 0, 0, 0);
-    untilLayout->addWidget(untilEnabled);
-    untilLayout->addWidget(untilEdit);
-    layout->addRow("Enddatum", untilRow);
-
-    auto *durationEnabled = new QCheckBox("Dauer verwenden", &dialog);
-    durationEnabled->setChecked(!existing.has_value() || existing->estimatedDuration.has_value());
-    auto *durationEdit = new QSpinBox(&dialog);
-    durationEdit->setRange(1, 1440);
-    durationEdit->setSuffix(" Minuten");
-    durationEdit->setValue(
-        existing.has_value() && existing->estimatedDuration.has_value()
-            ? *existing->estimatedDuration : 30
-    );
-    auto *durationRow = new QWidget(&dialog);
-    auto *durationLayout = new QHBoxLayout(durationRow);
-    durationLayout->setContentsMargins(0, 0, 0, 0);
-    durationLayout->addWidget(durationEnabled);
-    durationLayout->addWidget(durationEdit);
-    layout->addRow("Geschätzte Dauer", durationRow);
-
-    auto *optionalEdit = new QCheckBox(&dialog);
-    optionalEdit->setChecked(existing.has_value() && existing->isOptional);
-    layout->addRow("Optional", optionalEdit);
-
-    auto *activeEdit = new QCheckBox(&dialog);
-    activeEdit->setChecked(!existing.has_value() || existing->isActive);
-    layout->addRow("Aktiv", activeEdit);
-
-    QObject::connect(fixedTimeEdit, &QCheckBox::toggled, timeEdit, &QWidget::setEnabled);
-    QObject::connect(durationEnabled, &QCheckBox::toggled,
-                     durationEdit, &QWidget::setEnabled);
-    QObject::connect(countEnabled, &QCheckBox::toggled, &dialog, [untilEnabled](const bool checked) {
-        if (checked) untilEnabled->setChecked(false);
-    });
-    QObject::connect(untilEnabled, &QCheckBox::toggled, &dialog, [countEnabled](const bool checked) {
-        if (checked) countEnabled->setChecked(false);
-    });
-
-    if (existing.has_value()) {
-        const QStringList lines = existing->recurrenceRuleSet.split('\n');
-        if (lines.size() == 2) {
-            const QString start = lines[0].trimmed();
-            if (start.startsWith("DTSTART;VALUE=DATE:")) {
-                startDateEdit->setDate(QDate::fromString(start.section(':', 1), "yyyyMMdd"));
-            } else {
-                const QString value = start.section(':', 1);
-                startDateEdit->setDate(QDate::fromString(value.left(8), "yyyyMMdd"));
-                timeEdit->setTime(QTime::fromString(value.mid(9, 6), "HHmmss"));
-                fixedTimeEdit->setChecked(true);
-            }
-
-            const QString rule = lines[1].trimmed().mid(QString("RRULE:").size());
-            frequencyEdit->setCurrentIndex(
-                frequencyEdit->findData(rruleValue(rule, "FREQ"))
-            );
-            const QString interval = rruleValue(rule, "INTERVAL");
-            intervalEdit->setValue(interval.isEmpty() ? 1 : interval.toInt());
-            const QStringList selectedDays = rruleValue(rule, "BYDAY").split(',');
-            for (int index = 0; index < dayValues.size(); ++index) {
-                dayEdits[index]->setChecked(selectedDays.contains(dayValues[index]));
-            }
-            monthDaysEdit->setText(rruleValue(rule, "BYMONTHDAY"));
-            monthsEdit->setText(rruleValue(rule, "BYMONTH"));
-            const QString count = rruleValue(rule, "COUNT");
-            if (!count.isEmpty()) {
-                countEnabled->setChecked(true);
-                countEdit->setValue(count.toInt());
-            }
-            const QString until = rruleValue(rule, "UNTIL");
-            if (!until.isEmpty()) {
-                untilEnabled->setChecked(true);
-                if (until.endsWith('Z')) {
-                    QDateTime untilDateTime = QDateTime::fromString(
-                        until, "yyyyMMdd'T'HHmmss'Z'"
-                    );
-                    untilDateTime.setTimeZone(QTimeZone::UTC);
-                    untilEdit->setDate(
-                        untilDateTime.toTimeZone(QTimeZone("Europe/Berlin")).date()
-                    );
-                } else {
-                    untilEdit->setDate(QDate::fromString(until, "yyyyMMdd"));
-                }
-            }
-        }
-    }
-    timeEdit->setEnabled(fixedTimeEdit->isChecked());
-    durationEdit->setEnabled(durationEnabled->isChecked());
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-
-    while (dialog.exec() == QDialog::Accepted) {
-        QString monthDays;
-        QString months;
-        if (nameEdit->text().trimmed().isEmpty()
-            || !parseNumberList(monthDaysEdit->text(), 1, 31, monthDays)
-            || !parseNumberList(monthsEdit->text(), 1, 12, months)) {
-            QMessageBox::warning(&dialog, title, "Bitte gültige Werte eingeben.");
-            continue;
-        }
-
-        const bool fixedTime = fixedTimeEdit->isChecked();
-        QString startLine;
-        if (fixedTime) {
-            startLine = "DTSTART;TZID=Europe/Berlin:"
-                + startDateEdit->date().toString("yyyyMMdd") + 'T'
-                + timeEdit->time().toString("HHmmss");
-        } else {
-            startLine = "DTSTART;VALUE=DATE:"
-                + startDateEdit->date().toString("yyyyMMdd");
-        }
-
-        QStringList ruleParts{
-            "FREQ=" + frequencyEdit->currentData().toString(),
-            "INTERVAL=" + QString::number(intervalEdit->value())
-        };
-        QStringList selectedDays;
-        for (int index = 0; index < dayValues.size(); ++index) {
-            if (dayEdits[index]->isChecked()) selectedDays.append(dayValues[index]);
-        }
-        if (!selectedDays.isEmpty()) ruleParts.append("BYDAY=" + selectedDays.join(','));
-        if (!monthDays.isEmpty()) ruleParts.append("BYMONTHDAY=" + monthDays);
-        if (!months.isEmpty()) ruleParts.append("BYMONTH=" + months);
-        if (fixedTime) {
-            ruleParts.append("BYHOUR=" + QString::number(timeEdit->time().hour()));
-            ruleParts.append("BYMINUTE=" + QString::number(timeEdit->time().minute()));
-        }
-        if (countEnabled->isChecked()) {
-            ruleParts.append("COUNT=" + QString::number(countEdit->value()));
-        } else if (untilEnabled->isChecked()) {
-            if (fixedTime) {
-                const QDateTime localUntil(
-                    untilEdit->date(), QTime(23, 59, 59), QTimeZone("Europe/Berlin")
-                );
-                ruleParts.append(
-                    "UNTIL=" + localUntil.toUTC().toString("yyyyMMdd'T'HHmmss'Z'")
-                );
-            } else {
-                ruleParts.append("UNTIL=" + untilEdit->date().toString("yyyyMMdd"));
-            }
-        }
-
-        routine = SaveRoutine{
-            .name = nameEdit->text().trimmed(),
-            .recurrenceRuleSet = startLine + "\r\nRRULE:" + ruleParts.join(';'),
-            .timezone = "Europe/Berlin",
-            .estimatedDuration = durationEnabled->isChecked()
-                ? std::optional<int>(durationEdit->value()) : std::nullopt,
-            .isOptional = optionalEdit->isChecked(),
-            .isActive = activeEdit->isChecked()
-        };
-        return true;
-    }
-
-    return false;
-}
-
 static QString metadataName(const MetadataItem &item) {
     return item.display_name.value_or(item.name);
 }
 
-static QString skillText(const Skill &skill) {
+static QString skillText(const Metadata &metadata, const Skill &skill) {
     QString text = skill.name;
     if (skill.psychomotorLevelId.has_value()) {
-        for (const MetadataItem &level : AppState::metadata.psychomotor_levels) {
+        for (const MetadataItem &level : metadata.psychomotor_levels) {
             if (level.id == *skill.psychomotorLevelId) {
                 text += "  ·  " + metadataName(level);
                 break;
@@ -444,6 +171,7 @@ static void refreshDomainNodeText(QStandardItem *item) {
 
 static bool showDomainNodeDialog(
     QWidget *parent,
+    const Metadata &metadata,
     QString &name,
     std::optional<int> &cognitiveLevelId,
     const bool hasDocument,
@@ -458,7 +186,7 @@ static bool showDomainNodeDialog(
     auto *form = new QFormLayout();
     auto *nameEdit = new QLineEdit(name, &dialog);
     auto *cognitiveCombo = new QComboBox(&dialog);
-    fillMetadataCombo(cognitiveCombo, AppState::metadata.cognitive_levels);
+    fillMetadataCombo(cognitiveCombo, metadata.cognitive_levels);
     selectMetadata(cognitiveCombo, cognitiveLevelId);
     form->addRow("Name", nameEdit);
     form->addRow("Kognitives Niveau", cognitiveCombo);
@@ -473,19 +201,19 @@ static bool showDomainNodeDialog(
         verificationLevelCombo = new QComboBox(&dialog);
         fillMetadataCombo(
             completenessCombo,
-            AppState::metadata.document_completeness_levels
+            metadata.document_completeness_levels
         );
         fillMetadataCombo(
             flashcardStatusCombo,
-            AppState::metadata.document_flashcard_statuses
+            metadata.document_flashcard_statuses
         );
         fillMetadataCombo(
             verificationStatusCombo,
-            AppState::metadata.document_verification_statuses
+            metadata.document_verification_statuses
         );
         fillMetadataCombo(
             verificationLevelCombo,
-            AppState::metadata.document_verification_levels
+            metadata.document_verification_levels
         );
         selectMetadata(completenessCombo, completenessLevelId);
         selectMetadata(flashcardStatusCombo, flashcardStatusId);
@@ -558,6 +286,7 @@ static bool showFlashcardDialog(
 
 static bool showSkillDialog(
     QWidget *parent,
+    const Metadata &metadata,
     const QString &title,
     QString &name,
     std::optional<int> &psychomotorLevelId
@@ -568,7 +297,7 @@ static bool showSkillDialog(
     auto *form = new QFormLayout();
     auto *nameEdit = new QLineEdit(name, &dialog);
     auto *levelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(levelCombo, AppState::metadata.psychomotor_levels);
+    fillMetadataCombo(levelCombo, metadata.psychomotor_levels);
     selectMetadata(levelCombo, psychomotorLevelId);
     form->addRow("Name", nameEdit);
     form->addRow("Psychomotorisches Niveau", levelCombo);
@@ -593,6 +322,7 @@ static bool showSkillDialog(
 
 static bool showPursuitDialog(
     QWidget *parent,
+    const Metadata &metadata,
     const Pursuit &pursuit,
     const std::vector<Skill> &skills,
     UpdatePursuitRequirements &result
@@ -624,11 +354,11 @@ static bool showPursuitDialog(
     auto *flashcardStatusCombo = new QComboBox(&dialog);
     auto *verificationStatusCombo = new QComboBox(&dialog);
     auto *verificationLevelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(cognitiveCombo, AppState::metadata.cognitive_levels);
-    fillMetadataCombo(completenessCombo, AppState::metadata.document_completeness_levels);
-    fillMetadataCombo(flashcardStatusCombo, AppState::metadata.document_flashcard_statuses);
-    fillMetadataCombo(verificationStatusCombo, AppState::metadata.document_verification_statuses);
-    fillMetadataCombo(verificationLevelCombo, AppState::metadata.document_verification_levels);
+    fillMetadataCombo(cognitiveCombo, metadata.cognitive_levels);
+    fillMetadataCombo(completenessCombo, metadata.document_completeness_levels);
+    fillMetadataCombo(flashcardStatusCombo, metadata.document_flashcard_statuses);
+    fillMetadataCombo(verificationStatusCombo, metadata.document_verification_statuses);
+    fillMetadataCombo(verificationLevelCombo, metadata.document_verification_levels);
     selectMetadata(cognitiveCombo, result.cognitiveLevelId);
     selectMetadata(completenessCombo, result.completenessLevelId);
     selectMetadata(flashcardStatusCombo, result.flashcardStatusId);
@@ -663,7 +393,7 @@ static bool showPursuitDialog(
             }
 
             auto *combo = new QComboBox(skillContent);
-            fillMetadataCombo(combo, AppState::metadata.psychomotor_levels);
+            fillMetadataCombo(combo, metadata.psychomotor_levels);
             std::optional<int> selectedLevel;
             for (const PursuitRequirement &requirement : pursuit.requirements) {
                 if (requirement.requirementTypeId == 2
@@ -718,6 +448,7 @@ static bool showPursuitDialog(
 
 static bool showProgressionDialog(
     QWidget *parent,
+    const Metadata &metadata,
     QString &name,
     std::optional<int> &personalRelevanceId,
     std::optional<int> &lastingImpactId
@@ -728,8 +459,8 @@ static bool showProgressionDialog(
     auto *nameEdit = new QLineEdit(name, &dialog);
     auto *relevanceCombo = new QComboBox(&dialog);
     auto *impactCombo = new QComboBox(&dialog);
-    fillMetadataCombo(relevanceCombo, AppState::metadata.personal_relevance_levels);
-    fillMetadataCombo(impactCombo, AppState::metadata.lasting_impacts);
+    fillMetadataCombo(relevanceCombo, metadata.personal_relevance_levels);
+    fillMetadataCombo(impactCombo, metadata.lasting_impacts);
     selectMetadata(relevanceCombo, personalRelevanceId);
     selectMetadata(impactCombo, lastingImpactId);
     layout->addRow("Name", nameEdit);
@@ -753,167 +484,8 @@ static bool showProgressionDialog(
     return true;
 }
 
-class LineNumberArea;
-
-class SaveStatus : public QWidget {
-public:
-    enum State { Hidden, Saving, Saved, Error };
-
-    explicit SaveStatus(QWidget *parent = nullptr) : QWidget(parent) {
-        setFixedSize(24, 24);
-        connect(&animationTimer, &QTimer::timeout, this, [this] {
-            angle = (angle + 30) % 360;
-            update();
-        });
-    }
-
-    void setState(const State newState) {
-        state = newState;
-        if (state == Saving) {
-            animationTimer.start(80);
-            setToolTip("Wird gespeichert");
-        } else {
-            animationTimer.stop();
-            setToolTip(state == Saved ? "Gespeichert" : state == Error ? "Speichern fehlgeschlagen" : "");
-        }
-        update();
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-
-        if (state == Saving) {
-            QPen pen(QColor(70, 145, 230), 2);
-            pen.setCapStyle(Qt::RoundCap);
-            painter.setPen(pen);
-            painter.drawArc(rect().adjusted(4, 4, -4, -4), (90 - angle) * 16, 270 * 16);
-        } else if (state == Saved) {
-            painter.setPen(QPen(QColor(90, 140, 195), 1.5));
-            painter.drawLine(5, 12, 10, 17);
-            painter.drawLine(10, 17, 19, 7);
-        } else if (state == Error) {
-            painter.setPen(QColor(220, 80, 60));
-            painter.setFont(QFont(painter.font().family(), 16));
-            painter.drawText(rect(), Qt::AlignCenter, QString::fromUtf8("\xE2\x9A\xA0"));
-        }
-    }
-
-private:
-    State state = Hidden;
-    QTimer animationTimer;
-    int angle = 0;
-};
-
-class DocumentEditor : public QPlainTextEdit {
-public:
-    explicit DocumentEditor(QWidget *parent = nullptr);
-    int lineNumberAreaWidth() const;
-    void paintLineNumbers(QPaintEvent *event);
-
-protected:
-    void resizeEvent(QResizeEvent *event) override;
-
-private:
-    void updateLineNumberAreaWidth();
-    void updateLineNumberArea(const QRect &rect, int dy);
-
-    QWidget *lineNumberArea;
-};
-
-class LineNumberArea : public QWidget {
-public:
-    explicit LineNumberArea(DocumentEditor *editor)
-        : QWidget(editor), editor(editor) {}
-
-    QSize sizeHint() const override {
-        return {editor->lineNumberAreaWidth(), 0};
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        editor->paintLineNumbers(event);
-    }
-
-private:
-    DocumentEditor *editor;
-};
-
-DocumentEditor::DocumentEditor(QWidget *parent)
-    : QPlainTextEdit(parent), lineNumberArea(new LineNumberArea(this)) {
-    connect(this, &QPlainTextEdit::blockCountChanged, this,
-            [this] { updateLineNumberAreaWidth(); });
-    connect(this, &QPlainTextEdit::updateRequest, this,
-            [this](const QRect &rect, const int dy) {
-                updateLineNumberArea(rect, dy);
-            });
-    updateLineNumberAreaWidth();
-}
-
-int DocumentEditor::lineNumberAreaWidth() const {
-    int digits = 1;
-    for (int count = qMax(1, blockCount()); count >= 10; count /= 10) {
-        ++digits;
-    }
-
-    return 8 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
-}
-
-void DocumentEditor::updateLineNumberAreaWidth() {
-    setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
-}
-
-void DocumentEditor::updateLineNumberArea(const QRect &rect, const int dy) {
-    if (dy) {
-        lineNumberArea->scroll(0, dy);
-    } else {
-        lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
-    }
-
-    if (rect.contains(viewport()->rect())) {
-        updateLineNumberAreaWidth();
-    }
-}
-
-void DocumentEditor::resizeEvent(QResizeEvent *event) {
-    QPlainTextEdit::resizeEvent(event);
-    const QRect contents = contentsRect();
-    lineNumberArea->setGeometry(
-        QRect(contents.left(), contents.top(), lineNumberAreaWidth(), contents.height())
-    );
-}
-
-void DocumentEditor::paintLineNumbers(QPaintEvent *event) {
-    QPainter painter(lineNumberArea);
-    painter.fillRect(event->rect(), palette().color(QPalette::Base));
-    painter.setPen(palette().color(QPalette::Light));
-
-    QTextBlock block = firstVisibleBlock();
-    int blockNumber = block.blockNumber();
-    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
-    int bottom = top + qRound(blockBoundingRect(block).height());
-
-    while (block.isValid() && top <= event->rect().bottom()) {
-        if (block.isVisible() && bottom >= event->rect().top()) {
-            painter.drawText(
-                0,
-                top,
-                lineNumberArea->width() - 4,
-                fontMetrics().height(),
-                Qt::AlignRight,
-                QString::number(blockNumber + 1)
-            );
-        }
-
-        block = block.next();
-        top = bottom;
-        bottom = top + qRound(blockBoundingRect(block).height());
-        ++blockNumber;
-    }
-}
-
-DomainView::DomainView(QWidget *parent) : QWidget(parent) {
+DomainView::DomainView(ApiClient &client, QWidget *parent)
+    : QWidget(parent), apiClient(client) {
     setObjectName("domainView");
     setStyleSheet(R"(
         QWidget#domainView {
@@ -1364,16 +936,16 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 if (currentDocumentNodeId == node.id) {
                     documentTitle->setText(node.name);
                     showMetadata(completenessLabel, "Vollständigkeit",
-                                 AppState::metadata.document_completeness_levels,
+                                 apiClient.metadata().document_completeness_levels,
                                  node.completenessLevelId);
                     showMetadata(flashcardStatusLabel, "Lernkarten",
-                                 AppState::metadata.document_flashcard_statuses,
+                                 apiClient.metadata().document_flashcard_statuses,
                                  node.flashcardStatusId);
                     showMetadata(verificationStatusLabel, "Verifizierung",
-                                 AppState::metadata.document_verification_statuses,
+                                 apiClient.metadata().document_verification_statuses,
                                  node.verificationStatusId);
                     showMetadata(verificationLevelLabel, "Niveau",
-                                 AppState::metadata.document_verification_levels,
+                                 apiClient.metadata().document_verification_levels,
                                  node.verificationLevelId);
                 }
             });
@@ -1404,19 +976,32 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 savedContent = document.content;
                 documentEditor->setPlainText(document.content);
                 showMetadata(completenessLabel, "Vollständigkeit",
-                             AppState::metadata.document_completeness_levels,
+                             apiClient.metadata().document_completeness_levels,
                              document.completenessLevelId);
                 showMetadata(flashcardStatusLabel, "Lernkarten",
-                             AppState::metadata.document_flashcard_statuses,
+                             apiClient.metadata().document_flashcard_statuses,
                              document.flashcardStatusId);
                 showMetadata(verificationStatusLabel, "Verifizierung",
-                             AppState::metadata.document_verification_statuses,
+                             apiClient.metadata().document_verification_statuses,
                              document.verificationStatusId);
                 showMetadata(verificationLevelLabel, "Niveau",
-                             AppState::metadata.document_verification_levels,
+                             apiClient.metadata().document_verification_levels,
                              document.verificationLevelId);
-                static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Hidden);
+                saveStatus->setState(SaveStatus::Hidden);
                 editorWidget->show();
+            });
+    connect(&apiClient, &ApiClient::documentLoadFailed, this,
+            [this](const int nodeId) {
+                if (!documentLoadPending || nodeId != pendingDocumentNodeId) {
+                    return;
+                }
+
+                documentLoadPending = false;
+                currentDocumentNodeId = -1;
+                documentWidget->hide();
+                documentMetadataWidget->hide();
+                editorLayout->setStretch(0, 0);
+                editorLayout->setStretch(1, 1);
             });
     connect(&apiClient, &ApiClient::documentCreated, this,
             [this](const Document &document) {
@@ -1426,15 +1011,25 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 requestDocumentChange(document.domainNodeId, true);
             });
     connect(&apiClient, &ApiClient::documentUpdated, this,
-            [this](const bool successful) {
+            [this](const int nodeId, const bool successful) {
+                if (!saveInProgress || nodeId != savingDocumentNodeId) {
+                    return;
+                }
+
                 saveInProgress = false;
+                savingDocumentNodeId = -1;
                 if (!successful) {
-                    static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Error);
+                    saveStatus->setState(SaveStatus::Error);
+                    documentChangePending = false;
+                    closeContinuation = {};
+                    if (QStandardItem *item = findDomainNodeItem(currentNodeId)) {
+                        treeView->setCurrentIndex(item->index());
+                    }
                     return;
                 }
 
                 savedContent = savingContent;
-                static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saved);
+                saveStatus->setState(SaveStatus::Saved);
                 if (documentChangePending || closeContinuation || !autosaveTimer->isActive()) {
                     finishPendingActions();
                 }
@@ -1529,8 +1124,6 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
                 updateCurrentTaskCount();
                 renderPursuits();
             });
-    connect(&apiClient, &ApiClient::taskCreated, this,
-            [this] { apiClient.getTasks(); });
     connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
         if (currentDocumentNodeId == -1) {
             return;
@@ -1538,9 +1131,9 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
 
         if (documentEditor->toPlainText() == savedContent) {
             autosaveTimer->stop();
-            static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saved);
+            saveStatus->setState(SaveStatus::Saved);
         } else {
-            static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saving);
+            saveStatus->setState(SaveStatus::Saving);
             autosaveTimer->start();
         }
     });
@@ -1569,10 +1162,8 @@ DomainView::DomainView(QWidget *parent) : QWidget(parent) {
     connect(&apiClient, &ApiClient::metadataReceived, this, [this] {
         apiClient.getDomainTree();
         apiClient.getProgressions();
-        apiClient.getTasks();
     });
 
-    apiClient.getMetadata();
 }
 
 void DomainView::saveBeforeClose(std::function<void()> continuation) {
@@ -1606,6 +1197,7 @@ void DomainView::continueDocumentChange() {
     currentNodeId = nodeId;
     currentDocumentNodeId = -1;
     savedContent.clear();
+    documentEditor->clear();
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     skillModel->removeRows(0, skillModel->rowCount());
@@ -1641,8 +1233,9 @@ void DomainView::startSave() {
     }
 
     saveInProgress = true;
+    savingDocumentNodeId = currentDocumentNodeId;
     savingContent = documentEditor->toPlainText();
-    static_cast<SaveStatus *>(saveStatus)->setState(SaveStatus::Saving);
+    saveStatus->setState(SaveStatus::Saving);
     apiClient.updateDocument(currentDocumentNodeId, savingContent);
 }
 
@@ -1792,7 +1385,9 @@ void DomainView::editProgression(const int progressionId) {
         QString name = progression.name;
         std::optional<int> relevanceId = progression.personalRelevanceId;
         std::optional<int> impactId = progression.lastingImpactId;
-        if (showProgressionDialog(this, name, relevanceId, impactId)) {
+        if (showProgressionDialog(
+            this, apiClient.metadata(), name, relevanceId, impactId
+        )) {
             apiClient.updateProgression(progression.id, name, relevanceId, impactId);
         }
         return;
@@ -1975,6 +1570,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
 
         if (showDomainNodeDialog(
                 treeView,
+                apiClient.metadata(),
                 name,
                 cognitiveLevelId,
                 index.data(HAS_DOCUMENT_ROLE).toBool(),
@@ -2073,7 +1669,7 @@ void DomainView::renderSkills(const std::vector<Skill> &skills) {
                 continue;
             }
 
-            auto *item = new QStandardItem(skillText(skill));
+            auto *item = new QStandardItem(skillText(apiClient.metadata(), skill));
             item->setData(skill.id, Qt::UserRole);
             item->setData(skill.name, SKILL_NAME_ROLE);
             setOptionalRole(item, PSYCHOMOTOR_LEVEL_ROLE, skill.psychomotorLevelId);
@@ -2128,6 +1724,7 @@ void DomainView::createSkill(
     std::optional<int> psychomotorLevelId;
     if (showSkillDialog(
             this,
+            apiClient.metadata(),
             parentSkillId.has_value() ? "Unter-Skill hinzufügen" : "Skill hinzufügen",
             name,
             psychomotorLevelId
@@ -2151,7 +1748,9 @@ void DomainView::editSkill(const QModelIndex &index) {
         index,
         PSYCHOMOTOR_LEVEL_ROLE
     );
-    if (showSkillDialog(this, "Skill bearbeiten", name, psychomotorLevelId)) {
+    if (showSkillDialog(
+        this, apiClient.metadata(), "Skill bearbeiten", name, psychomotorLevelId
+    )) {
         apiClient.updateSkill(
             currentNodeId,
             index.data(Qt::UserRole).toInt(),
@@ -2177,32 +1776,32 @@ void DomainView::renderPursuits() {
             switch (requirement.requirementTypeId) {
                 case 1:
                     text = "Kognition: " + metadataText(
-                        AppState::metadata.cognitive_levels,
+                        apiClient.metadata().cognitive_levels,
                         *requirement.cognitiveLevelId
                     );
                     break;
                 case 2: break;
                 case 3:
                     text = "Vollständigkeit: " + metadataText(
-                        AppState::metadata.document_completeness_levels,
+                        apiClient.metadata().document_completeness_levels,
                         *requirement.completenessLevelId
                     );
                     break;
                 case 4:
                     text = "Lernkarten: " + metadataText(
-                        AppState::metadata.document_flashcard_statuses,
+                        apiClient.metadata().document_flashcard_statuses,
                         *requirement.flashcardStatusId
                     );
                     break;
                 case 5:
                     text = "Verifizierung: " + metadataText(
-                        AppState::metadata.document_verification_statuses,
+                        apiClient.metadata().document_verification_statuses,
                         *requirement.verificationStatusId
                     );
                     break;
                 case 6:
                     text = "Verifizierungsniveau: " + metadataText(
-                        AppState::metadata.document_verification_levels,
+                        apiClient.metadata().document_verification_levels,
                         *requirement.verificationLevelId
                     );
                     break;
@@ -2241,7 +1840,7 @@ void DomainView::renderPursuits() {
             QString text = skill.name;
             if (skillRequirement) {
                 text += ": " + metadataText(
-                    AppState::metadata.psychomotor_levels,
+                    apiClient.metadata().psychomotor_levels,
                     *skillRequirement->psychomotorLevelId
                 );
             }
@@ -2304,7 +1903,7 @@ void DomainView::createPursuitTask(const int pursuitId) {
     layout->addRow("Name", nameEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : AppState::metadata.systemtask_priorities) {
+    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
         priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
     }
     layout->addRow("Priorität", priorityEdit);
@@ -2356,7 +1955,9 @@ void DomainView::editPursuit(const QModelIndex &index) {
         }
 
         UpdatePursuitRequirements requirements;
-        if (showPursuitDialog(this, pursuit, currentSkills, requirements)) {
+        if (showPursuitDialog(
+            this, apiClient.metadata(), pursuit, currentSkills, requirements
+        )) {
             apiClient.updatePursuitRequirements(
                 currentNodeId,
                 pursuit.id,

@@ -17,11 +17,15 @@ find_package(Qt6 COMPONENTS
 add_executable(frontend
     main.cpp
         src/api/ApiClient.cpp
+        src/api/ApiClientProgression.cpp
+        src/api/ApiClientWork.cpp
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
         src/ui/CalendarView.cpp
         src/ui/CalendarView.h
+        src/ui/CalendarEntryDialog.cpp
+        src/ui/CalendarEntryDialog.h
         src/ui/TaskView.cpp
         src/ui/TaskView.h
         src/models/Task.h
@@ -31,9 +35,12 @@ add_executable(frontend
         src/ui/LearningView.h
         src/ui/DomainView.cpp
         src/ui/DomainView.h
+        src/ui/DocumentEditor.cpp
+        src/ui/DocumentEditor.h
+        src/ui/RoutineDialog.cpp
+        src/ui/RoutineDialog.h
         src/models/Flashcard.h
         src/models/Metadata.h
-        src/models/AppState.h
         src/models/Skill.h
         src/models/Pursuit.h
         src/models/Progression.h

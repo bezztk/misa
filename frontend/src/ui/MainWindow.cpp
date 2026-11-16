@@ -8,15 +8,14 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QVBoxLayout>
 #include <QWidget>
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    apiClient.getMetadata();
-
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     setWindowTitle("Misa");
     resize(1600, 900);
 
@@ -90,8 +89,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     navLayout->addWidget(domainButton, 0, Qt::AlignCenter);
     navLayout->addStretch();
 
-    auto *taskView = new TaskView();
-    auto *calendarView = new CalendarView();
+    auto *taskView = new TaskView(apiClient);
+    auto *calendarView = new CalendarView(apiClient);
     auto *workspace = new QWidget();
     auto *workspaceLayout = new QVBoxLayout(workspace);
     workspaceLayout->setContentsMargins(0, 0, 0, 0);
@@ -132,11 +131,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         workspaceStack->setCurrentWidget(calendarView);
     });
 
-    auto *learningView = new LearningView();
-    domainView = new DomainView();
+    auto *learningView = new LearningView(apiClient);
+    domainView = new DomainView(apiClient);
 
-    connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::refreshTasks);
+    connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::refreshMetadata);
     connect(&apiClient, &ApiClient::metadataReceived, learningView, &LearningView::refreshMetadata);
+    const auto refreshSharedTasks = [this] { apiClient.getTasks(); };
+    connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
+            [this](const int) { apiClient.getTaskPursuits(); });
+    connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
+            [this](const int) { apiClient.getDueFlashcards(); });
+    connect(&apiClient, &ApiClient::requestFailed, this,
+            [this](const QString &message) {
+                QMessageBox::warning(this, "Netzwerkfehler", message);
+            });
 
     auto *stack = new QStackedWidget(body);
     stack->addWidget(workspace);
@@ -167,6 +178,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         domainView->refreshTasks();
         stack->setCurrentWidget(domainView);
     });
+
+    apiClient.getMetadata();
+    apiClient.getTasks();
+    apiClient.getTaskPursuits();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
