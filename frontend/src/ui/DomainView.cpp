@@ -791,6 +791,31 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QScrollArea#sidebarScrollArea {
             background: palette(base);
         }
+        QWidget#sidebarList {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+        }
+        QPushButton#pursuitSectionButton,
+        QPushButton#skillSectionButton {
+            padding: 7px 8px;
+            border: none;
+            border-radius: 0;
+            text-align: left;
+            font-weight: bold;
+        }
+        QPushButton#pursuitSectionButton {
+            background: rgba(76, 175, 80, 0.16);
+        }
+        QPushButton#skillSectionButton {
+            background: rgba(255, 193, 7, 0.16);
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        QPushButton#pursuitSectionButton:hover {
+            background: rgba(76, 175, 80, 0.24);
+        }
+        QPushButton#skillSectionButton:hover {
+            background: rgba(255, 193, 7, 0.24);
+        }
         QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
             border: none;
@@ -812,25 +837,26 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarContent->setObjectName("sidebarContent");
     auto *sidebarContentLayout = new QVBoxLayout(sidebarContent);
     sidebarContentLayout->setContentsMargins(0, 0, 0, 0);
-    sidebarContentLayout->setSpacing(32);
+    sidebarContentLayout->setSpacing(0);
 
-    auto *pursuitPanel = new QWidget(sidebarContent);
+    auto *sidebarList = new QWidget(sidebarContent);
+    sidebarList->setObjectName("sidebarList");
+    sidebarList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    auto *sidebarListLayout = new QVBoxLayout(sidebarList);
+    sidebarListLayout->setContentsMargins(1, 1, 1, 1);
+    sidebarListLayout->setSpacing(0);
+
+    auto *pursuitPanel = new QWidget(sidebarList);
     pursuitPanel->setObjectName("pursuitPanel");
     pursuitPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *pursuitLayout = new QVBoxLayout(pursuitPanel);
-    pursuitLayout->setContentsMargins(0, 6, 0, 4);
+    pursuitLayout->setContentsMargins(8, 6, 8, 6);
     pursuitLayout->setSpacing(4);
 
-    auto *pursuitHeaderLayout = new QHBoxLayout();
-    pursuitHeaderLayout->setContentsMargins(0, 0, 0, 0);
-    auto *pursuitTitle = new QLabel("Bestrebungen", pursuitPanel);
-    QFont pursuitTitleFont = pursuitTitle->font();
-    pursuitTitleFont.setBold(true);
-    pursuitTitleFont.setPointSize(pursuitTitleFont.pointSize() + 2);
-    pursuitTitle->setFont(pursuitTitleFont);
-    pursuitHeaderLayout->addWidget(pursuitTitle);
-    pursuitHeaderLayout->addStretch();
-    pursuitLayout->addLayout(pursuitHeaderLayout);
+    auto *pursuitSectionButton = new QPushButton("▾  Bestrebungen", sidebarList);
+    pursuitSectionButton->setObjectName("pursuitSectionButton");
+    pursuitSectionButton->setCheckable(true);
+    pursuitSectionButton->setChecked(true);
 
     noPursuitsLabel = new QLabel("Noch keine Bestrebungen angelegt.", pursuitPanel);
     noPursuitsLabel->setWordWrap(true);
@@ -850,23 +876,17 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     pursuitTreeView->setModel(pursuitModel);
     pursuitLayout->addWidget(pursuitTreeView);
 
-    auto *skillPanel = new QWidget(sidebarContent);
+    auto *skillPanel = new QWidget(sidebarList);
     skillPanel->setObjectName("skillsPanel");
     skillPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *skillPanelLayout = new QVBoxLayout(skillPanel);
-    skillPanelLayout->setContentsMargins(0, 4, 0, 4);
+    skillPanelLayout->setContentsMargins(8, 6, 8, 6);
     skillPanelLayout->setSpacing(4);
 
-    auto *skillHeaderLayout = new QHBoxLayout();
-    skillHeaderLayout->setContentsMargins(0, 0, 0, 0);
-    auto *skillTitle = new QLabel("Skillansicht", skillPanel);
-    QFont skillTitleFont = skillTitle->font();
-    skillTitleFont.setBold(true);
-    skillTitleFont.setPointSize(skillTitleFont.pointSize() + 2);
-    skillTitle->setFont(skillTitleFont);
-    skillHeaderLayout->addWidget(skillTitle);
-    skillHeaderLayout->addStretch();
-    skillPanelLayout->addLayout(skillHeaderLayout);
+    auto *skillSectionButton = new QPushButton("▾  Skillansicht", sidebarList);
+    skillSectionButton->setObjectName("skillSectionButton");
+    skillSectionButton->setCheckable(true);
+    skillSectionButton->setChecked(true);
 
     noSkillsLabel = new QLabel("Noch keine Skills angelegt.", skillPanel);
     noSkillsLabel->setWordWrap(true);
@@ -885,12 +905,30 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillModel = new QStandardItemModel(skillTreeView);
     skillTreeView->setModel(skillModel);
     skillPanelLayout->addWidget(skillTreeView);
-    sidebarContentLayout->addWidget(pursuitPanel);
-    sidebarContentLayout->addWidget(skillPanel);
+    sidebarListLayout->addWidget(pursuitSectionButton);
+    sidebarListLayout->addWidget(pursuitPanel);
+    sidebarListLayout->addWidget(skillSectionButton);
+    sidebarListLayout->addWidget(skillPanel);
+    sidebarContentLayout->addWidget(sidebarList);
     sidebarContentLayout->addStretch();
     sidebarScrollArea->setWidget(sidebarContent);
     skillLayout->addWidget(sidebarScrollArea);
     skillWidget->hide();
+
+    connect(pursuitSectionButton, &QPushButton::toggled, this,
+            [pursuitSectionButton, pursuitPanel](const bool expanded) {
+                pursuitSectionButton->setText(
+                    expanded ? "▾  Bestrebungen" : "▸  Bestrebungen"
+                );
+                pursuitPanel->setVisible(expanded);
+            });
+    connect(skillSectionButton, &QPushButton::toggled, this,
+            [skillSectionButton, skillPanel](const bool expanded) {
+                skillSectionButton->setText(
+                    expanded ? "▾  Skillansicht" : "▸  Skillansicht"
+                );
+                skillPanel->setVisible(expanded);
+            });
 
     splitter->addWidget(treeView);
     splitter->addWidget(editorWidget);
