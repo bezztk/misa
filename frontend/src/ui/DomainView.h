@@ -46,6 +46,12 @@ private:
     void editFlashcard(int row);
     void updateFlashcardCount(int nodeId, int count);
     void updateFlashcardView();
+    void updateFlashcardStatus(std::optional<int> statusId);
+    void updateDocumentStatus(
+        std::optional<int> completenessId,
+        std::optional<int> verificationStatusId,
+        std::optional<int> verificationLevelId
+    );
     void renderSkills(const std::vector<Skill> &skills);
     void showSkillContextMenu(const QPoint &position);
     void createSkill(int nodeId, std::optional<int> parentSkillId = std::nullopt);
@@ -86,11 +92,10 @@ private:
     QLabel *documentTitle;
     QWidget *documentMetadataWidget;
     QLabel *completenessLabel;
-    QLabel *flashcardStatusLabel;
-    QLabel *verificationStatusLabel;
-    QLabel *verificationLevelLabel;
+    QLabel *verificationLabel;
     SaveStatus *saveStatus;
     DocumentEditor *documentEditor;
+    QLabel *flashcardSectionStatusLabel;
     QLabel *noFlashcardsLabel;
     QListView *flashcardListView;
     QStandardItemModel *flashcardModel;

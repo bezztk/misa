@@ -97,20 +97,21 @@ static int itemCount(const QStandardItem *parent) {
     return count;
 }
 
-static void showMetadata(
-    QLabel *label,
-    const QString &title,
+static const MetadataItem *findMetadataItem(
     const std::vector<MetadataItem> &items,
     const std::optional<int> id
 ) {
-    QString value = "—";
     for (const MetadataItem &item : items) {
         if (id.has_value() && item.id == *id) {
-            value = metadataName(item);
-            break;
+            return &item;
         }
     }
-    label->setText(title + ": " + value);
+    return nullptr;
+}
+
+static QString highlighted(const QString &text, const QString &color) {
+    return "<span style=\"color: " + color
+        + "; font-weight: 600;\">" + text + "</span>";
 }
 
 static void setOptionalRole(
@@ -698,26 +699,18 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     documentMetadataWidget = new QWidget(editorWidget);
     documentMetadataWidget->setObjectName("documentMetadataBar");
-    auto *documentMetadataLayout = new QHBoxLayout(documentMetadataWidget);
+    auto *documentMetadataLayout = new QVBoxLayout(documentMetadataWidget);
     documentMetadataLayout->setContentsMargins(12, 6, 12, 6);
-    documentMetadataLayout->setSpacing(14);
+    documentMetadataLayout->setSpacing(2);
     completenessLabel = new QLabel(documentMetadataWidget);
-    flashcardStatusLabel = new QLabel(documentMetadataWidget);
-    verificationStatusLabel = new QLabel(documentMetadataWidget);
-    verificationLevelLabel = new QLabel(documentMetadataWidget);
-    for (QLabel *label : {
-             completenessLabel,
-             flashcardStatusLabel,
-             verificationStatusLabel,
-             verificationLevelLabel
-         }) {
+    verificationLabel = new QLabel(documentMetadataWidget);
+    for (QLabel *label : {completenessLabel, verificationLabel}) {
+        label->setTextFormat(Qt::RichText);
+        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         label->setStyleSheet("color: #B8B8B8; font-size: 11px;");
     }
-    documentMetadataLayout->addStretch();
     documentMetadataLayout->addWidget(completenessLabel);
-    documentMetadataLayout->addWidget(flashcardStatusLabel);
-    documentMetadataLayout->addWidget(verificationStatusLabel);
-    documentMetadataLayout->addWidget(verificationLevelLabel);
+    documentMetadataLayout->addWidget(verificationLabel);
 
     editorLayout->addWidget(documentWidget);
     editorLayout->addStretch();
@@ -738,8 +731,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             border-radius: 4px;
         }
         QPushButton#pursuitSectionButton,
-        QPushButton#skillSectionButton,
-        QPushButton#flashcardSectionButton {
+        QPushButton#skillSectionButton {
             padding: 7px 8px;
             border: none;
             border-radius: 0;
@@ -753,9 +745,22 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: rgba(255, 193, 7, 0.16);
             border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
-        QPushButton#flashcardSectionButton {
+        QWidget#flashcardSectionHeader {
             background: rgba(33, 150, 243, 0.16);
             border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        QPushButton#flashcardSectionButton {
+            padding: 7px 8px;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            text-align: left;
+            font-weight: bold;
+        }
+        QLabel#flashcardSectionStatus {
+            background: transparent;
+            padding-right: 8px;
+            font-size: 10px;
         }
         QPushButton#pursuitSectionButton:hover {
             background: rgba(76, 175, 80, 0.24);
@@ -764,7 +769,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: rgba(255, 193, 7, 0.24);
         }
         QPushButton#flashcardSectionButton:hover {
-            background: rgba(33, 150, 243, 0.24);
+            background: rgba(33, 150, 243, 0.08);
         }
         QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
@@ -878,10 +883,22 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     flashcardPanelLayout->setContentsMargins(8, 6, 8, 6);
     flashcardPanelLayout->setSpacing(4);
 
-    auto *flashcardSectionButton = new QPushButton("▾  Flashcards", sidebarList);
+    auto *flashcardSectionHeader = new QWidget(sidebarList);
+    flashcardSectionHeader->setObjectName("flashcardSectionHeader");
+    auto *flashcardSectionHeaderLayout = new QHBoxLayout(flashcardSectionHeader);
+    flashcardSectionHeaderLayout->setContentsMargins(0, 0, 0, 0);
+    flashcardSectionHeaderLayout->setSpacing(4);
+    auto *flashcardSectionButton = new QPushButton(
+        "▾  Flashcards", flashcardSectionHeader
+    );
     flashcardSectionButton->setObjectName("flashcardSectionButton");
     flashcardSectionButton->setCheckable(true);
     flashcardSectionButton->setChecked(true);
+    flashcardSectionStatusLabel = new QLabel(flashcardSectionHeader);
+    flashcardSectionStatusLabel->setObjectName("flashcardSectionStatus");
+    flashcardSectionStatusLabel->hide();
+    flashcardSectionHeaderLayout->addWidget(flashcardSectionButton, 1);
+    flashcardSectionHeaderLayout->addWidget(flashcardSectionStatusLabel);
 
     noFlashcardsLabel = new QLabel("Noch keine Flashcards angelegt.", flashcardPanel);
     noFlashcardsLabel->setWordWrap(true);
@@ -906,7 +923,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarListLayout->addWidget(pursuitPanel);
     sidebarListLayout->addWidget(skillSectionButton);
     sidebarListLayout->addWidget(skillPanel);
-    sidebarListLayout->addWidget(flashcardSectionButton);
+    sidebarListLayout->addWidget(flashcardSectionHeader);
     sidebarListLayout->addWidget(flashcardPanel);
     sidebarContentLayout->addWidget(sidebarList);
     sidebarContentLayout->addStretch();
@@ -971,20 +988,16 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 QStandardItem *item = findDomainNodeItem(node.id);
                 setDomainNodeRoles(item, node);
                 refreshDomainNodeText(item);
+                if (currentNodeId == node.id) {
+                    updateFlashcardStatus(node.flashcardStatusId);
+                }
                 if (currentDocumentNodeId == node.id) {
                     documentTitle->setText(node.name);
-                    showMetadata(completenessLabel, "Vollständigkeit",
-                                 apiClient.metadata().documentCompletenessLevels,
-                                 node.completenessLevelId);
-                    showMetadata(flashcardStatusLabel, "Lernkarten",
-                                 apiClient.metadata().documentFlashcardStatuses,
-                                 node.flashcardStatusId);
-                    showMetadata(verificationStatusLabel, "Verifizierung",
-                                 apiClient.metadata().documentVerificationStatuses,
-                                 node.verificationStatusId);
-                    showMetadata(verificationLevelLabel, "Niveau",
-                                 apiClient.metadata().documentVerificationLevels,
-                                 node.verificationLevelId);
+                    updateDocumentStatus(
+                        node.completenessLevelId,
+                        node.verificationStatusId,
+                        node.verificationLevelId
+                    );
                 }
             });
     connect(&apiClient, &ApiClient::domainNodeRoutineReceived, this,
@@ -1013,18 +1026,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 documentTitle->setText(item->data(NODE_NAME_ROLE).toString());
                 savedContent = document.content;
                 documentEditor->setPlainText(document.content);
-                showMetadata(completenessLabel, "Vollständigkeit",
-                             apiClient.metadata().documentCompletenessLevels,
-                             document.completenessLevelId);
-                showMetadata(flashcardStatusLabel, "Lernkarten",
-                             apiClient.metadata().documentFlashcardStatuses,
-                             document.flashcardStatusId);
-                showMetadata(verificationStatusLabel, "Verifizierung",
-                             apiClient.metadata().documentVerificationStatuses,
-                             document.verificationStatusId);
-                showMetadata(verificationLevelLabel, "Niveau",
-                             apiClient.metadata().documentVerificationLevels,
-                             document.verificationLevelId);
+                updateFlashcardStatus(document.flashcardStatusId);
+                updateDocumentStatus(
+                    document.completenessLevelId,
+                    document.verificationStatusId,
+                    document.verificationLevelId
+                );
                 saveStatus->setState(SaveStatus::Hidden);
                 editorWidget->show();
             });
@@ -1243,21 +1250,28 @@ void DomainView::continueDocumentChange() {
     skillTreeView->hide();
     noPursuitsLabel->show();
     pursuitTreeView->hide();
+    completenessLabel->hide();
+    verificationLabel->hide();
+    documentMetadataWidget->hide();
     editorWidget->setVisible(nodeId != -1);
     skillWidget->setVisible(nodeId != -1);
     documentWidget->setVisible(hasDocument);
-    documentMetadataWidget->setVisible(hasDocument);
     editorLayout->setStretch(0, hasDocument ? 1 : 0);
     editorLayout->setStretch(1, hasDocument ? 0 : 1);
     updateFlashcardView();
 
     if (nodeId != -1) {
+        updateFlashcardStatus(optionalRole(
+            findDomainNodeItem(nodeId)->index(), FLASHCARD_STATUS_ROLE
+        ));
         apiClient.getNodeFlashcards(nodeId);
         apiClient.getNodeSkills(nodeId);
         apiClient.getNodePursuits(nodeId);
         if (hasDocument) {
             apiClient.getDocument(nodeId);
         }
+    } else {
+        updateFlashcardStatus(std::nullopt);
     }
 }
 
@@ -2042,6 +2056,109 @@ void DomainView::updateFlashcardCount(const int nodeId, const int count) {
     QStandardItem *item = findDomainNodeItem(nodeId);
     item->setData(count, FLASHCARD_COUNT_ROLE);
     refreshDomainNodeText(item);
+}
+
+void DomainView::updateFlashcardStatus(const std::optional<int> statusId) {
+    const MetadataItem *status = findMetadataItem(
+        apiClient.metadata().documentFlashcardStatuses, statusId
+    );
+    if (!status) {
+        flashcardSectionStatusLabel->hide();
+        return;
+    }
+
+    QString color = "#9E9E9E";
+    if (status->name == "partially_completed") {
+        color = "#FBC02D";
+    } else if (status->name == "completed") {
+        color = "#66BB6A";
+    }
+
+    flashcardSectionStatusLabel->setText(metadataName(*status));
+    flashcardSectionStatusLabel->setStyleSheet("color: " + color + ";");
+    flashcardSectionStatusLabel->show();
+}
+
+void DomainView::updateDocumentStatus(
+    const std::optional<int> completenessId,
+    const std::optional<int> verificationStatusId,
+    const std::optional<int> verificationLevelId
+) {
+    const MetadataItem *completeness = findMetadataItem(
+        apiClient.metadata().documentCompletenessLevels, completenessId
+    );
+    if (completeness) {
+        QString phrase;
+        QString color;
+        if (completeness->name == "none") {
+            phrase = "noch nicht ausgearbeitet";
+            color = "#9E9E9E";
+        } else if (completeness->name == "partial") {
+            phrase = "teilweise vollständig";
+            color = "#FBC02D";
+        } else if (completeness->name == "substantial") {
+            phrase = "weitgehend vollständig";
+            color = "#9CCC65";
+        } else {
+            phrase = "vollständig";
+            color = "#66BB6A";
+        }
+        completenessLabel->setText(
+            "Das Dokument ist " + highlighted(phrase, color) + "."
+        );
+        completenessLabel->show();
+    } else {
+        completenessLabel->hide();
+    }
+
+    const MetadataItem *verificationStatus = findMetadataItem(
+        apiClient.metadata().documentVerificationStatuses,
+        verificationStatusId
+    );
+    if (verificationStatus) {
+        QString statusPhrase;
+        QString statusColor;
+        if (verificationStatus->name == "unverified") {
+            statusPhrase = "nicht verifiziert";
+            statusColor = "#9E9E9E";
+        } else if (verificationStatus->name == "partially_verified") {
+            statusPhrase = "teilweise verifiziert";
+            statusColor = "#FBC02D";
+        } else {
+            statusPhrase = "verifiziert";
+            statusColor = "#66BB6A";
+        }
+
+        QString text = "Das Dokument ist "
+            + highlighted(statusPhrase, statusColor);
+        const MetadataItem *verificationLevel = findMetadataItem(
+            apiClient.metadata().documentVerificationLevels,
+            verificationLevelId
+        );
+        if (verificationLevel) {
+            QString levelPhrase;
+            QString levelColor;
+            if (verificationLevel->name == "self_reviewed") {
+                levelPhrase = "selbst überprüft";
+                levelColor = "#B8B8B8";
+            } else if (verificationLevel->name == "cross_checked") {
+                levelPhrase = "mit Quellen abgeglichen";
+                levelColor = "#64B5F6";
+            } else {
+                levelPhrase = "validiert";
+                levelColor = "#66BB6A";
+            }
+            text += " und wurde " + highlighted(levelPhrase, levelColor);
+        }
+        verificationLabel->setText(text + ".");
+        verificationLabel->show();
+    } else {
+        verificationLabel->hide();
+    }
+
+    documentMetadataWidget->setVisible(
+        !completenessLabel->isHidden() || !verificationLabel->isHidden()
+    );
 }
 
 void DomainView::updateFlashcardView() {
