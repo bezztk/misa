@@ -18,6 +18,8 @@ class QStandardItemModel;
 class DocumentEditor;
 class SaveStatus;
 class QListView;
+class QStackedWidget;
+class QTextBrowser;
 class QTreeView;
 class QHBoxLayout;
 class QVBoxLayout;
@@ -95,6 +97,9 @@ private:
     QLabel *verificationLabel;
     SaveStatus *saveStatus;
     DocumentEditor *documentEditor;
+    QStackedWidget *documentStack;
+    QTextBrowser *documentPreview;
+    QPushButton *toggleDocumentPreviewButton;
     QLabel *flashcardSectionStatusLabel;
     QLabel *noFlashcardsLabel;
     QListView *flashcardListView;

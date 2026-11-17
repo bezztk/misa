@@ -22,10 +22,12 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
 #include <QStyle>
 #include <QTimer>
+#include <QTextBrowser>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -777,6 +779,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: palette(base);
             border: none;
         }
+        QTextBrowser#documentPreview {
+            background: palette(base);
+            border: none;
+        }
     )");
     editorLayout = new QVBoxLayout(editorWidget);
     editorLayout->setContentsMargins(0, 0, 0, 0);
@@ -798,15 +804,38 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     documentTitle->setFont(titleFont);
     documentEditor = new DocumentEditor(documentWidget);
     documentEditor->setObjectName("documentEditor");
+    documentPreview = new QTextBrowser(documentWidget);
+    documentPreview->setObjectName("documentPreview");
+    documentPreview->document()->setDocumentMargin(16);
+    documentStack = new QStackedWidget(documentWidget);
+    documentStack->addWidget(documentEditor);
+    documentStack->addWidget(documentPreview);
+    toggleDocumentPreviewButton = new QPushButton("Vorschau", documentWidget);
+    toggleDocumentPreviewButton->setObjectName("compactButton");
     saveStatus = new SaveStatus(documentWidget);
     autosaveTimer = new QTimer(this);
     autosaveTimer->setInterval(1000);
     autosaveTimer->setSingleShot(true);
     headerLayout->addWidget(documentTitle);
     headerLayout->addStretch();
+    headerLayout->addWidget(toggleDocumentPreviewButton);
     headerLayout->addWidget(saveStatus);
     documentLayout->addWidget(header);
-    documentLayout->addWidget(documentEditor, 1);
+    documentLayout->addWidget(documentStack, 1);
+
+    connect(toggleDocumentPreviewButton, &QPushButton::clicked, this, [this] {
+        const bool showPreview = documentStack->currentWidget() == documentEditor;
+        if (showPreview) {
+            documentPreview->setMarkdown(documentEditor->toPlainText());
+        }
+        documentStack->setCurrentWidget(
+            showPreview ? static_cast<QWidget *>(documentPreview)
+                        : static_cast<QWidget *>(documentEditor)
+        );
+        toggleDocumentPreviewButton->setText(
+            showPreview ? "Bearbeiten" : "Vorschau"
+        );
+    });
 
     documentMetadataWidget = new QWidget(editorWidget);
     documentMetadataWidget->setObjectName("documentMetadataBar");
@@ -1139,6 +1168,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 documentTitle->setText(item->data(NODE_NAME_ROLE).toString());
                 savedContent = document.content;
                 documentEditor->setPlainText(document.content);
+                if (documentStack->currentWidget() == documentPreview) {
+                    documentPreview->setMarkdown(document.content);
+                }
                 updateFlashcardStatus(document.flashcardStatusId);
                 updateDocumentStatus(
                     document.completenessLevelId,
@@ -1353,6 +1385,7 @@ void DomainView::continueDocumentChange() {
     currentDocumentNodeId = -1;
     savedContent.clear();
     documentEditor->clear();
+    documentPreview->clear();
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     skillModel->removeRows(0, skillModel->rowCount());
