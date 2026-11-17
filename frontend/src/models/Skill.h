@@ -8,9 +8,9 @@
 struct Skill {
     int id;
     int domainNodeId;
-    std::optional<int> parentSkillId;
+    std::optional<int> parentSkillId{};
     QString name;
-    std::optional<int> psychomotorLevelId;
+    std::optional<int> psychomotorLevelId{};
 };
 
 #endif // FRONTEND_SKILL_H

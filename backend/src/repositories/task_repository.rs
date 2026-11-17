@@ -1,4 +1,4 @@
-use crate::models::system_task::{SystemTaskStateId, TaskListItem, UpdateTaskRequest};
+use crate::models::system_task::{OPEN_SYSTEM_TASK_STATE_ID, TaskListItem, UpdateTaskRequest};
 use sqlx::PgPool;
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
@@ -29,7 +29,7 @@ pub async fn create_task(
     )
     .bind(name)
     .bind(group_id)
-    .bind(SystemTaskStateId::Open as i32)
+    .bind(OPEN_SYSTEM_TASK_STATE_ID)
     .bind(priority_id)
     .bind(pursuit_id)
     .fetch_one(pool)

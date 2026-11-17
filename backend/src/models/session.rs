@@ -15,16 +15,11 @@ pub struct SystemTaskSessionState {
     pub display_name: String,
 }
 
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SystemTaskSessionStateId {
-    InProgress = 1,
-    Paused = 2,
-    Completed = 3,
-    Cancelled = 4,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained for deferred session functionality"
+)]
 pub struct SystemTaskSession {
     pub id: i32,
     pub systemtask_id: Option<i32>,
@@ -37,7 +32,11 @@ pub struct SystemTaskSession {
     pub ended_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained for deferred session functionality"
+)]
 pub struct SystemTaskSessionSegment {
     pub id: i32,
     pub session_id: i32,

@@ -221,17 +221,17 @@ void CalendarView::openTaskEditDialog(const Task &task) {
     layout->addRow("Name", nameEdit);
 
     auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : apiClient.metadata().systemtask_states) {
-        stateEdit->addItem(state.display_name.value_or(state.name), state.id);
+    for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
+        stateEdit->addItem(state.displayName.value_or(state.name), state.id);
     }
-    stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
+    stateEdit->setCurrentIndex(stateEdit->findData(task.stateId));
     layout->addRow("Status", stateEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
-        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
+        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
     }
-    priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));
+    priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
 
     auto *buttons = new QDialogButtonBox(
@@ -248,7 +248,7 @@ void CalendarView::openTaskEditDialog(const Task &task) {
 
     apiClient.updateTask(task.id, UpdateTask{
         .name = nameEdit->text().trimmed(),
-        .state_id = stateEdit->currentData().toInt(),
-        .priority_id = priorityEdit->currentData().toInt()
+        .stateId = stateEdit->currentData().toInt(),
+        .priorityId = priorityEdit->currentData().toInt()
     });
 }

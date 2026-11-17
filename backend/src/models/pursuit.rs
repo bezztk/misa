@@ -8,7 +8,7 @@ pub struct PursuitRequirementType {
 }
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PursuitRequirementTypeId {
     CognitiveLevel = 1,
     PsychomotorLevel = 2,
@@ -18,7 +18,7 @@ pub enum PursuitRequirementTypeId {
     VerificationLevel = 6,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Pursuit {
     pub id: i32,
     pub domain_node_id: i32,
@@ -27,7 +27,7 @@ pub struct Pursuit {
     pub achieved_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
 pub struct PursuitRequirement {
     pub id: i32,
     pub pursuit_id: i32,

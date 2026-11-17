@@ -1,5 +1,6 @@
 use crate::models::pursuit::{
-    Pursuit, PursuitDetails, PursuitListItem, PursuitRequirement, UpdatePursuitRequirementsRequest,
+    Pursuit, PursuitDetails, PursuitListItem, PursuitRequirement, PursuitRequirementTypeId,
+    UpdatePursuitRequirementsRequest,
 };
 use sqlx::PgPool;
 
@@ -98,18 +99,32 @@ pub async fn update_requirements(
         .await?;
 
     for (requirement_type_id, cognitive, completeness, flashcard, verification, level) in [
-        (1, requirements.cognitive_level_id, None, None, None, None),
         (
-            3,
+            PursuitRequirementTypeId::CognitiveLevel as i32,
+            requirements.cognitive_level_id,
+            None,
+            None,
+            None,
+            None,
+        ),
+        (
+            PursuitRequirementTypeId::CompletenessLevel as i32,
             None,
             requirements.completeness_level_id,
             None,
             None,
             None,
         ),
-        (4, None, None, requirements.flashcard_status_id, None, None),
         (
-            5,
+            PursuitRequirementTypeId::FlashcardStatus as i32,
+            None,
+            None,
+            requirements.flashcard_status_id,
+            None,
+            None,
+        ),
+        (
+            PursuitRequirementTypeId::VerificationStatus as i32,
             None,
             None,
             None,
@@ -117,7 +132,7 @@ pub async fn update_requirements(
             None,
         ),
         (
-            6,
+            PursuitRequirementTypeId::VerificationLevel as i32,
             None,
             None,
             None,
@@ -154,9 +169,10 @@ pub async fn update_requirements(
         sqlx::query(
             "INSERT INTO pursuit_requirements
                 (pursuit_id, requirement_type_id, skill_id, psychomotor_level_id)
-             VALUES ($1, 2, $2, $3)",
+             VALUES ($1, $2, $3, $4)",
         )
         .bind(pursuit_id)
+        .bind(PursuitRequirementTypeId::PsychomotorLevel as i32)
         .bind(skill.skill_id)
         .bind(skill.psychomotor_level_id)
         .execute(&mut *transaction)

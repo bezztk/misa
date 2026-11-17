@@ -1,18 +1,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const OPEN_SYSTEM_TASK_STATE_ID: i32 = 1;
+pub const NORMAL_SYSTEM_TASK_PRIORITY_ID: i32 = 2;
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct SystemTaskGroup {
     pub id: i32,
     pub name: String,
-}
-
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SystemTaskGroupId {
-    Personal = 1,
-    Shopping = 2,
-    School = 3,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
@@ -22,15 +17,6 @@ pub struct SystemTaskState {
     pub display_name: Option<String>,
 }
 
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SystemTaskStateId {
-    Open = 1,
-    InProgress = 2,
-    Completed = 3,
-    Cancelled = 4,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct SystemTaskPriority {
     pub id: i32,
@@ -38,16 +24,11 @@ pub struct SystemTaskPriority {
     pub display_name: Option<String>,
 }
 
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SystemTaskPriorityId {
-    Low = 1,
-    Normal = 2,
-    High = 3,
-    Critical = 4,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained alongside the task list projection"
+)]
 pub struct SystemTask {
     pub id: i32,
     pub pursuit_id: Option<i32>,

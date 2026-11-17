@@ -1,8 +1,8 @@
-use crate::models::flashcard::{
-    EditableFlashcard, FlashcardQueueContext, FlashcardRetentionClassId, FlashcardReviewContext,
-};
+use crate::models::flashcard::{EditableFlashcard, FlashcardQueueContext, FlashcardReviewContext};
 use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgPool};
+
+const DEFAULT_RETENTION_CLASS_ID: i32 = 2;
 
 pub struct NewFlashcardReview {
     pub flashcard_id: i32,
@@ -31,7 +31,7 @@ pub async fn create_flashcard(
     .bind(domain_node_id)
     .bind(front)
     .bind(back)
-    .bind(FlashcardRetentionClassId::General as i32)
+    .bind(DEFAULT_RETENTION_CLASS_ID)
     .fetch_one(pool)
     .await
 }

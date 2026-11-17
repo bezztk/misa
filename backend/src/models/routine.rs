@@ -1,7 +1,11 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained alongside the domain-node response model"
+)]
 pub struct SystemTaskRoutine {
     pub id: i32,
     pub systemtask_id: i32,
@@ -41,16 +45,11 @@ pub struct SystemTaskRoutineExecutionState {
     pub display_name: String,
 }
 
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SystemTaskRoutineExecutionStateId {
-    Pending = 1,
-    Completed = 2,
-    Skipped = 3,
-    Expired = 4,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained for deferred execution management"
+)]
 pub struct SystemTaskRoutineExecution {
     pub id: i32,
     pub routine_id: i32,

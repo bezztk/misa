@@ -8,8 +8,8 @@
 struct DomainNode {
     int id;
     int domainId;
-    std::optional<int> parentId;
-    std::optional<int> cognitiveLevelId;
+    std::optional<int> parentId{};
+    std::optional<int> cognitiveLevelId{};
     QString name;
     bool hasDocument;
     bool hasRoutine;
@@ -17,10 +17,10 @@ struct DomainNode {
     int skillCount;
     int pursuitCount;
     int taskCount;
-    std::optional<int> completenessLevelId;
-    std::optional<int> flashcardStatusId;
-    std::optional<int> verificationStatusId;
-    std::optional<int> verificationLevelId;
+    std::optional<int> completenessLevelId{};
+    std::optional<int> flashcardStatusId{};
+    std::optional<int> verificationStatusId{};
+    std::optional<int> verificationLevelId{};
 };
 
 #endif // FRONTEND_DOMAINNODE_H

@@ -1,6 +1,9 @@
 use crate::models::routine::{DomainNodeRoutine, SaveDomainNodeRoutineRequest};
+use crate::models::system_task::{NORMAL_SYSTEM_TASK_PRIORITY_ID, OPEN_SYSTEM_TASK_STATE_ID};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use sqlx::{PgPool, Postgres, QueryBuilder};
+
+const PENDING_ROUTINE_EXECUTION_STATE_ID: i32 = 1;
 
 pub enum CreateRoutineResult {
     Created(DomainNodeRoutine),
@@ -103,7 +106,11 @@ pub async fn create_routine_executions(
          new_execution AS (
              INSERT INTO systemtask_routine_executions
                  (routine_id, state_id, is_optional, occurrence_on, scheduled_at)
-             SELECT routine_id, 1, is_optional, occurrence_on, scheduled_at
+             SELECT routine_id, ",
+    );
+    query.push_bind(PENDING_ROUTINE_EXECUTION_STATE_ID);
+    query.push(
+        ", is_optional, occurrence_on, scheduled_at
              FROM candidate
              WHERE scheduled_at IS NULL
                 OR until_utc::timestamptz IS NULL
@@ -187,11 +194,13 @@ pub async fn create_domain_node_routine(
     let systemtask_id = sqlx::query_scalar::<_, i32>(
         "INSERT INTO systemtasks
              (domain_node_id, name, state_id, priority_id, estimated_effort_minutes)
-         VALUES ($1, $2, 1, 2, $3)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id",
     )
     .bind(domain_node_id)
     .bind(routine.name.trim())
+    .bind(OPEN_SYSTEM_TASK_STATE_ID)
+    .bind(NORMAL_SYSTEM_TASK_PRIORITY_ID)
     .bind(routine.estimated_duration)
     .fetch_one(&mut *transaction)
     .await?;

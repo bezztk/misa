@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
 pub struct Domain {
     pub id: i32,
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
 pub struct DomainNode {
     pub id: i32,
     pub domain_id: i32,
@@ -49,7 +49,11 @@ pub struct DomainTree {
     pub nodes: Vec<DomainNode>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained for deferred evaluation functionality"
+)]
 pub struct CognitiveEvaluation {
     pub id: i32,
     pub domain_node_id: i32,

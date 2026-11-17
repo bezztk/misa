@@ -1,7 +1,9 @@
 ﻿#ifndef FRONTEND_FLASHCARD_H
 #define FRONTEND_FLASHCARD_H
 
-#include <QDateTime>
+#include <QString>
+
+#include <cstdint>
 #include <optional>
 
 struct Flashcard {
@@ -10,7 +12,7 @@ struct Flashcard {
     QString back;
 };
 
-enum class FlashcardRating : int16_t {
+enum class FlashcardRating : std::int16_t {
     Again = 1,
     Hard = 2,
     Good = 3,
@@ -28,17 +30,17 @@ struct FlashcardReviewQueueItem {
     int id;
     QString front;
     QString back;
-    int16_t review_state_id;
-    int16_t learning_step;
-    int retention_class_id;
+    std::int16_t reviewStateId;
+    std::int16_t learningStep;
+    int retentionClassId;
     std::optional<float> stability;
     std::optional<float> difficulty;
     FlashcardReviewPreview preview;
 };
 
 struct ReviewFlashcard {
-    int16_t rating;
-    int duration_ms;
+    std::int16_t rating;
+    int durationMs;
 };
 
 #endif //FRONTEND_FLASHCARD_H

@@ -31,22 +31,22 @@ static constexpr int NAVIGATION_PURSUIT = 2;
 static QString metadataName(const std::vector<MetadataItem> &items, const int id) {
     for (const MetadataItem &item : items) {
         if (item.id == id) {
-            return item.display_name.value_or(item.name);
+            return item.displayName.value_or(item.name);
         }
     }
     return QString::number(id);
 }
 
 static QString taskStateName(const Metadata &metadata, const int id) {
-    return metadataName(metadata.systemtask_states, id);
+    return metadataName(metadata.systemTaskStates, id);
 }
 
 static QString taskPriorityName(const Metadata &metadata, const int id) {
-    return metadataName(metadata.systemtask_priorities, id);
+    return metadataName(metadata.systemTaskPriorities, id);
 }
 
 static bool isActive(const Task &task) {
-    return task.state_id == 1 || task.state_id == 2;
+    return task.stateId == 1 || task.stateId == 2;
 }
 
 TaskView::TaskView(ApiClient &client, QWidget *parent)
@@ -181,10 +181,10 @@ void TaskView::renderNavigation() {
                     return false;
                 }
                 if (type == NAVIGATION_GROUP) {
-                    return task.group_id == id;
+                    return task.groupId == id;
                 }
                 if (type == NAVIGATION_PURSUIT) {
-                    return task.pursuit_id == id;
+                    return task.pursuitId == id;
                 }
                 return true;
             }));
@@ -211,7 +211,7 @@ void TaskView::renderNavigation() {
 
     addEntry("Alle Aufgaben", NAVIGATION_ALL, 0);
     addHeading("Aufgabengruppen");
-    for (const MetadataItem &group : apiClient.metadata().systemtask_groups) {
+    for (const MetadataItem &group : apiClient.metadata().systemTaskGroups) {
         addEntry(group.name, NAVIGATION_GROUP, group.id);
     }
     addHeading("Bestrebungen");
@@ -229,10 +229,10 @@ void TaskView::renderTasks() {
 
     const auto matchesSelection = [this](const Task &task) {
         if (selectedNavigationType == NAVIGATION_GROUP) {
-            return task.group_id == selectedNavigationId;
+            return task.groupId == selectedNavigationId;
         }
         if (selectedNavigationType == NAVIGATION_PURSUIT) {
-            return task.pursuit_id == selectedNavigationId;
+            return task.pursuitId == selectedNavigationId;
         }
         return true;
     };
@@ -240,8 +240,8 @@ void TaskView::renderTasks() {
         auto *item = new QTreeWidgetItem(taskList);
         item->setData(0, TASK_ID_ROLE, task.id);
         item->setText(0, task.name);
-        item->setText(1, taskStateName(apiClient.metadata(), task.state_id));
-        item->setText(2, taskPriorityName(apiClient.metadata(), task.priority_id));
+        item->setText(1, taskStateName(apiClient.metadata(), task.stateId));
+        item->setText(2, taskPriorityName(apiClient.metadata(), task.priorityId));
         if (closed) {
             for (int column = 0; column < taskList->columnCount(); ++column) {
                 item->setForeground(column, QColor("#777777"));
@@ -299,14 +299,14 @@ void TaskView::openCreateDialog() {
     layout->addRow("Name", nameEdit);
 
     auto *groupEdit = new QComboBox(&dialog);
-    for (const MetadataItem &group : apiClient.metadata().systemtask_groups) {
+    for (const MetadataItem &group : apiClient.metadata().systemTaskGroups) {
         groupEdit->addItem(group.name, group.id);
     }
     layout->addRow("Gruppe", groupEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
-        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
+        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
     }
     layout->addRow("Priorität", priorityEdit);
 
@@ -323,9 +323,9 @@ void TaskView::openCreateDialog() {
 
     apiClient.createTask(CreateTask{
         .name = nameEdit->text().trimmed(),
-        .group_id = groupEdit->currentData().toInt(),
-        .priority_id = priorityEdit->currentData().toInt(),
-        .pursuit_id = std::nullopt
+        .groupId = groupEdit->currentData().toInt(),
+        .priorityId = priorityEdit->currentData().toInt(),
+        .pursuitId = std::nullopt
     });
 }
 
@@ -338,17 +338,17 @@ void TaskView::openEditDialog(const Task &task) {
     layout->addRow("Name", nameEdit);
 
     auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : apiClient.metadata().systemtask_states) {
-        stateEdit->addItem(state.display_name.value_or(state.name), state.id);
+    for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
+        stateEdit->addItem(state.displayName.value_or(state.name), state.id);
     }
-    stateEdit->setCurrentIndex(stateEdit->findData(task.state_id));
+    stateEdit->setCurrentIndex(stateEdit->findData(task.stateId));
     layout->addRow("Status", stateEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
-        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
+        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
     }
-    priorityEdit->setCurrentIndex(priorityEdit->findData(task.priority_id));
+    priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
 
     auto *buttons = new QDialogButtonBox(
@@ -377,8 +377,8 @@ void TaskView::openEditDialog(const Task &task) {
 
     apiClient.updateTask(task.id, UpdateTask{
         .name = nameEdit->text().trimmed(),
-        .state_id = stateEdit->currentData().toInt(),
-        .priority_id = priorityEdit->currentData().toInt()
+        .stateId = stateEdit->currentData().toInt(),
+        .priorityId = priorityEdit->currentData().toInt()
     });
 }
 

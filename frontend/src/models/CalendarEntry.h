@@ -10,8 +10,8 @@ struct CalendarEntry {
     int id;
     QString name;
     QDateTime startAt;
-    std::optional<QDateTime> endAt;
-    std::optional<int> systemTaskId;
+    std::optional<QDateTime> endAt{};
+    std::optional<int> systemTaskId{};
 
     bool isReminder() const {
         return !endAt.has_value();
@@ -19,11 +19,11 @@ struct CalendarEntry {
 };
 
 struct CreateCalendarEntry {
-    QString name;
+    QString name{};
     QDateTime startAt;
-    std::optional<QDateTime> endAt;
+    std::optional<QDateTime> endAt{};
     bool isReminder;
-    std::optional<int> systemTaskId;
+    std::optional<int> systemTaskId{};
 };
 
 #endif // FRONTEND_CALENDARENTRY_H

@@ -61,7 +61,7 @@ static MetadataItem parseMetadataItem(const QJsonValue &value) {
     };
 
     if (!object["display_name"].isNull()) {
-        item.display_name = object["display_name"].toString();
+        item.displayName = object["display_name"].toString();
     }
 
     return item;
@@ -286,46 +286,33 @@ void ApiClient::getMetadata() {
         }
 
         const QJsonObject object = response.object();
-        Metadata metadata;
+        Metadata metadata{};
 
-        metadata.personal_relevance_levels = parseMetadataItems(object["personal_relevance_levels"].toArray());
-        metadata.lasting_impacts = parseMetadataItems(object["lasting_impacts"].toArray());
-        metadata.cognitive_levels = parseMetadataItems(object["cognitive_levels"].toArray());
-        metadata.psychomotor_levels = parseMetadataItems(object["psychomotor_levels"].toArray());
-        metadata.document_completeness_levels = parseMetadataItems(object["document_completeness_levels"].toArray());
-        metadata.document_flashcard_statuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());
-        metadata.document_verification_statuses = parseMetadataItems(object["document_verification_statuses"].toArray());
-        metadata.document_verification_levels = parseMetadataItems(object["document_verification_levels"].toArray());
-        metadata.flashcard_review_states = parseMetadataItems(object["flashcard_review_states"].toArray());
-        metadata.pursuit_requirement_types = parseMetadataItems(object["pursuit_requirement_types"].toArray());
-        metadata.systemtask_groups = parseMetadataItems(object["systemtask_groups"].toArray());
-        metadata.systemtask_states = parseMetadataItems(object["systemtask_states"].toArray());
-        metadata.systemtask_priorities = parseMetadataItems(object["systemtask_priorities"].toArray());
-        metadata.systemtask_routine_execution_states = parseMetadataItems(object["systemtask_routine_execution_states"].toArray());
-        metadata.systemtask_session_states = parseMetadataItems(object["systemtask_session_states"].toArray());
+        metadata.personalRelevanceLevels = parseMetadataItems(object["personal_relevance_levels"].toArray());
+        metadata.lastingImpacts = parseMetadataItems(object["lasting_impacts"].toArray());
+        metadata.cognitiveLevels = parseMetadataItems(object["cognitive_levels"].toArray());
+        metadata.psychomotorLevels = parseMetadataItems(object["psychomotor_levels"].toArray());
+        metadata.documentCompletenessLevels = parseMetadataItems(object["document_completeness_levels"].toArray());
+        metadata.documentFlashcardStatuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());
+        metadata.documentVerificationStatuses = parseMetadataItems(object["document_verification_statuses"].toArray());
+        metadata.documentVerificationLevels = parseMetadataItems(object["document_verification_levels"].toArray());
+        metadata.systemTaskGroups = parseMetadataItems(object["systemtask_groups"].toArray());
+        metadata.systemTaskStates = parseMetadataItems(object["systemtask_states"].toArray());
+        metadata.systemTaskPriorities = parseMetadataItems(object["systemtask_priorities"].toArray());
 
         for (const QJsonValue &value : object["flashcard_retention_classes"].toArray()) {
             const QJsonObject level = value.toObject();
             FlashcardRetentionClass retentionClass{
                 .id = level["id"].toInt(),
                 .name = level["name"].toString(),
-                .desired_retention = level["desired_retention"].toDouble()
+                .desiredRetention = level["desired_retention"].toDouble()
             };
 
             if (!level["display_name"].isNull()) {
-                retentionClass.display_name = level["display_name"].toString();
+                retentionClass.displayName = level["display_name"].toString();
             }
 
-            metadata.flashcard_retention_classes.push_back(retentionClass);
-        }
-
-        for (const QJsonValue &value : object["systemtask_session_presets"].toArray()) {
-            const QJsonObject preset = value.toObject();
-            metadata.systemtask_session_presets.push_back({
-                .id = preset["id"].toInt(),
-                .name = preset["name"].toString(),
-                .planned_duration_minutes = preset["planned_duration_minutes"].toInt()
-            });
+            metadata.flashcardRetentionClasses.push_back(retentionClass);
         }
 
         loadedMetadata = std::move(metadata);
@@ -533,15 +520,15 @@ void ApiClient::getDueFlashcards() {
         const QJsonArray jsonArray = response.array();
 
         for (const QJsonValue &value: jsonArray) {
-            FlashcardReviewQueueItem flashcard;
+            FlashcardReviewQueueItem flashcard{};
             QJsonObject object = value.toObject();
 
             flashcard.id = object["id"].toInt();
             flashcard.front = object["front"].toString();
             flashcard.back = object["back"].toString();
-            flashcard.review_state_id = static_cast<int16_t>(object["review_state_id"].toInt());
-            flashcard.learning_step = static_cast<int16_t>(object["learning_step"].toInt());
-            flashcard.retention_class_id = object["retention_class_id"].toInt();
+            flashcard.reviewStateId = static_cast<std::int16_t>(object["review_state_id"].toInt());
+            flashcard.learningStep = static_cast<std::int16_t>(object["learning_step"].toInt());
+            flashcard.retentionClassId = object["retention_class_id"].toInt();
 
             if (!object["stability"].isNull()) {
                 flashcard.stability = static_cast<float>(object["stability"].toDouble());
@@ -572,7 +559,7 @@ void ApiClient::rateFlashcard(const int id, const ReviewFlashcard reviewFlashcar
 
     QJsonObject json;
     json["rating"] = reviewFlashcard.rating;
-    json["duration_ms"] = reviewFlashcard.duration_ms;
+    json["duration_ms"] = reviewFlashcard.durationMs;
 
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
 
@@ -651,8 +638,6 @@ void ApiClient::generateRoutineExecutions() {
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (requestSucceeded(reply)) {
             emit routineExecutionsGenerated();
-        } else {
-            qWarning() << "Routine execution generation failed:" << reply->errorString();
         }
         reply->deleteLater();
     });

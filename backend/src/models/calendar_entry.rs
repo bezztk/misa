@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
 pub struct CalendarEntry {
     pub id: i32,
     pub systemtask_id: Option<i32>,
@@ -14,7 +14,7 @@ pub struct CalendarEntry {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateCalendarEntryRequest {
+pub struct SaveCalendarEntryRequest {
     pub systemtask_id: Option<i32>,
     pub name: String,
     pub start_at: DateTime<Utc>,

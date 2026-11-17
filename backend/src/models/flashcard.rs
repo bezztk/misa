@@ -9,16 +9,6 @@ pub struct FlashcardRetentionClass {
     pub desired_retention: f32,
 }
 
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FlashcardRetentionClassId {
-    Supplementary = 1,
-    General = 2,
-    Specialized = 3,
-    Fundamental = 4,
-    Essential = 5,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct FlashcardReviewState {
     pub id: i32,
@@ -26,7 +16,7 @@ pub struct FlashcardReviewState {
 }
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlashcardReviewStateId {
     New = 1,
     Learning = 2,
@@ -34,7 +24,11 @@ pub enum FlashcardReviewStateId {
     Relearning = 4,
 }
 
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained alongside specialized API projections"
+)]
 pub struct Flashcard {
     pub id: i32,
     pub domain_node_id: i32,
@@ -50,7 +44,11 @@ pub struct Flashcard {
     pub due_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[expect(
+    dead_code,
+    reason = "database entity retained alongside specialized review projections"
+)]
 pub struct FlashcardReview {
     pub id: i32,
     pub flashcard_id: i32,
@@ -65,13 +63,13 @@ pub struct FlashcardReview {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateFlashcard {
+pub struct CreateFlashcardRequest {
     pub front: String,
     pub back: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateFlashcard {
+pub struct UpdateFlashcardRequest {
     pub front: String,
     pub back: String,
 }

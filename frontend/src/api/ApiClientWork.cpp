@@ -26,19 +26,19 @@ void ApiClient::getTasks() {
         const QJsonArray jsonArray = response.array();
 
         for (const QJsonValue &value: jsonArray) {
-            Task task;
+            Task task{};
             QJsonObject object = value.toObject();
 
             task.id = object["id"].toInt();
             task.name = object["name"].toString();
             if (!object["group_id"].isNull()) {
-                task.group_id = object["group_id"].toInt();
+                task.groupId = object["group_id"].toInt();
             }
             if (!object["pursuit_id"].isNull()) {
-                task.pursuit_id = object["pursuit_id"].toInt();
+                task.pursuitId = object["pursuit_id"].toInt();
             }
-            task.state_id = object["state_id"].toInt();
-            task.priority_id = object["priority_id"].toInt();
+            task.stateId = object["state_id"].toInt();
+            task.priorityId = object["priority_id"].toInt();
 
             tasks.push_back(task);
         }
@@ -80,12 +80,12 @@ void ApiClient::createTask(const CreateTask &task) {
 
     QJsonObject json;
     json["name"] = task.name;
-    json["group_id"] = task.group_id.has_value()
-        ? QJsonValue(*task.group_id)
+    json["group_id"] = task.groupId.has_value()
+        ? QJsonValue(*task.groupId)
         : QJsonValue(QJsonValue::Null);
-    json["priority_id"] = task.priority_id;
-    json["pursuit_id"] = task.pursuit_id.has_value()
-        ? QJsonValue(*task.pursuit_id)
+    json["priority_id"] = task.priorityId;
+    json["pursuit_id"] = task.pursuitId.has_value()
+        ? QJsonValue(*task.pursuitId)
         : QJsonValue(QJsonValue::Null);
 
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());
@@ -94,8 +94,6 @@ void ApiClient::createTask(const CreateTask &task) {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
             emit taskCreated();
-        } else {
-            qWarning() << "Task creation failed:" << reply->errorString();
         }
 
         reply->deleteLater();
@@ -108,8 +106,8 @@ void ApiClient::updateTask(const int id, const UpdateTask &task) {
 
     QJsonObject json;
     json["name"] = task.name;
-    json["state_id"] = task.state_id;
-    json["priority_id"] = task.priority_id;
+    json["state_id"] = task.stateId;
+    json["priority_id"] = task.priorityId;
 
     QNetworkReply *reply = manager.sendCustomRequest(
         networkRequest,
@@ -121,8 +119,6 @@ void ApiClient::updateTask(const int id, const UpdateTask &task) {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
             emit taskUpdated();
-        } else {
-            qWarning() << "Task update failed:" << reply->errorString();
         }
 
         reply->deleteLater();
@@ -137,8 +133,6 @@ void ApiClient::deleteTask(const int id) {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
             emit taskDeleted();
-        } else {
-            qWarning() << "Task deletion failed:" << reply->errorString();
         }
 
         reply->deleteLater();
@@ -201,8 +195,6 @@ void ApiClient::createCalendarEntry(const CreateCalendarEntry &entry) {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 201) {
             emit calendarEntryCreated();
-        } else {
-            qWarning() << "Calendar entry creation failed:" << reply->errorString();
         }
 
         reply->deleteLater();
@@ -233,8 +225,6 @@ void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &ent
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
             emit calendarEntryUpdated();
-        } else {
-            qWarning() << "Calendar entry update failed:" << reply->errorString();
         }
 
         reply->deleteLater();

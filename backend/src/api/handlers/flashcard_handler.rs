@@ -1,6 +1,7 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::flashcard::{
-    CreateFlashcard, EditableFlashcard, FlashcardQueueItem, ReviewFlashcardRequest, UpdateFlashcard,
+    CreateFlashcardRequest, EditableFlashcard, FlashcardQueueItem, ReviewFlashcardRequest,
+    UpdateFlashcardRequest,
 };
 use crate::repositories::flashcard_repository;
 use crate::services::flashcard_review_service;
@@ -20,7 +21,7 @@ pub async fn get_due_flashcards(
 pub async fn create_flashcard(
     State(pool): State<PgPool>,
     Path(node_id): Path<i32>,
-    Json(payload): Json<CreateFlashcard>,
+    Json(payload): Json<CreateFlashcardRequest>,
 ) -> ApiResult<(StatusCode, Json<EditableFlashcard>)> {
     if payload.front.trim().is_empty() || payload.back.trim().is_empty() {
         return Err(ApiError::BadRequest);
@@ -45,7 +46,7 @@ pub async fn get_flashcards(
 pub async fn update_flashcard(
     State(pool): State<PgPool>,
     Path(id): Path<i32>,
-    Json(payload): Json<UpdateFlashcard>,
+    Json(payload): Json<UpdateFlashcardRequest>,
 ) -> ApiResult<Json<EditableFlashcard>> {
     if payload.front.trim().is_empty() || payload.back.trim().is_empty() {
         return Err(ApiError::BadRequest);

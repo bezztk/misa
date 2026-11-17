@@ -8,40 +8,29 @@
 struct MetadataItem {
     int id;
     QString name;
-    std::optional<QString> display_name;
+    std::optional<QString> displayName{};
 };
 
 struct FlashcardRetentionClass {
     int id;
     QString name;
-    std::optional<QString> display_name;
-    double desired_retention;
-};
-
-struct SystemTaskSessionPreset {
-    int id;
-    QString name;
-    int planned_duration_minutes;
+    std::optional<QString> displayName{};
+    double desiredRetention;
 };
 
 struct Metadata {
-    std::vector<MetadataItem> personal_relevance_levels;
-    std::vector<MetadataItem> lasting_impacts;
-    std::vector<MetadataItem> cognitive_levels;
-    std::vector<MetadataItem> psychomotor_levels;
-    std::vector<MetadataItem> document_completeness_levels;
-    std::vector<MetadataItem> document_flashcard_statuses;
-    std::vector<MetadataItem> document_verification_statuses;
-    std::vector<MetadataItem> document_verification_levels;
-    std::vector<FlashcardRetentionClass> flashcard_retention_classes;
-    std::vector<MetadataItem> flashcard_review_states;
-    std::vector<MetadataItem> pursuit_requirement_types;
-    std::vector<MetadataItem> systemtask_groups;
-    std::vector<MetadataItem> systemtask_states;
-    std::vector<MetadataItem> systemtask_priorities;
-    std::vector<MetadataItem> systemtask_routine_execution_states;
-    std::vector<SystemTaskSessionPreset> systemtask_session_presets;
-    std::vector<MetadataItem> systemtask_session_states;
+    std::vector<MetadataItem> personalRelevanceLevels;
+    std::vector<MetadataItem> lastingImpacts;
+    std::vector<MetadataItem> cognitiveLevels;
+    std::vector<MetadataItem> psychomotorLevels;
+    std::vector<MetadataItem> documentCompletenessLevels;
+    std::vector<MetadataItem> documentFlashcardStatuses;
+    std::vector<MetadataItem> documentVerificationStatuses;
+    std::vector<MetadataItem> documentVerificationLevels;
+    std::vector<FlashcardRetentionClass> flashcardRetentionClasses;
+    std::vector<MetadataItem> systemTaskGroups;
+    std::vector<MetadataItem> systemTaskStates;
+    std::vector<MetadataItem> systemTaskPriorities;
 };
 
 #endif //FRONTEND_METADATA_H

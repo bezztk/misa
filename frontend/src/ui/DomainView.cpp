@@ -4,8 +4,6 @@
 
 #include <QFrame>
 #include <QComboBox>
-#include <QCheckBox>
-#include <QDateEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -21,14 +19,10 @@
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QSplitter>
-#include <QSplitterHandle>
 #include <QStandardItemModel>
 #include <QStyle>
-#include <QSpinBox>
 #include <QTableView>
 #include <QTimer>
-#include <QTimeEdit>
-#include <QTimeZone>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -52,13 +46,13 @@ static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 
 static QString metadataName(const MetadataItem &item) {
-    return item.display_name.value_or(item.name);
+    return item.displayName.value_or(item.name);
 }
 
 static QString skillText(const Metadata &metadata, const Skill &skill) {
     QString text = skill.name;
     if (skill.psychomotorLevelId.has_value()) {
-        for (const MetadataItem &level : metadata.psychomotor_levels) {
+        for (const MetadataItem &level : metadata.psychomotorLevels) {
             if (level.id == *skill.psychomotorLevelId) {
                 text += "  ·  " + metadataName(level);
                 break;
@@ -186,7 +180,7 @@ static bool showDomainNodeDialog(
     auto *form = new QFormLayout();
     auto *nameEdit = new QLineEdit(name, &dialog);
     auto *cognitiveCombo = new QComboBox(&dialog);
-    fillMetadataCombo(cognitiveCombo, metadata.cognitive_levels);
+    fillMetadataCombo(cognitiveCombo, metadata.cognitiveLevels);
     selectMetadata(cognitiveCombo, cognitiveLevelId);
     form->addRow("Name", nameEdit);
     form->addRow("Kognitives Niveau", cognitiveCombo);
@@ -201,19 +195,19 @@ static bool showDomainNodeDialog(
         verificationLevelCombo = new QComboBox(&dialog);
         fillMetadataCombo(
             completenessCombo,
-            metadata.document_completeness_levels
+            metadata.documentCompletenessLevels
         );
         fillMetadataCombo(
             flashcardStatusCombo,
-            metadata.document_flashcard_statuses
+            metadata.documentFlashcardStatuses
         );
         fillMetadataCombo(
             verificationStatusCombo,
-            metadata.document_verification_statuses
+            metadata.documentVerificationStatuses
         );
         fillMetadataCombo(
             verificationLevelCombo,
-            metadata.document_verification_levels
+            metadata.documentVerificationLevels
         );
         selectMetadata(completenessCombo, completenessLevelId);
         selectMetadata(flashcardStatusCombo, flashcardStatusId);
@@ -297,7 +291,7 @@ static bool showSkillDialog(
     auto *form = new QFormLayout();
     auto *nameEdit = new QLineEdit(name, &dialog);
     auto *levelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(levelCombo, metadata.psychomotor_levels);
+    fillMetadataCombo(levelCombo, metadata.psychomotorLevels);
     selectMetadata(levelCombo, psychomotorLevelId);
     form->addRow("Name", nameEdit);
     form->addRow("Psychomotorisches Niveau", levelCombo);
@@ -354,11 +348,11 @@ static bool showPursuitDialog(
     auto *flashcardStatusCombo = new QComboBox(&dialog);
     auto *verificationStatusCombo = new QComboBox(&dialog);
     auto *verificationLevelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(cognitiveCombo, metadata.cognitive_levels);
-    fillMetadataCombo(completenessCombo, metadata.document_completeness_levels);
-    fillMetadataCombo(flashcardStatusCombo, metadata.document_flashcard_statuses);
-    fillMetadataCombo(verificationStatusCombo, metadata.document_verification_statuses);
-    fillMetadataCombo(verificationLevelCombo, metadata.document_verification_levels);
+    fillMetadataCombo(cognitiveCombo, metadata.cognitiveLevels);
+    fillMetadataCombo(completenessCombo, metadata.documentCompletenessLevels);
+    fillMetadataCombo(flashcardStatusCombo, metadata.documentFlashcardStatuses);
+    fillMetadataCombo(verificationStatusCombo, metadata.documentVerificationStatuses);
+    fillMetadataCombo(verificationLevelCombo, metadata.documentVerificationLevels);
     selectMetadata(cognitiveCombo, result.cognitiveLevelId);
     selectMetadata(completenessCombo, result.completenessLevelId);
     selectMetadata(flashcardStatusCombo, result.flashcardStatusId);
@@ -393,7 +387,7 @@ static bool showPursuitDialog(
             }
 
             auto *combo = new QComboBox(skillContent);
-            fillMetadataCombo(combo, metadata.psychomotor_levels);
+            fillMetadataCombo(combo, metadata.psychomotorLevels);
             std::optional<int> selectedLevel;
             for (const PursuitRequirement &requirement : pursuit.requirements) {
                 if (requirement.requirementTypeId == 2
@@ -459,8 +453,8 @@ static bool showProgressionDialog(
     auto *nameEdit = new QLineEdit(name, &dialog);
     auto *relevanceCombo = new QComboBox(&dialog);
     auto *impactCombo = new QComboBox(&dialog);
-    fillMetadataCombo(relevanceCombo, metadata.personal_relevance_levels);
-    fillMetadataCombo(impactCombo, metadata.lasting_impacts);
+    fillMetadataCombo(relevanceCombo, metadata.personalRelevanceLevels);
+    fillMetadataCombo(impactCombo, metadata.lastingImpacts);
     selectMetadata(relevanceCombo, personalRelevanceId);
     selectMetadata(impactCombo, lastingImpactId);
     layout->addRow("Name", nameEdit);
@@ -936,16 +930,16 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 if (currentDocumentNodeId == node.id) {
                     documentTitle->setText(node.name);
                     showMetadata(completenessLabel, "Vollständigkeit",
-                                 apiClient.metadata().document_completeness_levels,
+                                 apiClient.metadata().documentCompletenessLevels,
                                  node.completenessLevelId);
                     showMetadata(flashcardStatusLabel, "Lernkarten",
-                                 apiClient.metadata().document_flashcard_statuses,
+                                 apiClient.metadata().documentFlashcardStatuses,
                                  node.flashcardStatusId);
                     showMetadata(verificationStatusLabel, "Verifizierung",
-                                 apiClient.metadata().document_verification_statuses,
+                                 apiClient.metadata().documentVerificationStatuses,
                                  node.verificationStatusId);
                     showMetadata(verificationLevelLabel, "Niveau",
-                                 apiClient.metadata().document_verification_levels,
+                                 apiClient.metadata().documentVerificationLevels,
                                  node.verificationLevelId);
                 }
             });
@@ -976,16 +970,16 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 savedContent = document.content;
                 documentEditor->setPlainText(document.content);
                 showMetadata(completenessLabel, "Vollständigkeit",
-                             apiClient.metadata().document_completeness_levels,
+                             apiClient.metadata().documentCompletenessLevels,
                              document.completenessLevelId);
                 showMetadata(flashcardStatusLabel, "Lernkarten",
-                             apiClient.metadata().document_flashcard_statuses,
+                             apiClient.metadata().documentFlashcardStatuses,
                              document.flashcardStatusId);
                 showMetadata(verificationStatusLabel, "Verifizierung",
-                             apiClient.metadata().document_verification_statuses,
+                             apiClient.metadata().documentVerificationStatuses,
                              document.verificationStatusId);
                 showMetadata(verificationLevelLabel, "Niveau",
-                             apiClient.metadata().document_verification_levels,
+                             apiClient.metadata().documentVerificationLevels,
                              document.verificationLevelId);
                 saveStatus->setState(SaveStatus::Hidden);
                 editorWidget->show();
@@ -1776,32 +1770,32 @@ void DomainView::renderPursuits() {
             switch (requirement.requirementTypeId) {
                 case 1:
                     text = "Kognition: " + metadataText(
-                        apiClient.metadata().cognitive_levels,
+                        apiClient.metadata().cognitiveLevels,
                         *requirement.cognitiveLevelId
                     );
                     break;
                 case 2: break;
                 case 3:
                     text = "Vollständigkeit: " + metadataText(
-                        apiClient.metadata().document_completeness_levels,
+                        apiClient.metadata().documentCompletenessLevels,
                         *requirement.completenessLevelId
                     );
                     break;
                 case 4:
                     text = "Lernkarten: " + metadataText(
-                        apiClient.metadata().document_flashcard_statuses,
+                        apiClient.metadata().documentFlashcardStatuses,
                         *requirement.flashcardStatusId
                     );
                     break;
                 case 5:
                     text = "Verifizierung: " + metadataText(
-                        apiClient.metadata().document_verification_statuses,
+                        apiClient.metadata().documentVerificationStatuses,
                         *requirement.verificationStatusId
                     );
                     break;
                 case 6:
                     text = "Verifizierungsniveau: " + metadataText(
-                        apiClient.metadata().document_verification_levels,
+                        apiClient.metadata().documentVerificationLevels,
                         *requirement.verificationLevelId
                     );
                     break;
@@ -1840,7 +1834,7 @@ void DomainView::renderPursuits() {
             QString text = skill.name;
             if (skillRequirement) {
                 text += ": " + metadataText(
-                    apiClient.metadata().psychomotor_levels,
+                    apiClient.metadata().psychomotorLevels,
                     *skillRequirement->psychomotorLevelId
                 );
             }
@@ -1860,7 +1854,7 @@ void DomainView::renderPursuits() {
         }
 
         for (const Task &task : currentTasks) {
-            if (task.pursuit_id == pursuit.id) {
+            if (task.pursuitId == pursuit.id) {
                 auto *taskItem = new QStandardItem("Aufgabe: " + task.name);
                 taskItem->setIcon(QIcon(":/assets/icons/task-white.png"));
                 pursuitItem->appendRow(taskItem);
@@ -1903,8 +1897,8 @@ void DomainView::createPursuitTask(const int pursuitId) {
     layout->addRow("Name", nameEdit);
 
     auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemtask_priorities) {
-        priorityEdit->addItem(priority.display_name.value_or(priority.name), priority.id);
+    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
+        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
     }
     layout->addRow("Priorität", priorityEdit);
 
@@ -1922,9 +1916,9 @@ void DomainView::createPursuitTask(const int pursuitId) {
 
     apiClient.createTask(CreateTask{
         .name = nameEdit->text().trimmed(),
-        .group_id = std::nullopt,
-        .priority_id = priorityEdit->currentData().toInt(),
-        .pursuit_id = pursuitId
+        .groupId = std::nullopt,
+        .priorityId = priorityEdit->currentData().toInt(),
+        .pursuitId = pursuitId
     });
 }
 
@@ -1983,12 +1977,12 @@ void DomainView::updateCurrentTaskCount() {
         currentTasks.begin(),
         currentTasks.end(),
         [this](const Task &task) {
-            return task.pursuit_id.has_value()
+            return task.pursuitId.has_value()
                 && std::any_of(
                     currentPursuits.begin(),
                     currentPursuits.end(),
                     [&task](const Pursuit &pursuit) {
-                        return task.pursuit_id == pursuit.id;
+                        return task.pursuitId == pursuit.id;
                     }
                 );
         }

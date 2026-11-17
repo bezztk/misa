@@ -14,11 +14,11 @@ class QTreeWidget;
 class TaskView : public QWidget {
 public:
     explicit TaskView(ApiClient &apiClient, QWidget *parent = nullptr);
-    void renderTasks();
     void refreshTasks();
     void refreshMetadata();
 
 private:
+    void renderTasks();
     void renderNavigation();
     void openCreateDialog();
     void openEditDialog(const Task &task);

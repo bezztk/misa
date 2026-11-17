@@ -1,17 +1,12 @@
 use crate::api::error::{ApiError, ApiResult};
+use crate::api::response::IdResponse;
 use crate::models::system_task::{CreateTaskRequest, TaskListItem, UpdateTaskRequest};
 use crate::repositories::task_repository;
 use crate::validation::valid_name;
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use serde::Serialize;
 use sqlx::PgPool;
-
-#[derive(Serialize)]
-pub struct CreateTaskResponse {
-    pub id: i32,
-}
 
 pub async fn get_tasks(State(pool): State<PgPool>) -> ApiResult<Json<Vec<TaskListItem>>> {
     Ok(Json(task_repository::get_tasks(&pool).await?))
@@ -20,7 +15,7 @@ pub async fn get_tasks(State(pool): State<PgPool>) -> ApiResult<Json<Vec<TaskLis
 pub async fn create_task(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTaskRequest>,
-) -> ApiResult<(StatusCode, Json<CreateTaskResponse>)> {
+) -> ApiResult<(StatusCode, Json<IdResponse>)> {
     if !valid_name(&payload.name, 150) {
         return Err(ApiError::BadRequest);
     }
@@ -34,7 +29,7 @@ pub async fn create_task(
     )
     .await?;
 
-    Ok((StatusCode::CREATED, Json(CreateTaskResponse { id })))
+    Ok((StatusCode::CREATED, Json(IdResponse { id })))
 }
 
 pub async fn update_task(

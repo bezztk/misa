@@ -11,16 +11,16 @@ struct Routine {
     QString name;
     QString recurrenceRuleSet;
     QString timezone;
-    std::optional<int> estimatedDuration;
+    std::optional<int> estimatedDuration{};
     bool isOptional;
     bool isActive;
 };
 
 struct SaveRoutine {
     QString name;
-    QString recurrenceRuleSet;
+    QString recurrenceRuleSet{};
     QString timezone;
-    std::optional<int> estimatedDuration;
+    std::optional<int> estimatedDuration{};
     bool isOptional;
     bool isActive;
 };

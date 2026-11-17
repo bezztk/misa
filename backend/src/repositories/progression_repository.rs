@@ -53,9 +53,7 @@ pub async fn get_pursuits(pool: &PgPool) -> Result<Vec<ProgressionPursuit>, sqlx
     .await
 }
 
-pub async fn get_available_pursuits(
-    pool: &PgPool,
-) -> Result<Vec<ProgressionPursuit>, sqlx::Error> {
+pub async fn get_available_pursuits(pool: &PgPool) -> Result<Vec<ProgressionPursuit>, sqlx::Error> {
     sqlx::query_as::<_, ProgressionPursuit>(
         "SELECT id, name, progression_stage_id
          FROM pursuits
@@ -66,16 +64,12 @@ pub async fn get_available_pursuits(
     .await
 }
 
-pub async fn create_progression(pool: &PgPool, name: &str) -> Result<Progression, sqlx::Error> {
-    sqlx::query_as::<_, Progression>(
-        "INSERT INTO progressions (name)
-         VALUES ($1)
-         RETURNING id, name, personal_relevance_id, lasting_impact_id,
-                   motivation, desired_outcome",
-    )
-    .bind(name)
-    .fetch_one(pool)
-    .await
+pub async fn create_progression(pool: &PgPool, name: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO progressions (name) VALUES ($1)")
+        .bind(name)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 pub async fn update_progression(

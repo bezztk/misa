@@ -1,13 +1,14 @@
 ﻿#ifndef FRONTEND_LEARNINGVIEW_H
 #define FRONTEND_LEARNINGVIEW_H
 
+#include <QDateTime>
 #include <QWidget>
-#include <QLabel>
-#include <QPushButton>
 
 #include "../api/ApiClient.h"
 
 class QHideEvent;
+class QLabel;
+class QPushButton;
 
 class LearningView : public QWidget {
 public:
@@ -45,8 +46,8 @@ private:
     ApiClient &apiClient;
     bool ratingPending = false;
 
-    QDateTime flashcard_shown_at;
-    QDateTime opened_answer_at;
+    QDateTime flashcardShownAt;
+    QDateTime answerOpenedAt;
 };
 
 

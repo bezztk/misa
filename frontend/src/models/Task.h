@@ -6,18 +6,18 @@
 
 struct Task {
     int id;
-    std::optional<int> group_id;
-    std::optional<int> pursuit_id;
+    std::optional<int> groupId;
+    std::optional<int> pursuitId;
     QString name;
-    int state_id;
-    int priority_id;
+    int stateId;
+    int priorityId;
 };
 
 struct CreateTask {
     QString name;
-    std::optional<int> group_id;
-    int priority_id;
-    std::optional<int> pursuit_id;
+    std::optional<int> groupId;
+    int priorityId;
+    std::optional<int> pursuitId;
 };
 
 struct TaskPursuit {
@@ -27,8 +27,8 @@ struct TaskPursuit {
 
 struct UpdateTask {
     QString name;
-    int state_id;
-    int priority_id;
+    int stateId;
+    int priorityId;
 };
 
 #endif //FRONTEND_TASK_H

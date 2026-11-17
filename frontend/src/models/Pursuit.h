@@ -22,7 +22,7 @@ struct Pursuit {
     int id;
     int domainNodeId;
     QString name;
-    std::vector<PursuitRequirement> requirements;
+    std::vector<PursuitRequirement> requirements{};
 };
 
 struct PursuitSkillRequirement {

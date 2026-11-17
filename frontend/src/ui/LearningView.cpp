@@ -32,11 +32,11 @@ static QString flashcardStateName(const int state) {
 }
 
 static QString retentionLevelText(const Metadata &metadata, const int id) {
-    for (const FlashcardRetentionClass &level : metadata.flashcard_retention_classes) {
+    for (const FlashcardRetentionClass &level : metadata.flashcardRetentionClasses) {
         if (level.id == id) {
             return QString("%1 (%2 %)")
-                .arg(level.display_name.value_or(level.name))
-                .arg(qRound(level.desired_retention * 100));
+                .arg(level.displayName.value_or(level.name))
+                .arg(qRound(level.desiredRetention * 100));
         }
     }
 
@@ -257,13 +257,13 @@ void LearningView::rateFlashcard(FlashcardRating rating) {
 
     ratingPending = true;
     ratingWidget->setEnabled(false);
-    const auto ms = static_cast<int>(flashcard_shown_at.msecsTo(opened_answer_at));
+    const auto ms = static_cast<int>(flashcardShownAt.msecsTo(answerOpenedAt));
 
     apiClient.rateFlashcard(
         flashcards[currentIndex].id,
         ReviewFlashcard{
-            .rating = static_cast<int16_t>(rating),
-            .duration_ms = ms
+            .rating = static_cast<std::int16_t>(rating),
+            .durationMs = ms
         });
 }
 
@@ -273,7 +273,7 @@ void LearningView::showCurrentFlashcard() {
         return;
     }
 
-    flashcard_shown_at = QDateTime::currentDateTime();
+    flashcardShownAt = QDateTime::currentDateTime();
     front->setText(flashcards[currentIndex].front);
     updateMetadataBanner();
     metadataWidget->show();
@@ -296,7 +296,7 @@ void LearningView::showCurrentFlashcard() {
 }
 
 void LearningView::showAnswer() {
-    opened_answer_at = QDateTime::currentDateTime();
+    answerOpenedAt = QDateTime::currentDateTime();
     back->setText(flashcards[currentIndex].back);
     ratingWidget->show();
     showAnswerButton->hide();
@@ -325,10 +325,10 @@ void LearningView::updateMetadataBanner() {
         "<tr><td style='color:#777777'>Lernschritt</td><td style='color:#D0D0D0; padding-left:12px'>%5</td></tr>"
         "</table>"
     ).arg(
-        flashcardStateName(flashcard.review_state_id).toHtmlEscaped(),
-        retentionLevelText(apiClient.metadata(), flashcard.retention_class_id).toHtmlEscaped(),
+        flashcardStateName(flashcard.reviewStateId).toHtmlEscaped(),
+        retentionLevelText(apiClient.metadata(), flashcard.retentionClassId).toHtmlEscaped(),
         metricText(flashcard.stability),
         metricText(flashcard.difficulty),
-        QString::number(flashcard.learning_step)
+        QString::number(flashcard.learningStep)
     ));
 }

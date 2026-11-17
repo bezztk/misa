@@ -7,10 +7,10 @@
 struct Document {
     int domainNodeId;
     QString content;
-    std::optional<int> completenessLevelId;
-    std::optional<int> flashcardStatusId;
-    std::optional<int> verificationStatusId;
-    std::optional<int> verificationLevelId;
+    std::optional<int> completenessLevelId{};
+    std::optional<int> flashcardStatusId{};
+    std::optional<int> verificationStatusId{};
+    std::optional<int> verificationLevelId{};
 };
 
 #endif // FRONTEND_DOCUMENT_H
