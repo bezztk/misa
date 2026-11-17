@@ -17,8 +17,7 @@ class QStandardItem;
 class QStandardItemModel;
 class DocumentEditor;
 class SaveStatus;
-class QResizeEvent;
-class QTableView;
+class QListView;
 class QTreeView;
 class QHBoxLayout;
 class QVBoxLayout;
@@ -28,9 +27,6 @@ public:
     explicit DomainView(ApiClient &apiClient, QWidget *parent = nullptr);
     void saveBeforeClose(std::function<void()> continuation);
     void refreshTasks();
-
-protected:
-    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void renderDomainTree(
@@ -95,10 +91,8 @@ private:
     QLabel *verificationLevelLabel;
     SaveStatus *saveStatus;
     DocumentEditor *documentEditor;
-    QWidget *flashcardWidget;
-    QLabel *flashcardTitle;
-    QPushButton *toggleFlashcardsButton;
-    QTableView *flashcardTable;
+    QLabel *noFlashcardsLabel;
+    QListView *flashcardListView;
     QStandardItemModel *flashcardModel;
     QWidget *skillWidget;
     QLabel *noPursuitsLabel;
@@ -117,7 +111,6 @@ private:
     bool pendingNodeHasDocument = false;
     bool documentChangePending = false;
     bool documentLoadPending = false;
-    bool flashcardsExpanded = true;
     bool saveInProgress = false;
     int savingDocumentNodeId = -1;
     QString savedContent;

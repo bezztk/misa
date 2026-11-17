@@ -12,16 +12,15 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QResizeEvent>
 #include <QScrollArea>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStyle>
-#include <QTableView>
 #include <QTimer>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -44,6 +43,7 @@ static constexpr int HAS_ROUTINE_ROLE = Qt::UserRole + 12;
 static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
+static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
 
 static QString metadataName(const MetadataItem &item) {
     return item.displayName.value_or(item.name);
@@ -515,25 +515,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QTreeView::item:selected {
             background: rgba(100, 181, 246, 0.18);
         }
-        QWidget#editorHeader, QWidget#flashcardHeader {
+        QWidget#editorHeader {
             background: rgba(255, 255, 255, 0.025);
         }
         QWidget#documentMetadataBar {
             background: rgba(255, 255, 255, 0.025);
             border-top: 1px solid rgba(255, 255, 255, 0.10);
-        }
-        QTableView#flashcardTable {
-            background: palette(base);
-            alternate-background-color: rgba(255, 255, 255, 0.025);
-            border: none;
-            gridline-color: transparent;
-            selection-background-color: rgba(100, 181, 246, 0.18);
-        }
-        QTableView#flashcardTable QHeaderView::section {
-            background: rgba(255, 255, 255, 0.05);
-            border: none;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-            padding: 5px;
         }
         QPushButton#compactButton {
             padding: 4px 10px;
@@ -732,54 +719,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     documentMetadataLayout->addWidget(verificationStatusLabel);
     documentMetadataLayout->addWidget(verificationLevelLabel);
 
-    flashcardWidget = new QWidget(editorWidget);
-    auto *flashcardLayout = new QVBoxLayout(flashcardWidget);
-    flashcardLayout->setContentsMargins(0, 0, 0, 0);
-    flashcardLayout->setSpacing(0);
-
-    auto *flashcardSeparator = new QFrame(flashcardWidget);
-    flashcardSeparator->setFixedHeight(1);
-    flashcardSeparator->setStyleSheet(
-        "background: rgba(255, 255, 255, 0.25); border: none;"
-    );
-    flashcardLayout->addWidget(flashcardSeparator);
-
-    auto *flashcardHeader = new QWidget(flashcardWidget);
-    flashcardHeader->setObjectName("flashcardHeader");
-    flashcardHeader->setFixedHeight(36);
-    auto *flashcardHeaderLayout = new QHBoxLayout(flashcardHeader);
-    flashcardHeaderLayout->setContentsMargins(10, 4, 10, 4);
-    flashcardTitle = new QLabel("Lernkarten (0)", flashcardHeader);
-    toggleFlashcardsButton = new QPushButton("Lernkarten ausblenden", flashcardHeader);
-    toggleFlashcardsButton->setObjectName("compactButton");
-    flashcardHeaderLayout->addWidget(flashcardTitle);
-    flashcardHeaderLayout->addStretch();
-    flashcardHeaderLayout->addWidget(toggleFlashcardsButton);
-    flashcardLayout->addWidget(flashcardHeader);
-
-    flashcardTable = new QTableView(flashcardWidget);
-    flashcardTable->setObjectName("flashcardTable");
-    flashcardTable->setFrameShape(QFrame::NoFrame);
-    flashcardTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    flashcardTable->setSelectionMode(QAbstractItemView::SingleSelection);
-    flashcardTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    flashcardTable->setMinimumHeight(0);
-    flashcardTable->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    flashcardTable->setContextMenuPolicy(Qt::CustomContextMenu);
-    flashcardTable->setAlternatingRowColors(true);
-    flashcardTable->setShowGrid(false);
-    flashcardModel = new QStandardItemModel(0, 2, flashcardTable);
-    flashcardModel->setHorizontalHeaderLabels({"Front", "Back"});
-    flashcardTable->setModel(flashcardModel);
-    flashcardTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    connect(flashcardTable->horizontalHeader(), &QHeaderView::sectionResized,
-            this, [this] { updateFlashcardView(); });
-    flashcardLayout->addWidget(flashcardTable, 1);
-
     editorLayout->addWidget(documentWidget);
     editorLayout->addStretch();
     editorLayout->addWidget(documentMetadataWidget);
-    editorLayout->addWidget(flashcardWidget);
     editorWidget->hide();
 
     skillWidget = new QWidget(splitter);
@@ -787,7 +729,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillWidget->setFixedWidth(300);
     skillWidget->setStyleSheet(R"(
         QWidget#skillPanel, QWidget#sidebarContent,
-        QWidget#pursuitPanel, QWidget#skillsPanel,
+        QWidget#pursuitPanel, QWidget#skillsPanel, QWidget#flashcardsPanel,
         QScrollArea#sidebarScrollArea {
             background: palette(base);
         }
@@ -796,7 +738,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             border-radius: 4px;
         }
         QPushButton#pursuitSectionButton,
-        QPushButton#skillSectionButton {
+        QPushButton#skillSectionButton,
+        QPushButton#flashcardSectionButton {
             padding: 7px 8px;
             border: none;
             border-radius: 0;
@@ -810,15 +753,37 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: rgba(255, 193, 7, 0.16);
             border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
+        QPushButton#flashcardSectionButton {
+            background: rgba(33, 150, 243, 0.16);
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
         QPushButton#pursuitSectionButton:hover {
             background: rgba(76, 175, 80, 0.24);
         }
         QPushButton#skillSectionButton:hover {
             background: rgba(255, 193, 7, 0.24);
         }
+        QPushButton#flashcardSectionButton:hover {
+            background: rgba(33, 150, 243, 0.24);
+        }
         QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
             border: none;
+        }
+        QListView#flashcardList {
+            background: palette(base);
+            border: none;
+            outline: none;
+        }
+        QListView#flashcardList::item {
+            border: none;
+            padding: 2px 4px;
+        }
+        QListView#flashcardList::item:hover {
+            background: rgba(33, 150, 243, 0.10);
+        }
+        QListView#flashcardList::item:selected {
+            background: rgba(33, 150, 243, 0.18);
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
@@ -905,10 +870,44 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillModel = new QStandardItemModel(skillTreeView);
     skillTreeView->setModel(skillModel);
     skillPanelLayout->addWidget(skillTreeView);
+
+    auto *flashcardPanel = new QWidget(sidebarList);
+    flashcardPanel->setObjectName("flashcardsPanel");
+    flashcardPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    auto *flashcardPanelLayout = new QVBoxLayout(flashcardPanel);
+    flashcardPanelLayout->setContentsMargins(8, 6, 8, 6);
+    flashcardPanelLayout->setSpacing(4);
+
+    auto *flashcardSectionButton = new QPushButton("▾  Flashcards", sidebarList);
+    flashcardSectionButton->setObjectName("flashcardSectionButton");
+    flashcardSectionButton->setCheckable(true);
+    flashcardSectionButton->setChecked(true);
+
+    noFlashcardsLabel = new QLabel("Noch keine Flashcards angelegt.", flashcardPanel);
+    noFlashcardsLabel->setWordWrap(true);
+    noFlashcardsLabel->setStyleSheet("color: palette(mid);");
+    flashcardPanelLayout->addWidget(noFlashcardsLabel);
+
+    flashcardListView = new QListView(flashcardPanel);
+    flashcardListView->setObjectName("flashcardList");
+    flashcardListView->setFrameShape(QFrame::NoFrame);
+    flashcardListView->setWordWrap(false);
+    flashcardListView->setTextElideMode(Qt::ElideRight);
+    flashcardListView->setSpacing(0);
+    flashcardListView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    flashcardListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    flashcardListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    flashcardListView->setContextMenuPolicy(Qt::CustomContextMenu);
+    flashcardModel = new QStandardItemModel(flashcardListView);
+    flashcardListView->setModel(flashcardModel);
+    flashcardPanelLayout->addWidget(flashcardListView);
+
     sidebarListLayout->addWidget(pursuitSectionButton);
     sidebarListLayout->addWidget(pursuitPanel);
     sidebarListLayout->addWidget(skillSectionButton);
     sidebarListLayout->addWidget(skillPanel);
+    sidebarListLayout->addWidget(flashcardSectionButton);
+    sidebarListLayout->addWidget(flashcardPanel);
     sidebarContentLayout->addWidget(sidebarList);
     sidebarContentLayout->addStretch();
     sidebarScrollArea->setWidget(sidebarContent);
@@ -928,6 +927,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     expanded ? "▾  Skillansicht" : "▸  Skillansicht"
                 );
                 skillPanel->setVisible(expanded);
+            });
+    connect(flashcardSectionButton, &QPushButton::toggled, this,
+            [flashcardSectionButton, flashcardPanel](const bool expanded) {
+                flashcardSectionButton->setText(
+                    expanded ? "▾  Flashcards" : "▸  Flashcards"
+                );
+                flashcardPanel->setVisible(expanded);
             });
 
     splitter->addWidget(treeView);
@@ -1082,25 +1088,21 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             nodeIndex.data(HAS_DOCUMENT_ROLE).toBool()
         );
     });
-    connect(toggleFlashcardsButton, &QPushButton::clicked, this, [this] {
-        flashcardsExpanded = !flashcardsExpanded;
-        updateFlashcardView();
-    });
-    connect(flashcardTable, &QTableView::doubleClicked, this,
+    connect(flashcardListView, &QListView::clicked, this,
             [this](const QModelIndex &index) { editFlashcard(index.row()); });
-    connect(flashcardTable, &QTableView::customContextMenuRequested, this,
+    connect(flashcardListView, &QListView::customContextMenuRequested, this,
             [this](const QPoint &position) {
-                const QModelIndex index = flashcardTable->indexAt(position);
+                const QModelIndex index = flashcardListView->indexAt(position);
                 if (!index.isValid()) {
                     return;
                 }
 
-                QMenu menu(flashcardTable);
+                QMenu menu(flashcardListView);
                 QAction *deleteAction = menu.addAction("Löschen");
-                if (menu.exec(flashcardTable->viewport()->mapToGlobal(position)) == deleteAction) {
+                if (menu.exec(flashcardListView->viewport()->mapToGlobal(position)) == deleteAction) {
                     apiClient.deleteFlashcard(
                         currentNodeId,
-                        flashcardModel->item(index.row(), 0)->data(Qt::UserRole).toInt()
+                        index.data(Qt::UserRole).toInt()
                     );
                 }
             });
@@ -1115,10 +1117,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
                 flashcardModel->removeRows(0, flashcardModel->rowCount());
                 for (const Flashcard &flashcard : flashcards) {
-                    auto *front = new QStandardItem(flashcard.front);
-                    auto *back = new QStandardItem(flashcard.back);
-                    front->setData(flashcard.id, Qt::UserRole);
-                    flashcardModel->appendRow({front, back});
+                    auto *item = new QStandardItem(flashcard.front);
+                    item->setData(flashcard.id, Qt::UserRole);
+                    item->setData(flashcard.back, FLASHCARD_BACK_ROLE);
+                    item->setSizeHint(QSize(0, 24));
+                    flashcardModel->appendRow(item);
                 }
                 updateFlashcardView();
             });
@@ -1675,9 +1678,8 @@ void DomainView::createFlashcard(const int nodeId) {
 
 void DomainView::editFlashcard(const int row) {
     QStandardItem *frontItem = flashcardModel->item(row, 0);
-    QStandardItem *backItem = flashcardModel->item(row, 1);
     QString front = frontItem->text();
-    QString back = backItem->text();
+    QString back = frontItem->data(FLASHCARD_BACK_ROLE).toString();
 
     if (showFlashcardDialog(this, "Lernkarte bearbeiten", front, back)) {
         apiClient.updateFlashcard(
@@ -2044,40 +2046,9 @@ void DomainView::updateFlashcardCount(const int nodeId, const int count) {
 
 void DomainView::updateFlashcardView() {
     const int count = flashcardModel->rowCount();
-    flashcardTitle->setText("Lernkarten (" + QString::number(count) + ")");
-    flashcardTitle->setVisible(count > 0);
-    toggleFlashcardsButton->setVisible(count > 0);
-    toggleFlashcardsButton->setText(
-        flashcardsExpanded ? "Lernkarten ausblenden" : "Lernkarten anzeigen"
-    );
-
-    flashcardTable->setVisible(flashcardsExpanded && count > 0);
-    int panelHeight = 37;
-
-    if (flashcardsExpanded && count > 0) {
-        flashcardTable->resizeRowsToContents();
-        const int maximumRowHeight = flashcardTable->fontMetrics().lineSpacing() * 4 + 8;
-        int height = flashcardTable->horizontalHeader()->height()
-            + flashcardTable->frameWidth() * 2;
-        for (int row = 0; row < count; ++row) {
-            flashcardTable->setRowHeight(
-                row,
-                qMin(flashcardTable->rowHeight(row), maximumRowHeight)
-            );
-            height += flashcardTable->rowHeight(row);
-        }
-
-        const int maximumPanelHeight = qMax(37, editorWidget->height() / 2);
-        panelHeight = qMin(37 + height, maximumPanelHeight);
-        flashcardTable->setFixedHeight(panelHeight - 37);
-    }
-
-    flashcardWidget->setFixedHeight(panelHeight);
-}
-
-void DomainView::resizeEvent(QResizeEvent *event) {
-    QWidget::resizeEvent(event);
-    updateFlashcardView();
+    noFlashcardsLabel->setVisible(count == 0);
+    flashcardListView->setVisible(count > 0);
+    flashcardListView->setFixedHeight(count * 24);
 }
 
 QStandardItem *DomainView::findDomainItem(const int domainId) {
