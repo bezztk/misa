@@ -79,4 +79,6 @@ qt_add_resources(frontend "icons"
         FILES
         assets/icons/task-white.png
         assets/icons/flashcards-white.png
+        assets/icons/calendar.png
+        assets/icons/folder.png
 )

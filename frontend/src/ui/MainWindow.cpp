@@ -11,7 +11,6 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStackedWidget>
-#include <QStyle>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -60,7 +59,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     auto *workButton = new QPushButton(navbar);
     workButton->setToolTip("Arbeitsbereich");
     workButton->setFixedSize(36, 36);
-    workButton->setIcon(QIcon(":/assets/icons/task-white.png"));
+    workButton->setIcon(QIcon(":/assets/icons/calendar.png"));
     workButton->setIconSize(QSize(24, 24));
     workButton->setCheckable(true);
     workButton->setAutoExclusive(true);
@@ -81,7 +80,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     auto *domainButton = new QPushButton(navbar);
     domainButton->setToolTip("Verwirklichung");
     domainButton->setFixedSize(36, 36);
-    domainButton->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+    domainButton->setIcon(QIcon(":/assets/icons/folder.png"));
     domainButton->setIconSize(QSize(24, 24));
     domainButton->setCheckable(true);
     domainButton->setAutoExclusive(true);

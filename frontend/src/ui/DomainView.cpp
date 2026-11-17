@@ -3,6 +3,8 @@
 #include "RoutineDialog.h"
 
 #include <QFrame>
+#include <QBrush>
+#include <QColor>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -44,6 +46,11 @@ static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
+static constexpr int DOMAIN_NAME_COLUMN = 0;
+static constexpr int TASK_COUNT_COLUMN = 1;
+static constexpr int PURSUIT_COUNT_COLUMN = 2;
+static constexpr int SKILL_COUNT_COLUMN = 3;
+static constexpr int FLASHCARD_COUNT_COLUMN = 4;
 
 static QString metadataName(const MetadataItem &item) {
     return item.displayName.value_or(item.name);
@@ -143,25 +150,58 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
 }
 
 static void refreshDomainNodeText(QStandardItem *item) {
-    QString text = item->data(NODE_NAME_ROLE).toString();
-    item->setToolTip({});
+    const QString name = item->data(NODE_NAME_ROLE).toString();
+    item->setText(name);
     const int flashcardCount = item->data(FLASHCARD_COUNT_ROLE).toInt();
-    if (flashcardCount > 0) {
-        text += QString::fromUtf8("  ▣ ") + QString::number(flashcardCount);
-    }
     const int skillCount = item->data(SKILL_COUNT_ROLE).toInt();
-    if (skillCount > 0) {
-        text += QString::fromUtf8("  ★ ") + QString::number(skillCount);
-    }
     const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
-    if (pursuitCount > 0) {
-        text += QString::fromUtf8("  ↑ ") + QString::number(pursuitCount);
-    }
     const int taskCount = item->data(TASK_COUNT_ROLE).toInt();
+
+    QStandardItem *parent = item->parent();
+    const int row = item->row();
+    auto setIndicator = [parent, row](
+        const int column,
+        const int count,
+        const QString &symbol,
+        const QString &name,
+        const QString &color
+    ) {
+        QStandardItem *indicator = parent->child(row, column);
+        indicator->setText(
+            count > 0 ? symbol + " " + QString::number(count) : QString()
+        );
+        indicator->setToolTip(
+            count > 0 ? name + ": " + QString::number(count) : QString()
+        );
+        indicator->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        indicator->setForeground(QBrush(QColor(color)));
+    };
+
+    setIndicator(TASK_COUNT_COLUMN, taskCount, "☑", "Aufgaben", "#E0E0E0");
+    setIndicator(
+        PURSUIT_COUNT_COLUMN, pursuitCount, "↑", "Bestrebungen", "#81C784"
+    );
+    setIndicator(SKILL_COUNT_COLUMN, skillCount, "★", "Skills", "#FFD54F");
+    setIndicator(
+        FLASHCARD_COUNT_COLUMN, flashcardCount, "▣", "Flashcards", "#64B5F6"
+    );
+
+    QStringList details;
     if (taskCount > 0) {
-        text += QString::fromUtf8("  ☑ ") + QString::number(taskCount);
+        details.append("Aufgaben: " + QString::number(taskCount));
     }
-    item->setText(text);
+    if (pursuitCount > 0) {
+        details.append("Bestrebungen: " + QString::number(pursuitCount));
+    }
+    if (skillCount > 0) {
+        details.append("Skills: " + QString::number(skillCount));
+    }
+    if (flashcardCount > 0) {
+        details.append("Flashcards: " + QString::number(flashcardCount));
+    }
+    item->setToolTip(
+        details.isEmpty() ? name : name + "\n" + details.join("\n")
+    );
 }
 
 static bool showDomainNodeDialog(
@@ -647,9 +687,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     treeView->setHeaderHidden(true);
     treeView->setFrameShape(QFrame::NoFrame);
     treeView->setIndentation(16);
-    treeView->setMinimumWidth(500);
-    treeView->setMaximumWidth(800);
+    treeView->setMinimumWidth(280);
+    treeView->setMaximumWidth(600);
     treeView->setUniformRowHeights(true);
+    treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
 
@@ -792,7 +833,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
-    skillLayout->setContentsMargins(4, 0, 4, 0);
+    skillLayout->setContentsMargins(4, 4, 4, 4);
     skillLayout->setSpacing(0);
 
     auto *sidebarScrollArea = new QScrollArea(skillWidget);
@@ -959,6 +1000,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     splitter->setStretchFactor(2, 0);
+    splitter->setSizes({380, 1000, 300});
     splitter->setCollapsible(0, false);
     splitter->setCollapsible(1, false);
     splitter->setCollapsible(2, false);
@@ -977,11 +1019,17 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 item->setData(node.id, Qt::UserRole);
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
                 setDomainNodeRoles(item, node);
-                refreshDomainNodeText(item);
                 QStandardItem *parentItem = node.parentId.has_value()
                     ? findDomainNodeItem(*node.parentId)
                     : findDomainItem(node.domainId);
-                parentItem->appendRow(item);
+                parentItem->appendRow({
+                    item,
+                    new QStandardItem(),
+                    new QStandardItem(),
+                    new QStandardItem(),
+                    new QStandardItem()
+                });
+                refreshDomainNodeText(item);
             });
     connect(&apiClient, &ApiClient::domainNodeUpdated, this,
             [this](const DomainNode &node) {
@@ -1501,7 +1549,7 @@ void DomainView::renderDomainTree(
     const std::vector<DomainNode> &nodes
 ) {
     model->clear();
-    model->setColumnCount(1);
+    model->setColumnCount(5);
 
     for (const MetadataItem &domain : domains) {
         auto *domainItem = new QStandardItem(domain.name);
@@ -1522,11 +1570,17 @@ void DomainView::renderDomainTree(
                 item->setData(node.id, Qt::UserRole);
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
                 setDomainNodeRoles(item, node);
-                refreshDomainNodeText(item);
                 if (node.hasDocument) {
                     item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 }
-                parentItem->appendRow(item);
+                parentItem->appendRow({
+                    item,
+                    new QStandardItem(),
+                    new QStandardItem(),
+                    new QStandardItem(),
+                    new QStandardItem()
+                });
+                refreshDomainNodeText(item);
                 addNodes(node.id, item);
             }
         };
@@ -1534,7 +1588,11 @@ void DomainView::renderDomainTree(
         addNodes(std::nullopt, domainItem);
     }
 
-    treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    treeView->header()->setSectionResizeMode(DOMAIN_NAME_COLUMN, QHeaderView::Stretch);
+    for (int column = TASK_COUNT_COLUMN; column <= FLASHCARD_COUNT_COLUMN; ++column) {
+        treeView->header()->setSectionResizeMode(column, QHeaderView::Fixed);
+        treeView->header()->resizeSection(column, 40);
+    }
     treeView->collapseAll();
 }
 
