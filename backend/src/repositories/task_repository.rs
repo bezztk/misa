@@ -59,10 +59,22 @@ pub async fn update_task(
 }
 
 pub async fn delete_task(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+
+    sqlx::query("DELETE FROM systemtask_sessions WHERE systemtask_id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("DELETE FROM calendar_entries WHERE systemtask_id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await?;
     let result = sqlx::query("DELETE FROM systemtasks WHERE id = $1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+
+    transaction.commit().await?;
 
     Ok(result.rows_affected() > 0)
 }

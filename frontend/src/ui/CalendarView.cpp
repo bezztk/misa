@@ -2,6 +2,7 @@
 #include "CalendarEntryDialog.h"
 
 #include <QComboBox>
+#include <QDateEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -25,7 +26,7 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
 
     auto *content = new QWidget(this);
-    content->setMaximumWidth(1000);
+    content->setMaximumWidth(500);
     auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(24, 20, 24, 20);
     contentLayout->setSpacing(14);
@@ -53,17 +54,46 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
 
+    auto *filterLayout = new QHBoxLayout();
+    filterLayout->setSpacing(6);
+    fromDateEdit = new QDateEdit(QDate::currentDate(), content);
+    fromDateEdit->setCalendarPopup(true);
+    fromDateEdit->setDisplayFormat("dd.MM.yyyy");
+    toDateEdit = new QDateEdit(QDate::currentDate(), content);
+    toDateEdit->setCalendarPopup(true);
+    toDateEdit->setDisplayFormat("dd.MM.yyyy");
+    filterLayout->addWidget(new QLabel("Von", content));
+    filterLayout->addWidget(fromDateEdit);
+    filterLayout->addSpacing(8);
+    filterLayout->addWidget(new QLabel("Bis", content));
+    filterLayout->addWidget(toDateEdit);
+    filterLayout->addStretch();
+    contentLayout->addLayout(filterLayout);
+
     tree = new QTreeWidget(content);
     tree->setColumnCount(3);
-    tree->setHeaderLabels({"Zeit", "Name", "Art"});
+    tree->setHeaderLabels({"Zeit", "", "Name"});
     tree->setRootIsDecorated(false);
     tree->setAlternatingRowColors(true);
     tree->setUniformRowHeights(true);
+    tree->setStyleSheet(R"(
+        QTreeWidget {
+            alternate-background-color: rgba(255, 255, 255, 0.035);
+        }
+        QTreeWidget::item:selected {
+            background: rgba(255, 255, 255, 0.14);
+        }
+    )");
     tree->header()->setStretchLastSection(false);
     tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    tree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
-    tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    tree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    tree->header()->resizeSection(1, 32);
+    tree->header()->setSectionResizeMode(2, QHeaderView::Stretch);
     tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(fromDateEdit, &QDateEdit::dateChanged, this,
+            [this] { renderEntries(); });
+    connect(toDateEdit, &QDateEdit::dateChanged, this,
+            [this] { renderEntries(); });
     connect(tree, &QWidget::customContextMenuRequested, this,
             [this](const QPoint &position) {
                 QTreeWidgetItem *item = tree->itemAt(position);
@@ -83,14 +113,20 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
 
                 QMenu menu(tree);
                 QAction *editEntryAction = menu.addAction("Kalendereintrag bearbeiten");
+                QAction *deleteEntryAction = menu.addAction("Kalendereintrag löschen");
                 QAction *editTaskAction = nullptr;
+                QAction *deleteTaskAction = nullptr;
                 if (entryIterator->systemTaskId.has_value()) {
+                    menu.addSeparator();
                     editTaskAction = menu.addAction("Aufgabe bearbeiten");
+                    deleteTaskAction = menu.addAction("Aufgabe löschen");
                 }
 
                 QAction *selectedAction = menu.exec(tree->viewport()->mapToGlobal(position));
                 if (selectedAction == editEntryAction) {
                     openEditDialog(*entryIterator);
+                } else if (selectedAction == deleteEntryAction) {
+                    apiClient.deleteCalendarEntry(entryIterator->id);
                 } else if (selectedAction == editTaskAction) {
                     const int taskId = *entryIterator->systemTaskId;
                     const auto taskIterator = std::find_if(
@@ -101,6 +137,8 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
                     if (taskIterator != tasks.end()) {
                         openTaskEditDialog(*taskIterator);
                     }
+                } else if (selectedAction == deleteTaskAction) {
+                    apiClient.deleteTask(*entryIterator->systemTaskId);
                 }
             });
     contentLayout->addWidget(tree, 1);
@@ -118,6 +156,12 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
         apiClient.getCalendarEntries();
     });
     connect(&apiClient, &ApiClient::calendarEntryUpdated, this, [this] {
+        apiClient.getCalendarEntries();
+    });
+    connect(&apiClient, &ApiClient::calendarEntryDeleted, this, [this] {
+        apiClient.getCalendarEntries();
+    });
+    connect(&apiClient, &ApiClient::taskDeleted, this, [this] {
         apiClient.getCalendarEntries();
     });
     connect(&apiClient, &ApiClient::routineExecutionsGenerated, this, [this] {
@@ -143,6 +187,10 @@ void CalendarView::renderEntries() {
 
     for (const CalendarEntry &entry : entries) {
         const QDateTime localStart = entry.startAt.toLocalTime();
+        if (localStart.date() < fromDateEdit->date()
+            || localStart.date() > toDateEdit->date()) {
+            continue;
+        }
         if (localStart.date() != currentDate) {
             currentDate = localStart.date();
             auto *dateItem = new QTreeWidgetItem(tree);
@@ -157,24 +205,21 @@ void CalendarView::renderEntries() {
         item->setData(0, Qt::UserRole, entry.id);
         if (entry.isReminder()) {
             item->setText(0, localStart.toString("HH:mm"));
-            item->setText(2, "Erinnerung");
         } else {
             item->setText(
                 0,
                 localStart.toString("HH:mm") + " – "
                     + entry.endAt->toLocalTime().toString("HH:mm")
             );
-            item->setText(2, "Termin");
         }
-        item->setText(1, entry.name);
+        item->setText(2, entry.name);
         if (entry.systemTaskId.has_value()) {
             item->setIcon(1, QIcon(":/assets/icons/task-white.png"));
             item->setToolTip(1, "Mit einer Aufgabe verknüpft");
-        }
-
-        const QColor color = entry.isReminder() ? QColor("#FFB74D") : QColor("#64B5F6");
-        for (int column = 0; column < tree->columnCount(); ++column) {
-            item->setForeground(column, color);
+        } else if (entry.routineExecutionId.has_value()) {
+            item->setText(1, "↻");
+            item->setTextAlignment(1, Qt::AlignCenter);
+            item->setToolTip(1, "Routine");
         }
     }
 

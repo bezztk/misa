@@ -87,7 +87,7 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
         QFrame#learningCard {
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.10);
-            border-radius: 8px;
+            border-radius: 0;
         }
         QFrame#learningCard QLabel {
             background: transparent;
@@ -126,7 +126,11 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     cardLayout->addWidget(back);
     cardLayout->addStretch();
 
-    ratingWidget = new QWidget(content);
+    auto *ratingArea = new QWidget(content);
+    ratingArea->setFixedHeight(48);
+    auto *ratingAreaLayout = new QHBoxLayout(ratingArea);
+    ratingAreaLayout->setContentsMargins(0, 0, 0, 0);
+    ratingWidget = new QWidget(ratingArea);
     ratingWidget->setMaximumWidth(700);
     auto *ratingLayout = new QHBoxLayout(ratingWidget);
     ratingLayout->setContentsMargins(0, 0, 0, 0);
@@ -138,6 +142,7 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     for (QPushButton *button : {againButton, hardButton, goodButton, easyButton}) {
         button->setMinimumWidth(120);
         button->setMaximumWidth(160);
+        button->setFixedHeight(48);
     }
     ratingLayout->addWidget(againButton);
     ratingLayout->addWidget(hardButton);
@@ -151,7 +156,7 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
         QFrame#flashcardMetadata {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.10);
-            border-radius: 5px;
+            border-radius: 0;
         }
         QFrame#flashcardMetadata QLabel {
             background: transparent;
@@ -173,7 +178,10 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     actionLayout->addStretch();
     cardLayout->addLayout(actionLayout);
     layout->addWidget(card, 1);
-    layout->addWidget(ratingWidget, 0, Qt::AlignCenter);
+    ratingAreaLayout->addStretch();
+    ratingAreaLayout->addWidget(ratingWidget);
+    ratingAreaLayout->addStretch();
+    layout->addWidget(ratingArea);
     ratingWidget->hide();
 
     outerLayout->addStretch();

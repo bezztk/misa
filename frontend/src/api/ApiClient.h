@@ -29,6 +29,7 @@ signals:
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
     void calendarEntryUpdated();
+    void calendarEntryDeleted();
     void domainNodeRoutineReceived(int nodeId, const Routine& routine);
     void domainNodeRoutineSaved(int nodeId, const Routine& routine);
     void routineExecutionsGenerated();
@@ -71,6 +72,7 @@ public:
     void getCalendarEntries();
     void createCalendarEntry(const CreateCalendarEntry& entry);
     void updateCalendarEntry(int id, const CreateCalendarEntry& entry);
+    void deleteCalendarEntry(int id);
     void getDomainNodeRoutine(int nodeId);
     void createDomainNodeRoutine(int nodeId, const SaveRoutine& routine);
     void updateDomainNodeRoutine(int nodeId, const SaveRoutine& routine);

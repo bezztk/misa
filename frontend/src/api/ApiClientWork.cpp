@@ -167,6 +167,9 @@ void ApiClient::getCalendarEntries() {
             if (!object["systemtask_id"].isNull()) {
                 entry.systemTaskId = object["systemtask_id"].toInt();
             }
+            if (!object["routine_execution_id"].isNull()) {
+                entry.routineExecutionId = object["routine_execution_id"].toInt();
+            }
             entries.push_back(entry);
         }
 
@@ -227,6 +230,20 @@ void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &ent
             emit calendarEntryUpdated();
         }
 
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::deleteCalendarEntry(const int id) {
+    const QNetworkRequest request(
+        buildUrl("/calendar-entries/" + QString::number(id))
+    );
+    QNetworkReply *reply = manager.deleteResource(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (reply->error() == QNetworkReply::NoError
+            && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
+            emit calendarEntryDeleted();
+        }
         reply->deleteLater();
     });
 }

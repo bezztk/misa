@@ -3,7 +3,7 @@
 #include "RoutineDialog.h"
 
 #include <QFrame>
-#include <QBrush>
+#include <QApplication>
 #include <QColor>
 #include <QComboBox>
 #include <QDialog>
@@ -17,11 +17,13 @@
 #include <QListView>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
 #include <QStandardItemModel>
+#include <QStyledItemDelegate>
 #include <QStyle>
 #include <QTimer>
 #include <QTreeView>
@@ -46,11 +48,103 @@ static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
-static constexpr int DOMAIN_NAME_COLUMN = 0;
-static constexpr int TASK_COUNT_COLUMN = 1;
-static constexpr int PURSUIT_COUNT_COLUMN = 2;
-static constexpr int SKILL_COUNT_COLUMN = 3;
-static constexpr int FLASHCARD_COUNT_COLUMN = 4;
+
+class DomainNodeDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(
+        QPainter *painter,
+        const QStyleOptionViewItem &option,
+        const QModelIndex &index
+    ) const override {
+        if (!index.data(Qt::UserRole).isValid()) {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+
+        struct Indicator {
+            QString text;
+            QColor color;
+            int width;
+        };
+        std::vector<Indicator> indicators;
+        const QFontMetrics metrics(option.font);
+        auto addIndicator = [&](const int role, const QString &symbol, const QColor &color) {
+            const int count = index.data(role).toInt();
+            if (count > 0) {
+                const QString text = symbol + " " + QString::number(count);
+                indicators.push_back({text, color, metrics.horizontalAdvance(text)});
+            }
+        };
+        addIndicator(TASK_COUNT_ROLE, "☑", QColor("#E0E0E0"));
+        addIndicator(PURSUIT_COUNT_ROLE, "↑", QColor("#81C784"));
+        addIndicator(SKILL_COUNT_ROLE, "★", QColor("#FFD54F"));
+        addIndicator(FLASHCARD_COUNT_ROLE, "▣", QColor("#64B5F6"));
+        const bool hasRoutine = index.data(HAS_ROUTINE_ROLE).toBool();
+
+        if (indicators.empty() && !hasRoutine) {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+
+        constexpr int gap = 10;
+        int indicatorWidth = 0;
+        for (const Indicator &indicator : indicators) {
+            indicatorWidth += indicator.width;
+        }
+        if (!indicators.empty()) {
+            indicatorWidth += gap * (static_cast<int>(indicators.size()) - 1);
+        }
+
+        QStyleOptionViewItem backgroundOption(option);
+        initStyleOption(&backgroundOption, index);
+        backgroundOption.text.clear();
+        backgroundOption.icon = {};
+        QStyle *style = option.widget
+            ? option.widget->style()
+            : QApplication::style();
+        style->drawControl(
+            QStyle::CE_ItemViewItem,
+            &backgroundOption,
+            painter,
+            option.widget
+        );
+
+        const int indicatorLeft = indicators.empty()
+            ? option.rect.right() + 1
+            : option.rect.right() - indicatorWidth - 5;
+        QStyleOptionViewItem nameOption(option);
+        if (hasRoutine) {
+            nameOption.rect.setLeft(option.rect.left() + 18);
+        }
+        nameOption.rect.setRight(
+            indicators.empty() ? option.rect.right() : indicatorLeft - 7
+        );
+        QStyledItemDelegate::paint(painter, nameOption, index);
+
+        painter->save();
+        if (hasRoutine) {
+            painter->setPen(QColor("#64B5F6"));
+            painter->drawText(
+                QRect(option.rect.left() + 2, option.rect.top(), 14, option.rect.height()),
+                Qt::AlignCenter,
+                "↻"
+            );
+        }
+        int x = indicatorLeft;
+        for (const Indicator &indicator : indicators) {
+            painter->setPen(indicator.color);
+            painter->drawText(
+                QRect(x, option.rect.top(), indicator.width, option.rect.height()),
+                Qt::AlignLeft | Qt::AlignVCenter,
+                indicator.text
+            );
+            x += indicator.width + gap;
+        }
+        painter->restore();
+    }
+};
 
 static QString metadataName(const MetadataItem &item) {
     return item.displayName.value_or(item.name);
@@ -156,37 +250,12 @@ static void refreshDomainNodeText(QStandardItem *item) {
     const int skillCount = item->data(SKILL_COUNT_ROLE).toInt();
     const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
     const int taskCount = item->data(TASK_COUNT_ROLE).toInt();
-
-    QStandardItem *parent = item->parent();
-    const int row = item->row();
-    auto setIndicator = [parent, row](
-        const int column,
-        const int count,
-        const QString &symbol,
-        const QString &name,
-        const QString &color
-    ) {
-        QStandardItem *indicator = parent->child(row, column);
-        indicator->setText(
-            count > 0 ? symbol + " " + QString::number(count) : QString()
-        );
-        indicator->setToolTip(
-            count > 0 ? name + ": " + QString::number(count) : QString()
-        );
-        indicator->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        indicator->setForeground(QBrush(QColor(color)));
-    };
-
-    setIndicator(TASK_COUNT_COLUMN, taskCount, "☑", "Aufgaben", "#E0E0E0");
-    setIndicator(
-        PURSUIT_COUNT_COLUMN, pursuitCount, "↑", "Bestrebungen", "#81C784"
-    );
-    setIndicator(SKILL_COUNT_COLUMN, skillCount, "★", "Skills", "#FFD54F");
-    setIndicator(
-        FLASHCARD_COUNT_COLUMN, flashcardCount, "▣", "Flashcards", "#64B5F6"
-    );
+    const bool hasRoutine = item->data(HAS_ROUTINE_ROLE).toBool();
 
     QStringList details;
+    if (hasRoutine) {
+        details.append("Routine");
+    }
     if (taskCount > 0) {
         details.append("Aufgaben: " + QString::number(taskCount));
     }
@@ -696,6 +765,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     model = new QStandardItemModel(treeView);
     treeView->setModel(model);
+    treeView->setItemDelegate(new DomainNodeDelegate(treeView));
 
     editorWidget = new QWidget(splitter);
     editorWidget->setObjectName("documentEditorPanel");
@@ -769,7 +839,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QWidget#sidebarList {
             border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 4px;
+            border-radius: 0;
         }
         QPushButton#pursuitSectionButton,
         QPushButton#skillSectionButton {
@@ -833,7 +903,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
-    skillLayout->setContentsMargins(4, 4, 4, 4);
+    skillLayout->setContentsMargins(0, 0, 0, 0);
     skillLayout->setSpacing(0);
 
     auto *sidebarScrollArea = new QScrollArea(skillWidget);
@@ -1022,13 +1092,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 QStandardItem *parentItem = node.parentId.has_value()
                     ? findDomainNodeItem(*node.parentId)
                     : findDomainItem(node.domainId);
-                parentItem->appendRow({
-                    item,
-                    new QStandardItem(),
-                    new QStandardItem(),
-                    new QStandardItem(),
-                    new QStandardItem()
-                });
+                parentItem->appendRow(item);
                 refreshDomainNodeText(item);
             });
     connect(&apiClient, &ApiClient::domainNodeUpdated, this,
@@ -1057,6 +1121,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 QStandardItem *item = findDomainNodeItem(nodeId);
                 if (item) {
                     item->setData(true, HAS_ROUTINE_ROLE);
+                    refreshDomainNodeText(item);
                 }
             });
     connect(&apiClient, &ApiClient::documentReceived, this,
@@ -1549,7 +1614,7 @@ void DomainView::renderDomainTree(
     const std::vector<DomainNode> &nodes
 ) {
     model->clear();
-    model->setColumnCount(5);
+    model->setColumnCount(1);
 
     for (const MetadataItem &domain : domains) {
         auto *domainItem = new QStandardItem(domain.name);
@@ -1573,13 +1638,7 @@ void DomainView::renderDomainTree(
                 if (node.hasDocument) {
                     item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 }
-                parentItem->appendRow({
-                    item,
-                    new QStandardItem(),
-                    new QStandardItem(),
-                    new QStandardItem(),
-                    new QStandardItem()
-                });
+                parentItem->appendRow(item);
                 refreshDomainNodeText(item);
                 addNodes(node.id, item);
             }
@@ -1588,11 +1647,7 @@ void DomainView::renderDomainTree(
         addNodes(std::nullopt, domainItem);
     }
 
-    treeView->header()->setSectionResizeMode(DOMAIN_NAME_COLUMN, QHeaderView::Stretch);
-    for (int column = TASK_COUNT_COLUMN; column <= FLASHCARD_COUNT_COLUMN; ++column) {
-        treeView->header()->setSectionResizeMode(column, QHeaderView::Fixed);
-        treeView->header()->resizeSection(column, 40);
-    }
+    treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     treeView->collapseAll();
 }
 

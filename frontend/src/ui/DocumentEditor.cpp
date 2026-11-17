@@ -85,7 +85,7 @@ int DocumentEditor::lineNumberAreaWidth() const {
 }
 
 void DocumentEditor::updateLineNumberAreaWidth() {
-    setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+    setViewportMargins(lineNumberAreaWidth() + 12, 10, 12, 10);
 }
 
 void DocumentEditor::updateLineNumberArea(const QRect &rect, const int dy) {
@@ -103,7 +103,12 @@ void DocumentEditor::resizeEvent(QResizeEvent *event) {
     QPlainTextEdit::resizeEvent(event);
     const QRect contents = contentsRect();
     lineNumberArea->setGeometry(
-        QRect(contents.left(), contents.top(), lineNumberAreaWidth(), contents.height())
+        QRect(
+            contents.left(),
+            contents.top() + 10,
+            lineNumberAreaWidth(),
+            contents.height() - 20
+        )
     );
 }
 

@@ -12,6 +12,7 @@ struct CalendarEntry {
     QDateTime startAt;
     std::optional<QDateTime> endAt{};
     std::optional<int> systemTaskId{};
+    std::optional<int> routineExecutionId{};
 
     bool isReminder() const {
         return !endAt.has_value();

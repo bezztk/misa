@@ -18,7 +18,8 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/calendar-entries/{id}",
-            axum::routing::patch(calendar_entry_handler::update_calendar_entry),
+            axum::routing::patch(calendar_entry_handler::update_calendar_entry)
+                .delete(calendar_entry_handler::delete_calendar_entry),
         )
         .route("/domain-tree", get(domain_handler::get_domain_tree))
         .route(

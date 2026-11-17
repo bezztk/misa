@@ -8,7 +8,7 @@
 
 #include <vector>
 
-class QListWidget;
+class QComboBox;
 class QTreeWidget;
 
 class TaskView : public QWidget {
@@ -19,7 +19,7 @@ public:
 
 private:
     void renderTasks();
-    void renderNavigation();
+    void renderViewSelector();
     void openCreateDialog();
     void openEditDialog(const Task &task);
     void openScheduleDialog(const Task &task);
@@ -28,7 +28,7 @@ private:
     std::vector<Task> tasks;
     std::vector<TaskPursuit> pursuits;
     ApiClient &apiClient;
-    QListWidget *navigation;
+    QComboBox *viewSelector;
     QTreeWidget *taskList;
     int selectedNavigationType = 0;
     int selectedNavigationId = 0;

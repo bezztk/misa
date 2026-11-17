@@ -10,6 +10,7 @@
 #include <vector>
 
 class QTreeWidget;
+class QDateEdit;
 
 class CalendarView : public QWidget {
 public:
@@ -23,6 +24,8 @@ private:
 
     ApiClient &apiClient;
     QTreeWidget *tree;
+    QDateEdit *fromDateEdit;
+    QDateEdit *toDateEdit;
     std::vector<CalendarEntry> entries;
     std::vector<Task> tasks;
 };

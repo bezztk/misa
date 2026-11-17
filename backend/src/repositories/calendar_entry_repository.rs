@@ -49,3 +49,12 @@ pub async fn update_calendar_entry(
 
     Ok(result.rows_affected() > 0)
 }
+
+pub async fn delete_calendar_entry(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM calendar_entries WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+
+    Ok(result.rows_affected() > 0)
+}

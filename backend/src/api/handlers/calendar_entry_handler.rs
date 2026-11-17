@@ -39,6 +39,17 @@ pub async fn update_calendar_entry(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn delete_calendar_entry(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+) -> ApiResult<StatusCode> {
+    if !calendar_entry_repository::delete_calendar_entry(&pool, id).await? {
+        return Err(ApiError::NotFound);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 fn validate(payload: &mut SaveCalendarEntryRequest) -> ApiResult<()> {
     if !valid_name(&payload.name, 150)
         || payload.is_reminder != payload.end_at.is_none()
