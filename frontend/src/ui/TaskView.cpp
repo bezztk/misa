@@ -127,12 +127,6 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                 ).toInt();
                 renderTasks();
             });
-    connect(taskList, &QTreeWidget::itemDoubleClicked, this,
-            [this](QTreeWidgetItem *item) {
-                if (const Task *task = taskById(item->data(0, TASK_ID_ROLE).toInt())) {
-                    openEditDialog(*task);
-                }
-            });
     connect(taskList, &QWidget::customContextMenuRequested, this,
             [this](const QPoint &position) {
                 QTreeWidgetItem *item = taskList->itemAt(position);
@@ -144,6 +138,10 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                     return;
                 }
                 QMenu menu(taskList);
+                QAction *editAction = menu.addAction(
+                    QIcon(":/assets/icons/edit.png"),
+                    "Bearbeiten"
+                );
                 QAction *scheduleAction = menu.addAction(
                     QIcon(":/assets/icons/add.png"),
                     "Einplanen"
@@ -160,7 +158,9 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                 QAction *selectedAction = menu.exec(
                     taskList->viewport()->mapToGlobal(position)
                 );
-                if (selectedAction == scheduleAction) {
+                if (selectedAction == editAction) {
+                    openEditDialog(*task);
+                } else if (selectedAction == scheduleAction) {
                     openScheduleDialog(*task);
                 } else if (selectedAction == deleteAction) {
                     apiClient.deleteTask(task->id);
