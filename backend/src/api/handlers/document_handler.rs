@@ -39,3 +39,14 @@ pub async fn update_document(
 
     Ok(Json(document))
 }
+
+pub async fn delete_document(
+    State(pool): State<PgPool>,
+    Path(node_id): Path<i32>,
+) -> ApiResult<StatusCode> {
+    if !document_repository::delete_document(&pool, node_id).await? {
+        return Err(ApiError::NotFound);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -59,6 +59,7 @@ signals:
     void documentReceived(const Document& document);
     void documentLoadFailed(int nodeId);
     void documentUpdated(int nodeId, bool successful);
+    void documentDeleted(int nodeId);
 
 public:
     explicit ApiClient(QObject *parent = nullptr);
@@ -114,6 +115,7 @@ public:
     void createDocument(int nodeId);
     void getDocument(int nodeId);
     void updateDocument(int nodeId, const QString& content);
+    void deleteDocument(int nodeId);
 
 private:
     static constexpr auto SCHEME = "http";

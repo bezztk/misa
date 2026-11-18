@@ -1309,6 +1309,15 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 requestDocumentChange(document.domainNodeId, true);
             });
+    connect(&apiClient, &ApiClient::documentDeleted, this,
+            [this](const int nodeId) {
+                QStandardItem *item = findDomainNodeItem(nodeId);
+                item->setData(false, HAS_DOCUMENT_ROLE);
+                item->setIcon({});
+                if (currentNodeId == nodeId) {
+                    requestDocumentChange(nodeId, false);
+                }
+            });
     connect(&apiClient, &ApiClient::documentUpdated, this,
             [this](const int nodeId, const bool successful) {
                 if (!saveInProgress || nodeId != savingDocumentNodeId) {
@@ -1887,7 +1896,10 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     QAction *createAction = menu.addAction("Unterknoten hinzufügen");
     QAction *editAction = menu.addAction("Bearbeiten");
     QAction *createDocumentAction = nullptr;
-    if (!index.data(HAS_DOCUMENT_ROLE).toBool()) {
+    QAction *deleteDocumentAction = nullptr;
+    if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
+        deleteDocumentAction = menu.addAction("Dokument löschen");
+    } else {
         createDocumentAction = menu.addAction("Dokument erstellen");
     }
     menu.addSeparator();
@@ -1952,6 +1964,13 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         }
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
         apiClient.createDocument(nodeId);
+    } else if (deleteDocumentAction && selectedAction == deleteDocumentAction
+               && QMessageBox::question(
+                   treeView,
+                   "Dokument löschen",
+                   "Dokument dieses Domain Nodes löschen?"
+               ) == QMessageBox::Yes) {
+        saveBeforeClose([this, nodeId] { apiClient.deleteDocument(nodeId); });
     } else if (selectedAction == createTaskAction) {
         createTask(nodeId);
     } else if (selectedAction == createPursuitAction) {

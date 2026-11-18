@@ -40,7 +40,8 @@ pub fn create_router(pool: PgPool) -> Router {
             "/domain-nodes/{node_id}/document",
             get(document_handler::get_document)
                 .post(document_handler::create_document)
-                .put(document_handler::update_document),
+                .put(document_handler::update_document)
+                .delete(document_handler::delete_document),
         )
         .route(
             "/flashcards/due",

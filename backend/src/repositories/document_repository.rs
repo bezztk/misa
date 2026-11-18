@@ -42,3 +42,12 @@ pub async fn update_document(
     .fetch_optional(pool)
     .await
 }
+
+pub async fn delete_document(pool: &PgPool, node_id: i32) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM documents WHERE domain_node_id = $1")
+        .bind(node_id)
+        .execute(pool)
+        .await?;
+
+    Ok(result.rows_affected() > 0)
+}

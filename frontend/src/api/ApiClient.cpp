@@ -549,6 +549,20 @@ void ApiClient::updateDocument(const int nodeId, const QString &content) {
     });
 }
 
+void ApiClient::deleteDocument(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/document"
+    ));
+    QNetworkReply *reply = manager.deleteResource(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (requestSucceeded(reply)) {
+            emit documentDeleted(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::getDueFlashcards() {
     const QNetworkRequest networkRequest(buildUrl(PATH_FLASHCARDS));
 
