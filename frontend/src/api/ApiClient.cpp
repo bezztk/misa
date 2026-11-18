@@ -443,44 +443,28 @@ void ApiClient::deleteDomainNode(const int id) {
     });
 }
 
-void ApiClient::updateDomainNode(
+void ApiClient::updateDomainNodeField(
     const int id,
-    const QString &name,
-    const std::optional<int> cognitiveLevelId,
-    const std::optional<int> completenessLevelId,
-    const std::optional<int> flashcardStatusId,
-    const std::optional<int> verificationStatusId,
-    const std::optional<int> verificationLevelId
+    const DomainNodeField field,
+    const QJsonValue &value
 ) {
-    QNetworkRequest networkRequest(buildUrl("/domain-nodes/" + QString::number(id)));
+    QNetworkRequest networkRequest(buildUrl(
+        "/domain-nodes/" + QString::number(id)
+        + "/fields/" + QString::number(static_cast<int>(field))
+    ));
     networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject json;
-    json["name"] = name;
-    json["cognitive_level_id"] = cognitiveLevelId.has_value()
-        ? QJsonValue(*cognitiveLevelId)
-        : QJsonValue(QJsonValue::Null);
-    json["completeness_level_id"] = completenessLevelId.has_value()
-        ? QJsonValue(*completenessLevelId) : QJsonValue(QJsonValue::Null);
-    json["flashcard_status_id"] = flashcardStatusId.has_value()
-        ? QJsonValue(*flashcardStatusId) : QJsonValue(QJsonValue::Null);
-    json["verification_status_id"] = verificationStatusId.has_value()
-        ? QJsonValue(*verificationStatusId) : QJsonValue(QJsonValue::Null);
-    json["verification_level_id"] = verificationLevelId.has_value()
-        ? QJsonValue(*verificationLevelId) : QJsonValue(QJsonValue::Null);
+    json["value"] = value;
     QNetworkReply *reply = manager.sendCustomRequest(
         networkRequest,
         "PATCH",
         QJsonDocument(json).toJson()
     );
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        QJsonDocument response;
-        if (readJson(reply, "Bereich konnte nicht aktualisiert werden", response)
-            && response.isObject()) {
-            emit domainNodeUpdated(parseDomainNode(response.object()));
-        } else if (!response.isNull() && !response.isObject()) {
-            emit requestFailed("Bereich konnte nicht aktualisiert werden: Ungültige Serverantwort");
+    connect(reply, &QNetworkReply::finished, this, [this, reply, id, field, value] {
+        if (requestSucceeded(reply)) {
+            emit domainNodeFieldUpdated(id, field, value);
         }
 
         reply->deleteLater();

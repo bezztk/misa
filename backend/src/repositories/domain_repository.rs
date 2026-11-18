@@ -1,6 +1,4 @@
-use crate::models::domain::{
-    Domain, DomainNode, DomainNodeField, DomainNodeFieldUpdate, DomainNodeUpdateRequest,
-};
+use crate::models::domain::{Domain, DomainNode, DomainNodeField, DomainNodeFieldUpdate};
 use crate::models::entity::EntityType;
 use crate::repositories::entity_repository;
 use serde_json::json;
@@ -224,63 +222,6 @@ pub async fn delete_domain_node(pool: &PgPool, id: i32) -> Result<bool, sqlx::Er
     transaction.commit().await?;
 
     Ok(result.rows_affected() > 0)
-}
-
-pub async fn update_domain_node(
-    pool: &PgPool,
-    id: i32,
-    update: &DomainNodeUpdateRequest,
-) -> Result<Option<DomainNode>, sqlx::Error> {
-    let mut transaction = pool.begin().await?;
-    sqlx::query(
-        "UPDATE documents
-         SET completeness_level_id = $2,
-             flashcard_status_id = $3,
-             verification_status_id = $4,
-             verification_level_id = $5
-         WHERE domain_node_id = $1",
-    )
-    .bind(id)
-    .bind(update.completeness_level_id)
-    .bind(update.flashcard_status_id)
-    .bind(update.verification_status_id)
-    .bind(update.verification_level_id)
-    .execute(&mut *transaction)
-    .await?;
-
-    let node = sqlx::query_as::<_, DomainNode>(
-        "UPDATE domain_nodes
-         SET name = $2, cognitive_level_id = $3
-         WHERE entity_id = $1
-         RETURNING entity_id AS id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at,
-                   EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.entity_id) AS has_document,
-                   (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.entity_id) AS flashcard_count,
-                   (SELECT COUNT(*) FROM attachments WHERE domain_node_id = domain_nodes.entity_id) AS attachment_count,
-                   (SELECT COUNT(*) FROM skills WHERE domain_node_id = domain_nodes.entity_id) AS skill_count,
-                   (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = domain_nodes.entity_id) AS pursuit_count,
-                   (SELECT COUNT(*)
-                    FROM systemtasks
-                    WHERE domain_node_id = domain_nodes.entity_id) AS task_count,
-                   (SELECT completeness_level_id FROM documents WHERE domain_node_id = domain_nodes.entity_id) AS completeness_level_id,
-                   (SELECT flashcard_status_id FROM documents WHERE domain_node_id = domain_nodes.entity_id) AS flashcard_status_id,
-                   (SELECT verification_status_id FROM documents WHERE domain_node_id = domain_nodes.entity_id) AS verification_status_id,
-                   (SELECT verification_level_id FROM documents WHERE domain_node_id = domain_nodes.entity_id) AS verification_level_id",
-    )
-    .bind(id)
-    .bind(&update.name)
-    .bind(update.cognitive_level_id)
-    .fetch_optional(&mut *transaction)
-    .await?;
-
-    if node.is_some() {
-        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
-            .bind(id)
-            .execute(&mut *transaction)
-            .await?;
-    }
-
-    transaction.commit().await?;
-    Ok(node)
 }
 
 pub async fn update_domain_node_field(

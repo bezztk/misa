@@ -2,7 +2,6 @@ use crate::api::error::{ApiError, ApiResult};
 use crate::api::response::IdResponse;
 use crate::models::system_task::{
     CreateTaskRequest, TaskField, TaskFieldUpdate, TaskFieldUpdateRequest, TaskListItem,
-    UpdateTaskRequest,
 };
 use crate::repositories::task_repository;
 use crate::validation::valid_name;
@@ -33,26 +32,6 @@ pub async fn create_task(
     .await?;
 
     Ok((StatusCode::CREATED, Json(IdResponse { id })))
-}
-
-pub async fn update_task(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-    Json(mut payload): Json<UpdateTaskRequest>,
-) -> ApiResult<StatusCode> {
-    if let Some(name) = &payload.name {
-        if !valid_name(name, 150) {
-            return Err(ApiError::BadRequest);
-        }
-
-        payload.name = Some(name.trim().to_string());
-    }
-
-    if !task_repository::update_task(&pool, id, &payload).await? {
-        return Err(ApiError::NotFound);
-    }
-
-    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn update_task_field(

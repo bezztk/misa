@@ -4,6 +4,12 @@
 #include <QString>
 #include <optional>
 
+enum class TaskField {
+    Name = 1,
+    StateId = 2,
+    PriorityId = 3
+};
+
 struct Task {
     int id;
     std::optional<int> groupId;
@@ -18,12 +24,6 @@ struct CreateTask {
     std::optional<int> groupId;
     int priorityId;
     std::optional<int> domainNodeId;
-};
-
-struct UpdateTask {
-    QString name;
-    int stateId;
-    int priorityId;
 };
 
 #endif //FRONTEND_TASK_H

@@ -189,6 +189,12 @@ static std::optional<int> selectedMetadata(const QComboBox *combo) {
         : std::nullopt;
 }
 
+static QJsonValue jsonValue(const std::optional<int> value) {
+    return value.has_value()
+        ? QJsonValue(*value)
+        : QJsonValue(QJsonValue::Null);
+}
+
 static int itemCount(const QStandardItem *parent) {
     int count = parent->rowCount();
     for (int row = 0; row < parent->rowCount(); ++row) {
@@ -280,16 +286,18 @@ static void refreshDomainNodeText(QStandardItem *item) {
     );
 }
 
-static bool showDomainNodeDialog(
+static void showDomainNodeDialog(
     QWidget *parent,
+    ApiClient &apiClient,
+    const int nodeId,
     const Metadata &metadata,
-    QString &name,
-    std::optional<int> &cognitiveLevelId,
+    const QString &name,
+    const std::optional<int> cognitiveLevelId,
     const bool hasDocument,
-    std::optional<int> &completenessLevelId,
-    std::optional<int> &flashcardStatusId,
-    std::optional<int> &verificationStatusId,
-    std::optional<int> &verificationLevelId
+    const std::optional<int> completenessLevelId,
+    const std::optional<int> flashcardStatusId,
+    const std::optional<int> verificationStatusId,
+    const std::optional<int> verificationLevelId
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle("Domain Node bearbeiten");
@@ -337,27 +345,62 @@ static bool showDomainNodeDialog(
     }
     layout->addLayout(form);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(nameEdit, &QLineEdit::editingFinished, &dialog,
+                     [&apiClient, nodeId, nameEdit] {
+                         const QString value = nameEdit->text().trimmed();
+                         if (!value.isEmpty()) {
+                             apiClient.updateDomainNodeField(
+                                 nodeId, DomainNodeField::Name, value
+                             );
+                         }
+                     });
+    QObject::connect(cognitiveCombo, &QComboBox::currentIndexChanged, &dialog,
+                     [&apiClient, nodeId, cognitiveCombo] {
+                         apiClient.updateDomainNodeField(
+                             nodeId,
+                             DomainNodeField::CognitiveLevelId,
+                             jsonValue(selectedMetadata(cognitiveCombo))
+                         );
+                     });
+    if (hasDocument) {
+        QObject::connect(completenessCombo, &QComboBox::currentIndexChanged, &dialog,
+                         [&apiClient, nodeId, completenessCombo] {
+                             apiClient.updateDomainNodeField(
+                                 nodeId,
+                                 DomainNodeField::CompletenessLevelId,
+                                 jsonValue(selectedMetadata(completenessCombo))
+                             );
+                         });
+        QObject::connect(flashcardStatusCombo, &QComboBox::currentIndexChanged, &dialog,
+                         [&apiClient, nodeId, flashcardStatusCombo] {
+                             apiClient.updateDomainNodeField(
+                                 nodeId,
+                                 DomainNodeField::FlashcardStatusId,
+                                 jsonValue(selectedMetadata(flashcardStatusCombo))
+                             );
+                         });
+        QObject::connect(verificationStatusCombo, &QComboBox::currentIndexChanged, &dialog,
+                         [&apiClient, nodeId, verificationStatusCombo] {
+                             apiClient.updateDomainNodeField(
+                                 nodeId,
+                                 DomainNodeField::VerificationStatusId,
+                                 jsonValue(selectedMetadata(verificationStatusCombo))
+                             );
+                         });
+        QObject::connect(verificationLevelCombo, &QComboBox::currentIndexChanged, &dialog,
+                         [&apiClient, nodeId, verificationLevelCombo] {
+                             apiClient.updateDomainNodeField(
+                                 nodeId,
+                                 DomainNodeField::VerificationLevelId,
+                                 jsonValue(selectedMetadata(verificationLevelCombo))
+                             );
+                         });
+    }
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return false;
-    }
-
-    name = nameEdit->text().trimmed();
-    cognitiveLevelId = selectedMetadata(cognitiveCombo);
-    if (hasDocument) {
-        completenessLevelId = selectedMetadata(completenessCombo);
-        flashcardStatusId = selectedMetadata(flashcardStatusCombo);
-        verificationStatusId = selectedMetadata(verificationStatusCombo);
-        verificationLevelId = selectedMetadata(verificationLevelCombo);
-    }
-    return true;
+    dialog.exec();
 }
 
 static bool showFlashcardDialog(
@@ -1228,20 +1271,47 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 parentItem->appendRow(item);
                 refreshDomainNodeText(item);
             });
-    connect(&apiClient, &ApiClient::domainNodeUpdated, this,
-            [this](const DomainNode &node) {
-                QStandardItem *item = findDomainNodeItem(node.id);
-                setDomainNodeRoles(item, node);
-                refreshDomainNodeText(item);
-                if (currentNodeId == node.id) {
-                    updateFlashcardStatus(node.flashcardStatusId);
+    connect(&apiClient, &ApiClient::domainNodeFieldUpdated, this,
+            [this](const int nodeId, const DomainNodeField field,
+                   const QJsonValue &value) {
+                QStandardItem *item = findDomainNodeItem(nodeId);
+                switch (field) {
+                    case DomainNodeField::Name:
+                        item->setData(value.toString(), NODE_NAME_ROLE);
+                        refreshDomainNodeText(item);
+                        if (currentDocumentNodeId == nodeId) {
+                            documentTitle->setText(value.toString());
+                        }
+                        break;
+                    case DomainNodeField::CognitiveLevelId:
+                        item->setData(value.isNull() ? QVariant() : value.toInt(),
+                                      COGNITIVE_LEVEL_ROLE);
+                        break;
+                    case DomainNodeField::CompletenessLevelId:
+                        item->setData(value.isNull() ? QVariant() : value.toInt(),
+                                      COMPLETENESS_LEVEL_ROLE);
+                        break;
+                    case DomainNodeField::FlashcardStatusId:
+                        item->setData(value.isNull() ? QVariant() : value.toInt(),
+                                      FLASHCARD_STATUS_ROLE);
+                        break;
+                    case DomainNodeField::VerificationStatusId:
+                        item->setData(value.isNull() ? QVariant() : value.toInt(),
+                                      VERIFICATION_STATUS_ROLE);
+                        break;
+                    case DomainNodeField::VerificationLevelId:
+                        item->setData(value.isNull() ? QVariant() : value.toInt(),
+                                      VERIFICATION_LEVEL_ROLE);
+                        break;
                 }
-                if (currentDocumentNodeId == node.id) {
-                    documentTitle->setText(node.name);
+                if (currentNodeId == nodeId) {
+                    updateFlashcardStatus(optionalRole(item->index(), FLASHCARD_STATUS_ROLE));
+                }
+                if (currentDocumentNodeId == nodeId) {
                     updateDocumentStatus(
-                        node.completenessLevelId,
-                        node.verificationStatusId,
-                        node.verificationLevelId
+                        optionalRole(item->index(), COMPLETENESS_LEVEL_ROLE),
+                        optionalRole(item->index(), VERIFICATION_STATUS_ROLE),
+                        optionalRole(item->index(), VERIFICATION_LEVEL_ROLE)
                     );
                 }
             });
@@ -1928,40 +1998,19 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             apiClient.createDomainNode(nodeId, name);
         }
     } else if (selectedAction == editAction) {
-        QString name = index.data(NODE_NAME_ROLE).toString();
-        std::optional<int> cognitiveLevelId = optionalRole(index, COGNITIVE_LEVEL_ROLE);
-        std::optional<int> completenessLevelId = optionalRole(
-            index, COMPLETENESS_LEVEL_ROLE
+        showDomainNodeDialog(
+            treeView,
+            apiClient,
+            nodeId,
+            apiClient.metadata(),
+            index.data(NODE_NAME_ROLE).toString(),
+            optionalRole(index, COGNITIVE_LEVEL_ROLE),
+            index.data(HAS_DOCUMENT_ROLE).toBool(),
+            optionalRole(index, COMPLETENESS_LEVEL_ROLE),
+            optionalRole(index, FLASHCARD_STATUS_ROLE),
+            optionalRole(index, VERIFICATION_STATUS_ROLE),
+            optionalRole(index, VERIFICATION_LEVEL_ROLE)
         );
-        std::optional<int> flashcardStatusId = optionalRole(index, FLASHCARD_STATUS_ROLE);
-        std::optional<int> verificationStatusId = optionalRole(
-            index, VERIFICATION_STATUS_ROLE
-        );
-        std::optional<int> verificationLevelId = optionalRole(
-            index, VERIFICATION_LEVEL_ROLE
-        );
-
-        if (showDomainNodeDialog(
-                treeView,
-                apiClient.metadata(),
-                name,
-                cognitiveLevelId,
-                index.data(HAS_DOCUMENT_ROLE).toBool(),
-                completenessLevelId,
-                flashcardStatusId,
-                verificationStatusId,
-                verificationLevelId
-            )) {
-            apiClient.updateDomainNode(
-                nodeId,
-                name,
-                cognitiveLevelId,
-                completenessLevelId,
-                flashcardStatusId,
-                verificationStatusId,
-                verificationLevelId
-            );
-        }
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
         apiClient.createDocument(nodeId);
     } else if (deleteDocumentAction && selectedAction == deleteDocumentAction
@@ -2359,23 +2408,30 @@ void DomainView::editTask(const int taskId) {
     priorityEdit->setCurrentIndex(priorityEdit->findData(task->priorityId));
     layout->addRow("Priorität", priorityEdit);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(nameEdit, &QLineEdit::editingFinished, &dialog,
+            [this, taskId, nameEdit] {
+                const QString name = nameEdit->text().trimmed();
+                if (!name.isEmpty()) {
+                    apiClient.updateTaskField(taskId, TaskField::Name, name);
+                }
+            });
+    connect(stateEdit, &QComboBox::currentIndexChanged, &dialog,
+            [this, taskId, stateEdit] {
+                apiClient.updateTaskField(
+                    taskId, TaskField::StateId, stateEdit->currentData().toInt()
+                );
+            });
+    connect(priorityEdit, &QComboBox::currentIndexChanged, &dialog,
+            [this, taskId, priorityEdit] {
+                apiClient.updateTaskField(
+                    taskId, TaskField::PriorityId, priorityEdit->currentData().toInt()
+                );
+            });
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addRow(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    apiClient.updateTask(taskId, UpdateTask{
-        .name = nameEdit->text().trimmed(),
-        .stateId = stateEdit->currentData().toInt(),
-        .priorityId = priorityEdit->currentData().toInt()
-    });
+    dialog.exec();
 }
 
 void DomainView::createPursuit(const int nodeId) {

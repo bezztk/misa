@@ -10,6 +10,7 @@
 #include "../models/Pursuit.h"
 #include "../models/Progression.h"
 #include "../models/CalendarEntry.h"
+#include <QJsonValue>
 #include <QNetworkAccessManager>
 
 class QJsonDocument;
@@ -53,7 +54,7 @@ signals:
         const std::vector<DomainNode>& nodes
     );
     void domainNodeCreated(const DomainNode& node);
-    void domainNodeUpdated(const DomainNode& node);
+    void domainNodeFieldUpdated(int nodeId, DomainNodeField field, const QJsonValue& value);
     void domainNodeDeleted(int nodeId);
     void documentCreated(const Document& document);
     void documentReceived(const Document& document);
@@ -67,7 +68,7 @@ public:
     void getMetadata();
     void getTasks();
     void createTask(const CreateTask& task);
-    void updateTask(int id, const UpdateTask& task);
+    void updateTaskField(int id, TaskField field, const QJsonValue& value);
     void deleteTask(int id);
     void getCalendarEntries();
     void createCalendarEntry(const CreateCalendarEntry& entry);
@@ -106,12 +107,7 @@ public:
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);
     void deleteDomainNode(int id);
-    void updateDomainNode(int id, const QString& name,
-                          std::optional<int> cognitiveLevelId,
-                          std::optional<int> completenessLevelId,
-                          std::optional<int> flashcardStatusId,
-                          std::optional<int> verificationStatusId,
-                          std::optional<int> verificationLevelId);
+    void updateDomainNodeField(int id, DomainNodeField field, const QJsonValue& value);
     void createDocument(int nodeId);
     void getDocument(int nodeId);
     void updateDocument(int nodeId, const QString& content);

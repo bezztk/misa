@@ -42,8 +42,7 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/domain-nodes/{id}",
-            axum::routing::patch(domain_handler::update_domain_node)
-                .delete(domain_handler::delete_domain_node),
+            axum::routing::delete(domain_handler::delete_domain_node),
         )
         .route(
             "/domain-nodes/{id}/fields/{field_id}",
@@ -121,7 +120,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .route("/metadata", get(metadata_handler::get_metadata))
         .route(
             "/tasks/{id}",
-            axum::routing::patch(task_handler::update_task).delete(task_handler::delete_task),
+            axum::routing::delete(task_handler::delete_task),
         )
         .route(
             "/tasks/{id}/fields/{field_id}",

@@ -75,14 +75,19 @@ void ApiClient::createTask(const CreateTask &task) {
     });
 }
 
-void ApiClient::updateTask(const int id, const UpdateTask &task) {
-    QNetworkRequest networkRequest(buildUrl("/tasks/" + QString::number(id)));
+void ApiClient::updateTaskField(
+    const int id,
+    const TaskField field,
+    const QJsonValue &value
+) {
+    QNetworkRequest networkRequest(buildUrl(
+        "/tasks/" + QString::number(id)
+        + "/fields/" + QString::number(static_cast<int>(field))
+    ));
     networkRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject json;
-    json["name"] = task.name;
-    json["state_id"] = task.stateId;
-    json["priority_id"] = task.priorityId;
+    json["value"] = value;
 
     QNetworkReply *reply = manager.sendCustomRequest(
         networkRequest,

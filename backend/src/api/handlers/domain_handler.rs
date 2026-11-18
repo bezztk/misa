@@ -1,7 +1,7 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::domain::{
     DomainNode, DomainNodeField, DomainNodeFieldUpdate, DomainNodeFieldUpdateRequest,
-    DomainNodeNameRequest, DomainNodeUpdateRequest, DomainTree,
+    DomainNodeNameRequest, DomainTree,
 };
 use crate::repositories::domain_repository;
 use crate::validation::valid_name;
@@ -47,23 +47,6 @@ pub async fn create_root_domain_node(
         .ok_or(ApiError::NotFound)?;
 
     Ok((StatusCode::CREATED, Json(node)))
-}
-
-pub async fn update_domain_node(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-    Json(mut payload): Json<DomainNodeUpdateRequest>,
-) -> ApiResult<Json<DomainNode>> {
-    if !valid_name(&payload.name, 150) {
-        return Err(ApiError::BadRequest);
-    }
-
-    payload.name = payload.name.trim().to_string();
-    let node = domain_repository::update_domain_node(&pool, id, &payload)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-
-    Ok(Json(node))
 }
 
 pub async fn update_domain_node_field(

@@ -168,14 +168,19 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
             });
     connect(&apiClient, &ApiClient::domainNodeCreated, this,
             [this](const DomainNode &node) { domainNodes.push_back(node); });
-    connect(&apiClient, &ApiClient::domainNodeUpdated, this,
-            [this](const DomainNode &node) {
+    connect(&apiClient, &ApiClient::domainNodeFieldUpdated, this,
+            [this](const int nodeId, const DomainNodeField field,
+                   const QJsonValue &value) {
+                if (field != DomainNodeField::Name) {
+                    return;
+                }
                 const auto existing = std::find_if(
                     domainNodes.begin(), domainNodes.end(),
-                    [node](const DomainNode &item) { return item.id == node.id; }
+                    [nodeId](const DomainNode &item) { return item.id == nodeId; }
                 );
                 if (existing != domainNodes.end()) {
-                    *existing = node;
+                    existing->name = value.toString();
+                    renderViewSelector();
                 }
             });
     connect(&apiClient, &ApiClient::domainNodeDeleted, this,
@@ -387,25 +392,30 @@ void TaskView::openEditDialog(const Task &task) {
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(nameEdit, &QLineEdit::editingFinished, &dialog,
+            [this, taskId = task.id, nameEdit] {
+                const QString name = nameEdit->text().trimmed();
+                if (!name.isEmpty()) {
+                    apiClient.updateTaskField(taskId, TaskField::Name, name);
+                }
+            });
+    connect(stateEdit, &QComboBox::currentIndexChanged, &dialog,
+            [this, taskId = task.id, stateEdit] {
+                apiClient.updateTaskField(
+                    taskId, TaskField::StateId, stateEdit->currentData().toInt()
+                );
+            });
+    connect(priorityEdit, &QComboBox::currentIndexChanged, &dialog,
+            [this, taskId = task.id, priorityEdit] {
+                apiClient.updateTaskField(
+                    taskId, TaskField::PriorityId, priorityEdit->currentData().toInt()
+                );
+            });
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addRow(buttons);
-
-    if (dialog.exec() != QDialog::Accepted) {
-        return;
-    }
-    if (nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    apiClient.updateTask(task.id, UpdateTask{
-        .name = nameEdit->text().trimmed(),
-        .stateId = stateEdit->currentData().toInt(),
-        .priorityId = priorityEdit->currentData().toInt()
-    });
+    dialog.exec();
 }
 
 void TaskView::openScheduleDialog(const Task &task) {

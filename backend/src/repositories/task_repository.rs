@@ -1,6 +1,6 @@
 use crate::models::entity::EntityType;
 use crate::models::system_task::{
-    OPEN_SYSTEM_TASK_STATE_ID, TaskField, TaskFieldUpdate, TaskListItem, UpdateTaskRequest,
+    OPEN_SYSTEM_TASK_STATE_ID, TaskField, TaskFieldUpdate, TaskListItem,
 };
 use crate::repositories::entity_repository;
 use serde_json::json;
@@ -41,37 +41,6 @@ pub async fn create_task(
     .await?;
     transaction.commit().await?;
     Ok(entity_id)
-}
-
-pub async fn update_task(
-    pool: &PgPool,
-    id: i32,
-    task: &UpdateTaskRequest,
-) -> Result<bool, sqlx::Error> {
-    let mut transaction = pool.begin().await?;
-    let result = sqlx::query(
-        "UPDATE systemtasks
-         SET name = COALESCE($1, name),
-             state_id = COALESCE($2, state_id),
-             priority_id = COALESCE($3, priority_id)
-         WHERE entity_id = $4",
-    )
-    .bind(task.name.as_deref())
-    .bind(task.state_id)
-    .bind(task.priority_id)
-    .bind(id)
-    .execute(&mut *transaction)
-    .await?;
-
-    if result.rows_affected() > 0 {
-        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
-            .bind(id)
-            .execute(&mut *transaction)
-            .await?;
-    }
-    transaction.commit().await?;
-
-    Ok(result.rows_affected() > 0)
 }
 
 pub async fn update_task_field(

@@ -35,16 +35,6 @@ pub struct DomainNodeNameRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct DomainNodeUpdateRequest {
-    pub name: String,
-    pub cognitive_level_id: Option<i32>,
-    pub completeness_level_id: Option<i32>,
-    pub flashcard_status_id: Option<i32>,
-    pub verification_status_id: Option<i32>,
-    pub verification_level_id: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct DomainNodeFieldUpdateRequest {
     pub value: Value,
 }

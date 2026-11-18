@@ -5,6 +5,15 @@
 
 #include <optional>
 
+enum class DomainNodeField {
+    Name = 1,
+    CognitiveLevelId = 2,
+    CompletenessLevelId = 3,
+    FlashcardStatusId = 4,
+    VerificationStatusId = 5,
+    VerificationLevelId = 6
+};
+
 struct DomainNode {
     int id;
     int domainId;

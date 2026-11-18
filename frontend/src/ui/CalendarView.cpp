@@ -279,21 +279,28 @@ void CalendarView::openTaskEditDialog(const Task &task) {
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(nameEdit, &QLineEdit::editingFinished, &dialog,
+            [this, taskId = task.id, nameEdit] {
+                const QString name = nameEdit->text().trimmed();
+                if (!name.isEmpty()) {
+                    apiClient.updateTaskField(taskId, TaskField::Name, name);
+                }
+            });
+    connect(stateEdit, &QComboBox::currentIndexChanged, &dialog,
+            [this, taskId = task.id, stateEdit] {
+                apiClient.updateTaskField(
+                    taskId, TaskField::StateId, stateEdit->currentData().toInt()
+                );
+            });
+    connect(priorityEdit, &QComboBox::currentIndexChanged, &dialog,
+            [this, taskId = task.id, priorityEdit] {
+                apiClient.updateTaskField(
+                    taskId, TaskField::PriorityId, priorityEdit->currentData().toInt()
+                );
+            });
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addRow(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    apiClient.updateTask(task.id, UpdateTask{
-        .name = nameEdit->text().trimmed(),
-        .stateId = stateEdit->currentData().toInt(),
-        .priorityId = priorityEdit->currentData().toInt()
-    });
+    dialog.exec();
 }

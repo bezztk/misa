@@ -64,13 +64,6 @@ pub struct CreateTaskRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateTaskRequest {
-    pub name: Option<String>,
-    pub state_id: Option<i32>,
-    pub priority_id: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct TaskFieldUpdateRequest {
     pub value: Value,
 }
