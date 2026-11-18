@@ -1,6 +1,26 @@
-use crate::models::entity::EntityType;
+use crate::models::entity::{EntityFieldVersion, EntityType};
 use serde_json::Value;
-use sqlx::{PgConnection, Postgres, Transaction};
+use sqlx::{PgConnection, PgPool, Postgres, Transaction};
+
+pub async fn get_field_versions(
+    pool: &PgPool,
+    entity_id: i32,
+) -> Result<Vec<EntityFieldVersion>, sqlx::Error> {
+    sqlx::query_as::<_, EntityFieldVersion>(
+        "SELECT version.version,
+                field.name AS field_name,
+                version.old_value,
+                version.new_value,
+                version.changed_at
+         FROM entity_field_versions version
+         JOIN entity_fields field ON field.id = version.field_id
+         WHERE version.entity_id = $1
+         ORDER BY version.version DESC",
+    )
+    .bind(entity_id)
+    .fetch_all(pool)
+    .await
+}
 
 pub async fn create_entity(
     connection: &mut PgConnection,

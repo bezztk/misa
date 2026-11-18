@@ -10,6 +10,7 @@
 #include "../models/Pursuit.h"
 #include "../models/Progression.h"
 #include "../models/CalendarEntry.h"
+#include "../models/EntityFieldVersion.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 
@@ -61,6 +62,11 @@ signals:
     void documentLoadFailed(int nodeId);
     void documentUpdated(int nodeId, bool successful);
     void documentDeleted(int nodeId);
+    void entityFieldVersionsReceived(
+        int entityId,
+        const std::vector<EntityFieldVersion>& versions
+    );
+    void entityFieldVersionsLoadFailed(int entityId);
 
 public:
     explicit ApiClient(QObject *parent = nullptr);
@@ -110,6 +116,7 @@ public:
     void getDocument(int nodeId);
     void updateDocument(int nodeId, const QString& content);
     void deleteDocument(int nodeId);
+    void getEntityFieldVersions(int entityId);
 
 private:
     static constexpr auto SCHEME = "http";

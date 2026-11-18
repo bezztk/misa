@@ -1,7 +1,7 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
-    flashcard_handler, metadata_handler, progression_handler, pursuit_handler, routine_handler,
-    skill_handler, task_handler,
+    entity_handler, flashcard_handler, metadata_handler, progression_handler, pursuit_handler,
+    routine_handler, skill_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -25,6 +25,10 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/entities/{entity_id}/comments",
             axum::routing::post(comment_handler::create_comment),
+        )
+        .route(
+            "/entities/{entity_id}/versions",
+            get(entity_handler::get_field_versions),
         )
         .route(
             "/comments/{id}",

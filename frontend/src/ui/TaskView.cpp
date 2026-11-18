@@ -1,6 +1,7 @@
 #include "TaskView.h"
 #include "CalendarEntryDialog.h"
 #include "TaskEditDialog.h"
+#include "VersionHistoryDialog.h"
 
 #include <QColor>
 #include <QComboBox>
@@ -10,6 +11,7 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -142,8 +144,19 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                     return;
                 }
                 QMenu menu(taskList);
-                QAction *scheduleAction = menu.addAction("Einplanen");
-                QAction *deleteAction = menu.addAction("Löschen");
+                QAction *scheduleAction = menu.addAction(
+                    QIcon(":/assets/icons/add.png"),
+                    "Einplanen"
+                );
+                QAction *deleteAction = menu.addAction(
+                    QIcon(":/assets/icons/delete.png"),
+                    "Löschen"
+                );
+                menu.addSeparator();
+                QAction *historyAction = menu.addAction(
+                    QIcon(":/assets/icons/version_history.png"),
+                    "Versionshistorie"
+                );
                 QAction *selectedAction = menu.exec(
                     taskList->viewport()->mapToGlobal(position)
                 );
@@ -151,6 +164,13 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                     openScheduleDialog(*task);
                 } else if (selectedAction == deleteAction) {
                     apiClient.deleteTask(task->id);
+                } else if (selectedAction == historyAction) {
+                    showVersionHistoryDialog(
+                        taskList,
+                        apiClient,
+                        task->id,
+                        "Versionshistorie – " + task->name
+                    );
                 }
             });
 

@@ -1,6 +1,7 @@
 #include "DomainView.h"
 #include "DocumentEditor.h"
 #include "TaskEditDialog.h"
+#include "VersionHistoryDialog.h"
 
 #include <QFrame>
 #include <QApplication>
@@ -1544,8 +1545,19 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 }
 
                 QMenu menu(taskListView);
-                QAction *editAction = menu.addAction("Bearbeiten");
-                QAction *deleteAction = menu.addAction("Löschen");
+                QAction *editAction = menu.addAction(
+                    QIcon(":/assets/icons/edit.png"),
+                    "Bearbeiten"
+                );
+                QAction *deleteAction = menu.addAction(
+                    QIcon(":/assets/icons/delete.png"),
+                    "Löschen"
+                );
+                menu.addSeparator();
+                QAction *historyAction = menu.addAction(
+                    QIcon(":/assets/icons/version_history.png"),
+                    "Versionshistorie"
+                );
                 QAction *selectedAction = menu.exec(
                     taskListView->viewport()->mapToGlobal(position)
                 );
@@ -1554,6 +1566,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     editTask(taskId);
                 } else if (selectedAction == deleteAction) {
                     apiClient.deleteTask(taskId);
+                } else if (selectedAction == historyAction) {
+                    showVersionHistoryDialog(
+                        taskListView,
+                        apiClient,
+                        taskId,
+                        "Versionshistorie – " + index.data().toString()
+                    );
                 }
             });
     connect(flashcardListView, &QListView::customContextMenuRequested, this,
@@ -1564,11 +1583,29 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 }
 
                 QMenu menu(flashcardListView);
-                QAction *deleteAction = menu.addAction("Löschen");
-                if (menu.exec(flashcardListView->viewport()->mapToGlobal(position)) == deleteAction) {
+                QAction *deleteAction = menu.addAction(
+                    QIcon(":/assets/icons/delete.png"),
+                    "Löschen"
+                );
+                menu.addSeparator();
+                QAction *historyAction = menu.addAction(
+                    QIcon(":/assets/icons/version_history.png"),
+                    "Versionshistorie"
+                );
+                QAction *selectedAction = menu.exec(
+                    flashcardListView->viewport()->mapToGlobal(position)
+                );
+                if (selectedAction == deleteAction) {
                     apiClient.deleteFlashcard(
                         currentNodeId,
                         index.data(Qt::UserRole).toInt()
+                    );
+                } else if (selectedAction == historyAction) {
+                    showVersionHistoryDialog(
+                        flashcardListView,
+                        apiClient,
+                        index.data(Qt::UserRole).toInt(),
+                        "Versionshistorie – Lernkarte"
                     );
                 }
             });
@@ -1607,7 +1644,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 }
 
                 QMenu menu(attachmentListView);
-                QAction *deleteAction = menu.addAction("Löschen");
+                QAction *deleteAction = menu.addAction(
+                    QIcon(":/assets/icons/delete.png"),
+                    "Löschen"
+                );
                 if (menu.exec(attachmentListView->viewport()->mapToGlobal(position))
                     == deleteAction) {
                     apiClient.deleteAttachment(
@@ -1896,7 +1936,10 @@ void DomainView::renderProgressionStages() {
         connect(card, &QWidget::customContextMenuRequested, this,
                 [this, card, stageId = stage.id](const QPoint &position) {
                     QMenu menu(card);
-                    QAction *assignAction = menu.addAction("Bestrebung hinzufügen");
+                    QAction *assignAction = menu.addAction(
+                        QIcon(":/assets/icons/add.png"),
+                        "Bestrebung hinzufügen"
+                    );
                     if (menu.exec(card->mapToGlobal(position)) == assignAction) {
                         assignPursuit(stageId);
                     }
@@ -1912,8 +1955,19 @@ void DomainView::showProgressionContextMenu(const QPoint &position) {
     }
     const int progressionId = index.data(Qt::UserRole).toInt();
     QMenu menu(progressionTreeView);
-    QAction *editAction = menu.addAction("Bearbeiten");
-    QAction *stageAction = menu.addAction("Progressionsstufe hinzufügen");
+    QAction *editAction = menu.addAction(
+        QIcon(":/assets/icons/edit.png"),
+        "Bearbeiten"
+    );
+    QAction *stageAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Progressionsstufe hinzufügen"
+    );
+    menu.addSeparator();
+    QAction *historyAction = menu.addAction(
+        QIcon(":/assets/icons/version_history.png"),
+        "Versionshistorie"
+    );
     QAction *selectedAction = menu.exec(
         progressionTreeView->viewport()->mapToGlobal(position)
     );
@@ -1921,6 +1975,22 @@ void DomainView::showProgressionContextMenu(const QPoint &position) {
         editProgression(progressionId);
     } else if (selectedAction == stageAction) {
         addProgressionStage(progressionId);
+    } else if (selectedAction == historyAction) {
+        const auto progression = std::find_if(
+            progressions.begin(),
+            progressions.end(),
+            [progressionId](const Progression &item) {
+                return item.id == progressionId;
+            }
+        );
+        showVersionHistoryDialog(
+            progressionTreeView,
+            apiClient,
+            progressionId,
+            progression == progressions.end()
+                ? "Versionshistorie"
+                : "Versionshistorie – " + progression->name
+        );
     }
 }
 
@@ -2040,7 +2110,10 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
 
     if (index.data(DOMAIN_ID_ROLE).isValid()) {
         QMenu menu(treeView);
-        QAction *createAction = menu.addAction("Root-Knoten hinzufügen");
+        QAction *createAction = menu.addAction(
+            QIcon(":/assets/icons/add.png"),
+            "Root-Knoten hinzufügen"
+        );
 
         if (menu.exec(treeView->viewport()->mapToGlobal(position)) == createAction) {
             bool accepted;
@@ -2062,23 +2135,58 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     }
 
     QMenu menu(treeView);
-    QAction *createAction = menu.addAction("Unterknoten hinzufügen");
-    QAction *editAction = menu.addAction("Bearbeiten");
+    QAction *createAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Unterknoten hinzufügen"
+    );
+    QAction *editAction = menu.addAction(
+        QIcon(":/assets/icons/edit.png"),
+        "Bearbeiten"
+    );
     QAction *createDocumentAction = nullptr;
     QAction *deleteDocumentAction = nullptr;
     if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
-        deleteDocumentAction = menu.addAction("Dokument löschen");
+        deleteDocumentAction = menu.addAction(
+            QIcon(":/assets/icons/delete.png"),
+            "Dokument löschen"
+        );
     } else {
-        createDocumentAction = menu.addAction("Dokument erstellen");
+        createDocumentAction = menu.addAction(
+            QIcon(":/assets/icons/add.png"),
+            "Dokument erstellen"
+        );
     }
     menu.addSeparator();
-    QAction *createTaskAction = menu.addAction("Aufgabe hinzufügen");
-    QAction *createPursuitAction = menu.addAction("Bestrebung hinzufügen");
-    QAction *createSkillAction = menu.addAction("Skill hinzufügen");
-    QAction *createFlashcardAction = menu.addAction("Lernkarte hinzufügen");
-    QAction *createAttachmentAction = menu.addAction("Anhang hinzufügen");
+    QAction *createTaskAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Aufgabe hinzufügen"
+    );
+    QAction *createPursuitAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Bestrebung hinzufügen"
+    );
+    QAction *createSkillAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Skill hinzufügen"
+    );
+    QAction *createFlashcardAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Lernkarte hinzufügen"
+    );
+    QAction *createAttachmentAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Anhang hinzufügen"
+    );
     menu.addSeparator();
-    QAction *deleteAction = menu.addAction("Löschen");
+    QAction *historyAction = menu.addAction(
+        QIcon(":/assets/icons/version_history.png"),
+        "Versionshistorie"
+    );
+    menu.addSeparator();
+    QAction *deleteAction = menu.addAction(
+        QIcon(":/assets/icons/delete.png"),
+        "Löschen"
+    );
     QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
     const int nodeId = index.data(Qt::UserRole).toInt();
 
@@ -2129,6 +2237,13 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         createFlashcard(nodeId);
     } else if (selectedAction == createAttachmentAction) {
         addAttachments(nodeId);
+    } else if (selectedAction == historyAction) {
+        showVersionHistoryDialog(
+            treeView,
+            apiClient,
+            nodeId,
+            "Versionshistorie – " + index.data(NODE_NAME_ROLE).toString()
+        );
     } else if (selectedAction == deleteAction
                && QMessageBox::question(
                    treeView,
@@ -2243,8 +2358,19 @@ void DomainView::showSkillContextMenu(const QPoint &position) {
     }
 
     QMenu menu(skillTreeView);
-    QAction *createAction = menu.addAction("Unter-Skill hinzufügen");
-    QAction *editAction = menu.addAction("Bearbeiten");
+    QAction *createAction = menu.addAction(
+        QIcon(":/assets/icons/add.png"),
+        "Unter-Skill hinzufügen"
+    );
+    QAction *editAction = menu.addAction(
+        QIcon(":/assets/icons/edit.png"),
+        "Bearbeiten"
+    );
+    menu.addSeparator();
+    QAction *historyAction = menu.addAction(
+        QIcon(":/assets/icons/version_history.png"),
+        "Versionshistorie"
+    );
     QAction *selectedAction = menu.exec(
         skillTreeView->viewport()->mapToGlobal(position)
     );
@@ -2253,6 +2379,21 @@ void DomainView::showSkillContextMenu(const QPoint &position) {
         createSkill(currentNodeId, index.data(Qt::UserRole).toInt());
     } else if (selectedAction == editAction) {
         editSkill(index);
+    } else if (selectedAction == historyAction) {
+        const int skillId = index.data(Qt::UserRole).toInt();
+        const auto skill = std::find_if(
+            currentSkills.begin(),
+            currentSkills.end(),
+            [skillId](const Skill &item) { return item.id == skillId; }
+        );
+        showVersionHistoryDialog(
+            skillTreeView,
+            apiClient,
+            skillId,
+            skill == currentSkills.end()
+                ? "Versionshistorie"
+                : "Versionshistorie – " + skill->name
+        );
     }
 }
 

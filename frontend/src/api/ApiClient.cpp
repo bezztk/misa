@@ -361,6 +361,40 @@ void ApiClient::getMetadata() {
     });
 }
 
+void ApiClient::getEntityFieldVersions(const int entityId) {
+    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl(
+        "/entities/" + QString::number(entityId) + "/versions"
+    )));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, entityId] {
+        QJsonDocument response;
+        if (!readJson(reply, "Versionshistorie laden", response) || !response.isArray()) {
+            if (!response.isNull() && !response.isArray()) {
+                emit requestFailed("Versionshistorie laden: Unerwartetes Datenformat");
+            }
+            emit entityFieldVersionsLoadFailed(entityId);
+            reply->deleteLater();
+            return;
+        }
+
+        std::vector<EntityFieldVersion> versions;
+        for (const QJsonValue &value : response.array()) {
+            const QJsonObject object = value.toObject();
+            versions.push_back({
+                .version = object["version"].toInt(),
+                .fieldName = object["field_name"].toString(),
+                .oldValue = object["old_value"],
+                .newValue = object["new_value"],
+                .changedAt = QDateTime::fromString(
+                    object["changed_at"].toString(),
+                    Qt::ISODate
+                )
+            });
+        }
+        emit entityFieldVersionsReceived(entityId, versions);
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::getDomainTree() {
     const QNetworkRequest networkRequest(buildUrl("/domain-tree"));
     QNetworkReply *reply = manager.get(networkRequest);

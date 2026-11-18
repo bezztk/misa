@@ -1,6 +1,7 @@
 #include "CalendarView.h"
 #include "CalendarEntryDialog.h"
 #include "TaskEditDialog.h"
+#include "VersionHistoryDialog.h"
 
 #include <QDateEdit>
 #include <QHeaderView>
@@ -108,14 +109,32 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
                 }
 
                 QMenu menu(tree);
-                QAction *editEntryAction = menu.addAction("Kalendereintrag bearbeiten");
-                QAction *deleteEntryAction = menu.addAction("Kalendereintrag löschen");
+                QAction *editEntryAction = menu.addAction(
+                    QIcon(":/assets/icons/edit.png"),
+                    "Kalendereintrag bearbeiten"
+                );
+                QAction *deleteEntryAction = menu.addAction(
+                    QIcon(":/assets/icons/delete.png"),
+                    "Kalendereintrag löschen"
+                );
                 QAction *editTaskAction = nullptr;
                 QAction *deleteTaskAction = nullptr;
+                QAction *taskHistoryAction = nullptr;
                 if (entryIterator->systemTaskId.has_value()) {
                     menu.addSeparator();
-                    editTaskAction = menu.addAction("Aufgabe bearbeiten");
-                    deleteTaskAction = menu.addAction("Aufgabe löschen");
+                    editTaskAction = menu.addAction(
+                        QIcon(":/assets/icons/edit.png"),
+                        "Aufgabe bearbeiten"
+                    );
+                    deleteTaskAction = menu.addAction(
+                        QIcon(":/assets/icons/delete.png"),
+                        "Aufgabe löschen"
+                    );
+                    menu.addSeparator();
+                    taskHistoryAction = menu.addAction(
+                        QIcon(":/assets/icons/version_history.png"),
+                        "Versionshistorie"
+                    );
                 }
 
                 QAction *selectedAction = menu.exec(tree->viewport()->mapToGlobal(position));
@@ -135,6 +154,21 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
                     }
                 } else if (selectedAction == deleteTaskAction) {
                     apiClient.deleteTask(*entryIterator->systemTaskId);
+                } else if (selectedAction == taskHistoryAction) {
+                    const int taskId = *entryIterator->systemTaskId;
+                    const auto taskIterator = std::find_if(
+                        tasks.begin(), tasks.end(), [taskId](const Task &task) {
+                            return task.id == taskId;
+                        }
+                    );
+                    showVersionHistoryDialog(
+                        tree,
+                        apiClient,
+                        taskId,
+                        taskIterator == tasks.end()
+                            ? "Versionshistorie"
+                            : "Versionshistorie – " + taskIterator->name
+                    );
                 }
             });
     contentLayout->addWidget(tree, 1);
