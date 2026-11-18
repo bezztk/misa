@@ -110,7 +110,8 @@ CREATE TABLE domains
     name varchar(50) NOT NULL UNIQUE
 );
 INSERT INTO domains (name)
-VALUES ('Mathematik'),
+VALUES ('Anderes'),
+       ('Mathematik'),
        ('Informatik und Informationswissenschaft'),
        ('Physik'),
        ('Chemie'),
@@ -129,8 +130,7 @@ VALUES ('Mathematik'),
        ('Kunst'),
        ('Sport und Bewegung'),
        ('Geschichte'),
-       ('Sprache und Kommunikation'),
-       ('Anderes');
+       ('Sprache und Kommunikation');
 
 CREATE TABLE domain_nodes
 (

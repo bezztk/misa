@@ -2602,12 +2602,6 @@ DECLARE
           "children": [
             {
               "name": "Tanztechnik und Körpertraining"
-            },
-            {
-              "name": "Choreografie"
-            },
-            {
-              "name": "Urbaner Tanz"
             }
           ]
         }
@@ -2681,9 +2675,6 @@ DECLARE
             },
             {
               "name": "Körperstabilisation und Haltungskontrolle"
-            },
-            {
-              "name": "Akrobatik"
             }
           ]
         }
@@ -2695,6 +2686,10 @@ DECLARE
     },
     {
       "name": "Sprache und Kommunikation",
+      "nodes": []
+    },
+    {
+      "name": "Anderes",
       "nodes": []
     }
   ]
