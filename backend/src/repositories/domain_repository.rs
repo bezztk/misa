@@ -1,6 +1,9 @@
-use crate::models::domain::{Domain, DomainNode, DomainNodeUpdateRequest};
+use crate::models::domain::{
+    Domain, DomainNode, DomainNodeField, DomainNodeFieldUpdate, DomainNodeUpdateRequest,
+};
 use crate::models::entity::EntityType;
 use crate::repositories::entity_repository;
+use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_domains(pool: &PgPool) -> Result<Vec<Domain>, sqlx::Error> {
@@ -278,4 +281,174 @@ pub async fn update_domain_node(
 
     transaction.commit().await?;
     Ok(node)
+}
+
+pub async fn update_domain_node_field(
+    pool: &PgPool,
+    id: i32,
+    update: DomainNodeFieldUpdate,
+) -> Result<bool, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+
+    let (field, old_value, new_value) = match update {
+        DomainNodeFieldUpdate::Name(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, String>(
+                "SELECT name FROM domain_nodes WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE domain_nodes SET name = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await?;
+            (DomainNodeField::Name, json!(old_value), json!(value))
+        }
+        DomainNodeFieldUpdate::CognitiveLevelId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT cognitive_level_id FROM domain_nodes WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE domain_nodes SET cognitive_level_id = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (
+                DomainNodeField::CognitiveLevelId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+        DomainNodeFieldUpdate::CompletenessLevelId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT completeness_level_id FROM documents WHERE domain_node_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query(
+                "UPDATE documents SET completeness_level_id = $2 WHERE domain_node_id = $1",
+            )
+            .bind(id)
+            .bind(value)
+            .execute(&mut *transaction)
+            .await?;
+            (
+                DomainNodeField::CompletenessLevelId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+        DomainNodeFieldUpdate::FlashcardStatusId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT flashcard_status_id FROM documents WHERE domain_node_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE documents SET flashcard_status_id = $2 WHERE domain_node_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (
+                DomainNodeField::FlashcardStatusId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+        DomainNodeFieldUpdate::VerificationStatusId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT verification_status_id FROM documents WHERE domain_node_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query(
+                "UPDATE documents SET verification_status_id = $2 WHERE domain_node_id = $1",
+            )
+            .bind(id)
+            .bind(value)
+            .execute(&mut *transaction)
+            .await?;
+            (
+                DomainNodeField::VerificationStatusId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+        DomainNodeFieldUpdate::VerificationLevelId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT verification_level_id FROM documents WHERE domain_node_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query(
+                "UPDATE documents SET verification_level_id = $2 WHERE domain_node_id = $1",
+            )
+            .bind(id)
+            .bind(value)
+            .execute(&mut *transaction)
+            .await?;
+            (
+                DomainNodeField::VerificationLevelId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+    };
+
+    entity_repository::create_field_version(
+        &mut transaction,
+        id,
+        EntityType::DomainNode,
+        field as i32,
+        old_value,
+        new_value,
+    )
+    .await?;
+    transaction.commit().await?;
+
+    Ok(true)
 }

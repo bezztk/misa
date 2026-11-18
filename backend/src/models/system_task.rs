@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub const OPEN_SYSTEM_TASK_STATE_ID: i32 = 1;
 
@@ -67,4 +68,36 @@ pub struct UpdateTaskRequest {
     pub name: Option<String>,
     pub state_id: Option<i32>,
     pub priority_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskFieldUpdateRequest {
+    pub value: Value,
+}
+
+#[repr(i32)]
+#[derive(Clone, Copy)]
+pub enum TaskField {
+    Name = 1,
+    StateId = 2,
+    PriorityId = 3,
+}
+
+impl TryFrom<i32> for TaskField {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Name),
+            2 => Ok(Self::StateId),
+            3 => Ok(Self::PriorityId),
+            _ => Err(()),
+        }
+    }
+}
+
+pub enum TaskFieldUpdate {
+    Name(String),
+    StateId(i32),
+    PriorityId(i32),
 }

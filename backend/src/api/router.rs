@@ -46,6 +46,10 @@ pub fn create_router(pool: PgPool) -> Router {
                 .delete(domain_handler::delete_domain_node),
         )
         .route(
+            "/domain-nodes/{id}/fields/{field_id}",
+            axum::routing::patch(domain_handler::update_domain_node_field),
+        )
+        .route(
             "/domain-nodes/{node_id}/document",
             get(document_handler::get_document)
                 .post(document_handler::create_document)
@@ -118,6 +122,10 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/tasks/{id}",
             axum::routing::patch(task_handler::update_task).delete(task_handler::delete_task),
+        )
+        .route(
+            "/tasks/{id}/fields/{field_id}",
+            axum::routing::patch(task_handler::update_task_field),
         )
         .route(
             "/tasks",

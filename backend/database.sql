@@ -23,6 +23,39 @@ CREATE TABLE entities
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE entity_fields
+(
+    id             integer PRIMARY KEY,
+    entity_type_id integer     NOT NULL REFERENCES entity_types (id),
+    field_type_id  integer     NOT NULL,
+    name           varchar(50) NOT NULL,
+
+    UNIQUE (entity_type_id, field_type_id),
+    UNIQUE (entity_type_id, name)
+);
+INSERT INTO entity_fields (id, entity_type_id, field_type_id, name)
+VALUES (1, 1, 1, 'name'),
+       (2, 1, 2, 'cognitive_level_id'),
+       (3, 1, 3, 'completeness_level_id'),
+       (4, 1, 4, 'flashcard_status_id'),
+       (5, 1, 5, 'verification_status_id'),
+       (6, 1, 6, 'verification_level_id'),
+       (7, 2, 1, 'name'),
+       (8, 2, 2, 'state_id'),
+       (9, 2, 3, 'priority_id');
+
+CREATE TABLE entity_field_versions
+(
+    entity_id  integer     NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
+    version    integer     NOT NULL,
+    field_id   integer     NOT NULL REFERENCES entity_fields (id),
+    old_value  jsonb       NOT NULL,
+    new_value  jsonb       NOT NULL,
+    changed_at timestamptz NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (entity_id, version)
+);
+
 CREATE TABLE comments
 (
     id         integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

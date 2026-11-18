@@ -1,6 +1,7 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::domain::{
-    DomainNode, DomainNodeNameRequest, DomainNodeUpdateRequest, DomainTree,
+    DomainNode, DomainNodeField, DomainNodeFieldUpdate, DomainNodeFieldUpdateRequest,
+    DomainNodeNameRequest, DomainNodeUpdateRequest, DomainTree,
 };
 use crate::repositories::domain_repository;
 use crate::validation::valid_name;
@@ -63,6 +64,45 @@ pub async fn update_domain_node(
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(node))
+}
+
+pub async fn update_domain_node_field(
+    State(pool): State<PgPool>,
+    Path((id, field_id)): Path<(i32, i32)>,
+    Json(payload): Json<DomainNodeFieldUpdateRequest>,
+) -> ApiResult<StatusCode> {
+    let field = DomainNodeField::try_from(field_id).map_err(|_| ApiError::BadRequest)?;
+    let update = match field {
+        DomainNodeField::Name => {
+            let name = serde_json::from_value::<String>(payload.value)
+                .map_err(|_| ApiError::BadRequest)?;
+            if !valid_name(&name, 150) {
+                return Err(ApiError::BadRequest);
+            }
+            DomainNodeFieldUpdate::Name(name.trim().to_string())
+        }
+        DomainNodeField::CognitiveLevelId => DomainNodeFieldUpdate::CognitiveLevelId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+        DomainNodeField::CompletenessLevelId => DomainNodeFieldUpdate::CompletenessLevelId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+        DomainNodeField::FlashcardStatusId => DomainNodeFieldUpdate::FlashcardStatusId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+        DomainNodeField::VerificationStatusId => DomainNodeFieldUpdate::VerificationStatusId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+        DomainNodeField::VerificationLevelId => DomainNodeFieldUpdate::VerificationLevelId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+    };
+
+    if !domain_repository::update_domain_node_field(&pool, id, update).await? {
+        return Err(ApiError::NotFound);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn delete_domain_node(

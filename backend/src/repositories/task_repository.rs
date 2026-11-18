@@ -1,6 +1,9 @@
 use crate::models::entity::EntityType;
-use crate::models::system_task::{OPEN_SYSTEM_TASK_STATE_ID, TaskListItem, UpdateTaskRequest};
+use crate::models::system_task::{
+    OPEN_SYSTEM_TASK_STATE_ID, TaskField, TaskFieldUpdate, TaskListItem, UpdateTaskRequest,
+};
 use crate::repositories::entity_repository;
+use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
@@ -69,6 +72,90 @@ pub async fn update_task(
     transaction.commit().await?;
 
     Ok(result.rows_affected() > 0)
+}
+
+pub async fn update_task_field(
+    pool: &PgPool,
+    id: i32,
+    update: TaskFieldUpdate,
+) -> Result<bool, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+
+    let (field, old_value, new_value) = match update {
+        TaskFieldUpdate::Name(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, String>(
+                "SELECT name FROM systemtasks WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE systemtasks SET name = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await?;
+            (TaskField::Name, json!(old_value), json!(value))
+        }
+        TaskFieldUpdate::StateId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, i32>(
+                "SELECT state_id FROM systemtasks WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE systemtasks SET state_id = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (TaskField::StateId, json!(old_value), json!(value))
+        }
+        TaskFieldUpdate::PriorityId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, i32>(
+                "SELECT priority_id FROM systemtasks WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE systemtasks SET priority_id = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (TaskField::PriorityId, json!(old_value), json!(value))
+        }
+    };
+
+    entity_repository::create_field_version(
+        &mut transaction,
+        id,
+        EntityType::SystemTask,
+        field as i32,
+        old_value,
+        new_value,
+    )
+    .await?;
+    transaction.commit().await?;
+
+    Ok(true)
 }
 
 pub async fn delete_task(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
