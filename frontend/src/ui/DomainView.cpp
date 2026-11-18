@@ -443,6 +443,50 @@ static bool showFlashcardDialog(
     return !front.isEmpty() && !back.isEmpty();
 }
 
+static void showFlashcardEditDialog(
+    QWidget *parent,
+    ApiClient &apiClient,
+    const int nodeId,
+    const Flashcard &flashcard
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle("Lernkarte bearbeiten");
+    dialog.resize(480, 280);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *frontEdit = new QPlainTextEdit(flashcard.front, &dialog);
+    auto *backEdit = new QPlainTextEdit(flashcard.back, &dialog);
+    form->addRow("Front", frontEdit);
+    form->addRow("Back", backEdit);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
+
+    const QString front = frontEdit->toPlainText().trimmed();
+    if (!front.isEmpty() && front != flashcard.front) {
+        apiClient.updateFlashcardField(
+            nodeId,
+            flashcard.id,
+            FlashcardField::Front,
+            front
+        );
+    }
+
+    const QString back = backEdit->toPlainText().trimmed();
+    if (!back.isEmpty() && back != flashcard.back) {
+        apiClient.updateFlashcardField(
+            nodeId,
+            flashcard.id,
+            FlashcardField::Back,
+            back
+        );
+    }
+}
+
 static bool showSkillDialog(
     QWidget *parent,
     const Metadata &metadata,
@@ -2141,17 +2185,11 @@ void DomainView::renderAttachments(const std::vector<Attachment> &attachments) {
 
 void DomainView::editFlashcard(const int row) {
     QStandardItem *frontItem = flashcardModel->item(row, 0);
-    QString front = frontItem->text();
-    QString back = frontItem->data(FLASHCARD_BACK_ROLE).toString();
-
-    if (showFlashcardDialog(this, "Lernkarte bearbeiten", front, back)) {
-        apiClient.updateFlashcard(
-            currentNodeId,
-            frontItem->data(Qt::UserRole).toInt(),
-            front,
-            back
-        );
-    }
+    showFlashcardEditDialog(this, apiClient, currentNodeId, {
+        .id = frontItem->data(Qt::UserRole).toInt(),
+        .front = frontItem->text(),
+        .back = frontItem->data(FLASHCARD_BACK_ROLE).toString()
+    });
 }
 
 void DomainView::renderSkills(const std::vector<Skill> &skills) {

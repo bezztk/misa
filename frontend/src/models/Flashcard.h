@@ -6,6 +6,11 @@
 #include <cstdint>
 #include <optional>
 
+enum class FlashcardField {
+    Front = 1,
+    Back = 2
+};
+
 struct Flashcard {
     int id;
     QString front;

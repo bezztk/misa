@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct FlashcardRetentionClass {
@@ -69,9 +70,32 @@ pub struct CreateFlashcardRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateFlashcardRequest {
-    pub front: String,
-    pub back: String,
+pub struct FlashcardFieldUpdateRequest {
+    pub value: Value,
+}
+
+#[repr(i32)]
+#[derive(Clone, Copy)]
+pub enum FlashcardField {
+    Front = 1,
+    Back = 2,
+}
+
+impl TryFrom<i32> for FlashcardField {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Front),
+            2 => Ok(Self::Back),
+            _ => Err(()),
+        }
+    }
+}
+
+pub enum FlashcardFieldUpdate {
+    Front(String),
+    Back(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]

@@ -1,7 +1,11 @@
 use crate::models::entity::EntityType;
-use crate::models::flashcard::{EditableFlashcard, FlashcardQueueContext, FlashcardReviewContext};
+use crate::models::flashcard::{
+    EditableFlashcard, FlashcardField, FlashcardFieldUpdate, FlashcardQueueContext,
+    FlashcardReviewContext,
+};
 use crate::repositories::entity_repository;
 use chrono::{DateTime, Utc};
+use serde_json::json;
 use sqlx::{PgConnection, PgPool};
 
 const DEFAULT_RETENTION_CLASS_ID: i32 = 2;
@@ -59,32 +63,68 @@ pub async fn get_flashcards(
     .await
 }
 
-pub async fn update_flashcard(
+pub async fn update_flashcard_field(
     pool: &PgPool,
     id: i32,
-    front: &str,
-    back: &str,
-) -> Result<Option<EditableFlashcard>, sqlx::Error> {
+    update: FlashcardFieldUpdate,
+) -> Result<bool, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    let flashcard = sqlx::query_as::<_, EditableFlashcard>(
-        "UPDATE flashcards
-         SET front = $2, back = $3
-         WHERE entity_id = $1
-         RETURNING entity_id AS id, front, back",
-    )
-    .bind(id)
-    .bind(front)
-    .bind(back)
-    .fetch_optional(&mut *transaction)
-    .await?;
-    if flashcard.is_some() {
-        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+
+    let (field, old_value, new_value) = match update {
+        FlashcardFieldUpdate::Front(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, String>(
+                "SELECT front FROM flashcards WHERE entity_id = $1 FOR UPDATE",
+            )
             .bind(id)
-            .execute(&mut *transaction)
-            .await?;
-    }
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE flashcards SET front = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await?;
+            (FlashcardField::Front, json!(old_value), json!(value))
+        }
+        FlashcardFieldUpdate::Back(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, String>(
+                "SELECT back FROM flashcards WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE flashcards SET back = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await?;
+            (FlashcardField::Back, json!(old_value), json!(value))
+        }
+    };
+
+    entity_repository::create_field_version(
+        &mut transaction,
+        id,
+        EntityType::Flashcard,
+        field as i32,
+        old_value,
+        new_value,
+    )
+    .await?;
     transaction.commit().await?;
-    Ok(flashcard)
+
+    Ok(true)
 }
 
 pub async fn get_due_flashcard_contexts(

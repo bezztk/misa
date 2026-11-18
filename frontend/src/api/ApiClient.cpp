@@ -162,15 +162,18 @@ void ApiClient::createFlashcard(
     });
 }
 
-void ApiClient::updateFlashcard(
+void ApiClient::updateFlashcardField(
     const int nodeId,
     const int id,
-    const QString &front,
-    const QString &back
+    const FlashcardField field,
+    const QJsonValue &value
 ) {
-    QNetworkRequest request(buildUrl("/flashcards/" + QString::number(id)));
+    QNetworkRequest request(buildUrl(
+        "/flashcards/" + QString::number(id)
+        + "/fields/" + QString::number(static_cast<int>(field))
+    ));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json{{"front", front}, {"back", back}};
+    QJsonObject json{{"value", value}};
     QNetworkReply *reply = manager.sendCustomRequest(
         request,
         "PATCH",

@@ -80,7 +80,8 @@ public:
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
     void getNodeFlashcards(int nodeId);
     void createFlashcard(int nodeId, const QString& front, const QString& back);
-    void updateFlashcard(int nodeId, int id, const QString& front, const QString& back);
+    void updateFlashcardField(int nodeId, int id, FlashcardField field,
+                              const QJsonValue& value);
     void deleteFlashcard(int nodeId, int id);
     void getNodeAttachments(int nodeId);
     void createAttachment(int nodeId, const QString& originalName,
