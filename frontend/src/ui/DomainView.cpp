@@ -8,6 +8,12 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileIconProvider>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -29,7 +35,10 @@
 #include <QTimer>
 #include <QTextBrowser>
 #include <QTreeView>
+#include <QUrl>
+#include <QUuid>
 #include <QVBoxLayout>
+#include <QStandardPaths>
 
 #include <functional>
 #include <algorithm>
@@ -47,9 +56,11 @@ static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
 static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
 static constexpr int HAS_ROUTINE_ROLE = Qt::UserRole + 12;
 static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
+static constexpr int ATTACHMENT_COUNT_ROLE = Qt::UserRole + 14;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
 static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
+static constexpr int ATTACHMENT_STORAGE_NAME_ROLE = Qt::UserRole + 1;
 
 class DomainNodeDelegate final : public QStyledItemDelegate {
 public:
@@ -83,6 +94,7 @@ public:
         addIndicator(PURSUIT_COUNT_ROLE, "↑", QColor("#81C784"));
         addIndicator(SKILL_COUNT_ROLE, "★", QColor("#FFD54F"));
         addIndicator(FLASHCARD_COUNT_ROLE, "▣", QColor("#64B5F6"));
+        addIndicator(ATTACHMENT_COUNT_ROLE, "📎", QColor("#BDBDBD"));
         const bool hasRoutine = index.data(HAS_ROUTINE_ROLE).toBool();
 
         if (indicators.empty() && !hasRoutine) {
@@ -217,6 +229,14 @@ static QString highlighted(const QString &text, const QString &color) {
         + "; font-weight: 600;\">" + text + "</span>";
 }
 
+static QString attachmentDirectory() {
+    const QString path = QStandardPaths::writableLocation(
+        QStandardPaths::AppLocalDataLocation
+    ) + "/attachments";
+    QDir().mkpath(path);
+    return path;
+}
+
 static void setOptionalRole(
     QStandardItem *item,
     const int role,
@@ -234,6 +254,7 @@ static std::optional<int> optionalRole(const QModelIndex &index, const int role)
 static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.name, NODE_NAME_ROLE);
     item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
+    item->setData(node.attachmentCount, ATTACHMENT_COUNT_ROLE);
     item->setData(node.skillCount, SKILL_COUNT_ROLE);
     item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
     item->setData(node.taskCount, TASK_COUNT_ROLE);
@@ -249,6 +270,7 @@ static void refreshDomainNodeText(QStandardItem *item) {
     const QString name = item->data(NODE_NAME_ROLE).toString();
     item->setText(name);
     const int flashcardCount = item->data(FLASHCARD_COUNT_ROLE).toInt();
+    const int attachmentCount = item->data(ATTACHMENT_COUNT_ROLE).toInt();
     const int skillCount = item->data(SKILL_COUNT_ROLE).toInt();
     const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
     const int taskCount = item->data(TASK_COUNT_ROLE).toInt();
@@ -269,6 +291,9 @@ static void refreshDomainNodeText(QStandardItem *item) {
     }
     if (flashcardCount > 0) {
         details.append("Flashcards: " + QString::number(flashcardCount));
+    }
+    if (attachmentCount > 0) {
+        details.append("Anhänge: " + QString::number(attachmentCount));
     }
     item->setToolTip(
         details.isEmpty() ? name : name + "\n" + details.join("\n")
@@ -863,6 +888,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillWidget->setStyleSheet(R"(
         QWidget#skillPanel, QWidget#sidebarContent,
         QWidget#pursuitPanel, QWidget#skillsPanel, QWidget#flashcardsPanel,
+        QWidget#attachmentsPanel,
         QScrollArea#sidebarScrollArea {
             background: palette(base);
         }
@@ -871,7 +897,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             border-radius: 0;
         }
         QPushButton#pursuitSectionButton,
-        QPushButton#skillSectionButton {
+        QPushButton#skillSectionButton,
+        QPushButton#attachmentSectionButton {
             padding: 7px 8px;
             border: none;
             border-radius: 0;
@@ -883,6 +910,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QPushButton#skillSectionButton {
             background: rgba(255, 193, 7, 0.16);
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        QPushButton#attachmentSectionButton {
+            background: rgba(189, 189, 189, 0.16);
             border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
         QWidget#flashcardSectionHeader {
@@ -908,6 +939,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QPushButton#skillSectionButton:hover {
             background: rgba(255, 193, 7, 0.24);
         }
+        QPushButton#attachmentSectionButton:hover {
+            background: rgba(189, 189, 189, 0.24);
+        }
         QPushButton#flashcardSectionButton:hover {
             background: rgba(33, 150, 243, 0.08);
         }
@@ -915,12 +949,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: palette(base);
             border: none;
         }
-        QListView#flashcardList {
+        QListView#flashcardList, QListView#attachmentList {
             background: palette(base);
             border: none;
             outline: none;
         }
-        QListView#flashcardList::item {
+        QListView#flashcardList::item, QListView#attachmentList::item {
             border: none;
             padding: 2px 4px;
         }
@@ -929,6 +963,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QListView#flashcardList::item:selected {
             background: rgba(33, 150, 243, 0.18);
+        }
+        QListView#attachmentList::item:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        QListView#attachmentList::item:selected {
+            background: rgba(255, 255, 255, 0.14);
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
@@ -1059,12 +1099,43 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     flashcardListView->setModel(flashcardModel);
     flashcardPanelLayout->addWidget(flashcardListView);
 
+    auto *attachmentSectionButton = new QPushButton("▾  Anhänge", sidebarList);
+    attachmentSectionButton->setObjectName("attachmentSectionButton");
+    attachmentSectionButton->setCheckable(true);
+    attachmentSectionButton->setChecked(true);
+
+    auto *attachmentPanel = new QWidget(sidebarList);
+    attachmentPanel->setObjectName("attachmentsPanel");
+    attachmentPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    auto *attachmentPanelLayout = new QVBoxLayout(attachmentPanel);
+    attachmentPanelLayout->setContentsMargins(8, 6, 8, 6);
+    attachmentPanelLayout->setSpacing(4);
+
+    noAttachmentsLabel = new QLabel("Noch keine Anhänge angelegt.", attachmentPanel);
+    noAttachmentsLabel->setWordWrap(true);
+    noAttachmentsLabel->setStyleSheet("color: palette(mid);");
+    attachmentPanelLayout->addWidget(noAttachmentsLabel);
+
+    attachmentListView = new QListView(attachmentPanel);
+    attachmentListView->setObjectName("attachmentList");
+    attachmentListView->setFrameShape(QFrame::NoFrame);
+    attachmentListView->setTextElideMode(Qt::ElideRight);
+    attachmentListView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    attachmentListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    attachmentListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    attachmentListView->setContextMenuPolicy(Qt::CustomContextMenu);
+    attachmentModel = new QStandardItemModel(attachmentListView);
+    attachmentListView->setModel(attachmentModel);
+    attachmentPanelLayout->addWidget(attachmentListView);
+
     sidebarListLayout->addWidget(pursuitSectionButton);
     sidebarListLayout->addWidget(pursuitPanel);
     sidebarListLayout->addWidget(skillSectionButton);
     sidebarListLayout->addWidget(skillPanel);
     sidebarListLayout->addWidget(flashcardSectionHeader);
     sidebarListLayout->addWidget(flashcardPanel);
+    sidebarListLayout->addWidget(attachmentSectionButton);
+    sidebarListLayout->addWidget(attachmentPanel);
     sidebarContentLayout->addWidget(sidebarList);
     sidebarContentLayout->addStretch();
     sidebarScrollArea->setWidget(sidebarContent);
@@ -1091,6 +1162,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     expanded ? "▾  Flashcards" : "▸  Flashcards"
                 );
                 flashcardPanel->setVisible(expanded);
+            });
+    connect(attachmentSectionButton, &QPushButton::toggled, this,
+            [attachmentSectionButton, attachmentPanel](const bool expanded) {
+                attachmentSectionButton->setText(
+                    expanded ? "▾  Anhänge" : "▸  Anhänge"
+                );
+                attachmentPanel->setVisible(expanded);
             });
 
     splitter->addWidget(treeView);
@@ -1294,6 +1372,39 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 }
                 updateFlashcardView();
             });
+    connect(attachmentListView, &QListView::doubleClicked, this,
+            [](const QModelIndex &index) {
+                const QString path = QDir(attachmentDirectory()).filePath(
+                    index.data(ATTACHMENT_STORAGE_NAME_ROLE).toString()
+                );
+                QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            });
+    connect(attachmentListView, &QListView::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                const QModelIndex index = attachmentListView->indexAt(position);
+                if (!index.isValid()) {
+                    return;
+                }
+
+                QMenu menu(attachmentListView);
+                QAction *deleteAction = menu.addAction("Löschen");
+                if (menu.exec(attachmentListView->viewport()->mapToGlobal(position))
+                    == deleteAction) {
+                    apiClient.deleteAttachment(
+                        currentNodeId,
+                        index.data(Qt::UserRole).toInt()
+                    );
+                }
+            });
+    connect(&apiClient, &ApiClient::nodeAttachmentsChanged, this,
+            [this](const int nodeId) { apiClient.getNodeAttachments(nodeId); });
+    connect(&apiClient, &ApiClient::nodeAttachmentsReceived, this,
+            [this](const int nodeId, const std::vector<Attachment> &attachments) {
+                updateAttachmentCount(nodeId, static_cast<int>(attachments.size()));
+                if (nodeId == currentNodeId) {
+                    renderAttachments(attachments);
+                }
+            });
     connect(skillTreeView, &QTreeView::customContextMenuRequested, this,
             [this](const QPoint &position) { showSkillContextMenu(position); });
     connect(skillTreeView, &QTreeView::doubleClicked, this,
@@ -1405,6 +1516,7 @@ void DomainView::continueDocumentChange() {
     documentPreview->clear();
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
+    attachmentModel->removeRows(0, attachmentModel->rowCount());
     skillModel->removeRows(0, skillModel->rowCount());
     pursuitModel->removeRows(0, pursuitModel->rowCount());
     currentSkills.clear();
@@ -1422,12 +1534,14 @@ void DomainView::continueDocumentChange() {
     editorLayout->setStretch(0, hasDocument ? 1 : 0);
     editorLayout->setStretch(1, hasDocument ? 0 : 1);
     updateFlashcardView();
+    renderAttachments({});
 
     if (nodeId != -1) {
         updateFlashcardStatus(optionalRole(
             findDomainNodeItem(nodeId)->index(), FLASHCARD_STATUS_ROLE
         ));
         apiClient.getNodeFlashcards(nodeId);
+        apiClient.getNodeAttachments(nodeId);
         apiClient.getNodeSkills(nodeId);
         apiClient.getNodePursuits(nodeId);
         if (hasDocument) {
@@ -1742,6 +1856,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     }
     menu.addSeparator();
     QAction *createFlashcardAction = menu.addAction("Lernkarte hinzufügen");
+    QAction *createAttachmentAction = menu.addAction("Anhang hinzufügen");
     QAction *createPursuitAction = menu.addAction("Bestrebung hinzufügen");
     QAction *createSkillAction = menu.addAction("Skill hinzufügen");
     QAction *routineAction = menu.addAction(
@@ -1807,6 +1922,8 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         apiClient.createDocument(nodeId);
     } else if (selectedAction == createFlashcardAction) {
         createFlashcard(nodeId);
+    } else if (selectedAction == createAttachmentAction) {
+        addAttachments(nodeId);
     } else if (selectedAction == createPursuitAction) {
         createPursuit(nodeId);
     } else if (selectedAction == createSkillAction) {
@@ -1860,6 +1977,49 @@ void DomainView::createFlashcard(const int nodeId) {
     if (showFlashcardDialog(this, "Lernkarte erstellen", front, back)) {
         apiClient.createFlashcard(nodeId, front, back);
     }
+}
+
+void DomainView::addAttachments(const int nodeId) {
+    const QStringList files = QFileDialog::getOpenFileNames(
+        this,
+        "Anhänge auswählen"
+    );
+    const QString directory = attachmentDirectory();
+    for (const QString &file : files) {
+        const QFileInfo source(file);
+        const QString storageName = QUuid::createUuid().toString(QUuid::WithoutBraces)
+            + "_" + source.fileName();
+        if (QFile::copy(file, QDir(directory).filePath(storageName))) {
+            apiClient.createAttachment(
+                nodeId,
+                source.fileName(),
+                storageName,
+                source.size()
+            );
+        }
+    }
+}
+
+void DomainView::renderAttachments(const std::vector<Attachment> &attachments) {
+    attachmentModel->clear();
+    QFileIconProvider iconProvider;
+    const QDir directory(attachmentDirectory());
+    for (const Attachment &attachment : attachments) {
+        auto *item = new QStandardItem(attachment.originalName);
+        item->setData(attachment.id, Qt::UserRole);
+        item->setData(attachment.storageName, ATTACHMENT_STORAGE_NAME_ROLE);
+        item->setIcon(iconProvider.icon(QFileInfo(
+            directory.filePath(attachment.storageName)
+        )));
+        item->setSizeHint(QSize(0, 24));
+        attachmentModel->appendRow(item);
+    }
+
+    noAttachmentsLabel->setVisible(attachments.empty());
+    attachmentListView->setVisible(!attachments.empty());
+    attachmentListView->setFixedHeight(
+        static_cast<int>(attachments.size()) * 28
+    );
 }
 
 void DomainView::editFlashcard(const int row) {
@@ -2227,6 +2387,12 @@ void DomainView::updateSkillCount(const int nodeId, const int count) {
 void DomainView::updateFlashcardCount(const int nodeId, const int count) {
     QStandardItem *item = findDomainNodeItem(nodeId);
     item->setData(count, FLASHCARD_COUNT_ROLE);
+    refreshDomainNodeText(item);
+}
+
+void DomainView::updateAttachmentCount(const int nodeId, const int count) {
+    QStandardItem *item = findDomainNodeItem(nodeId);
+    item->setData(count, ATTACHMENT_COUNT_ROLE);
     refreshDomainNodeText(item);
 }
 

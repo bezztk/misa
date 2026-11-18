@@ -1,3 +1,4 @@
+pub mod attachment;
 pub mod calendar_entry;
 pub mod document;
 pub mod domain;

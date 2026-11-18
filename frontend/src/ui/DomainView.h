@@ -48,6 +48,9 @@ private:
     void editFlashcard(int row);
     void updateFlashcardCount(int nodeId, int count);
     void updateFlashcardView();
+    void addAttachments(int nodeId);
+    void renderAttachments(const std::vector<Attachment> &attachments);
+    void updateAttachmentCount(int nodeId, int count);
     void updateFlashcardStatus(std::optional<int> statusId);
     void updateDocumentStatus(
         std::optional<int> completenessId,
@@ -104,6 +107,9 @@ private:
     QLabel *noFlashcardsLabel;
     QListView *flashcardListView;
     QStandardItemModel *flashcardModel;
+    QLabel *noAttachmentsLabel;
+    QListView *attachmentListView;
+    QStandardItemModel *attachmentModel;
     QWidget *skillWidget;
     QLabel *noPursuitsLabel;
     QTreeView *pursuitTreeView;

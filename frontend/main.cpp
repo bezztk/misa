@@ -5,6 +5,7 @@
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
+    QApplication::setApplicationName("misa");
 
     QPalette palette = app.palette();
     palette.setColor(QPalette::Mid, QColor("#969696"));

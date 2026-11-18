@@ -14,6 +14,11 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
              FROM flashcards
              GROUP BY domain_node_id
          ),
+         attachment_counts AS (
+             SELECT domain_node_id, COUNT(*) AS count
+             FROM attachments
+             GROUP BY domain_node_id
+         ),
          skill_counts AS (
              SELECT domain_node_id, COUNT(*) AS count
              FROM skills
@@ -41,6 +46,7 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
                 d.domain_node_id IS NOT NULL AS has_document,
                 rn.domain_node_id IS NOT NULL AS has_routine,
                 COALESCE(fc.count, 0) AS flashcard_count,
+                COALESCE(ac.count, 0) AS attachment_count,
                 COALESCE(sc.count, 0) AS skill_count,
                 COALESCE(pc.count, 0) AS pursuit_count,
                 COALESCE(tc.count, 0) AS task_count,
@@ -49,6 +55,7 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
          FROM domain_nodes dn
          LEFT JOIN documents d ON d.domain_node_id = dn.id
          LEFT JOIN flashcard_counts fc ON fc.domain_node_id = dn.id
+         LEFT JOIN attachment_counts ac ON ac.domain_node_id = dn.id
          LEFT JOIN skill_counts sc ON sc.domain_node_id = dn.id
          LEFT JOIN pursuit_counts pc ON pc.domain_node_id = dn.id
          LEFT JOIN task_counts tc ON tc.domain_node_id = dn.id
@@ -71,6 +78,7 @@ pub async fn create_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
+                   0::BIGINT AS attachment_count,
                    FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
@@ -98,6 +106,7 @@ pub async fn create_root_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
+                   0::BIGINT AS attachment_count,
                    FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
@@ -156,6 +165,7 @@ pub async fn update_domain_node(
                        WHERE st.domain_node_id = domain_nodes.id
                    ) AS has_routine,
                    (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.id) AS flashcard_count,
+                   (SELECT COUNT(*) FROM attachments WHERE domain_node_id = domain_nodes.id) AS attachment_count,
                    (SELECT COUNT(*) FROM skills WHERE domain_node_id = domain_nodes.id) AS skill_count,
                    (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = domain_nodes.id) AS pursuit_count,
                    (SELECT COUNT(*)

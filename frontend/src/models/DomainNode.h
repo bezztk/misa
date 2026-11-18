@@ -14,6 +14,7 @@ struct DomainNode {
     bool hasDocument;
     bool hasRoutine;
     int flashcardCount;
+    int attachmentCount;
     int skillCount;
     int pursuitCount;
     int taskCount;

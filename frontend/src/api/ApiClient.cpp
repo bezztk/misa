@@ -85,6 +85,7 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .hasDocument = object["has_document"].toBool(),
         .hasRoutine = object["has_routine"].toBool(),
         .flashcardCount = object["flashcard_count"].toInt(),
+        .attachmentCount = object["attachment_count"].toInt(),
         .skillCount = object["skill_count"].toInt(),
         .pursuitCount = object["pursuit_count"].toInt(),
         .taskCount = object["task_count"].toInt()
@@ -223,6 +224,73 @@ void ApiClient::deleteFlashcard(const int nodeId, const int id) {
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodeFlashcardsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::getNodeAttachments(const int nodeId) {
+    const QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/attachments"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        QJsonDocument response;
+        if (!readJson(reply, "Anhänge laden", response) || !response.isArray()) {
+            reply->deleteLater();
+            return;
+        }
+
+        std::vector<Attachment> attachments;
+        for (const QJsonValue &value : response.array()) {
+            const QJsonObject object = value.toObject();
+            attachments.push_back({
+                .id = object["id"].toInt(),
+                .domainNodeId = object["domain_node_id"].toInt(),
+                .originalName = object["original_name"].toString(),
+                .storageName = object["storage_name"].toString(),
+                .sizeBytes = static_cast<qint64>(object["size_bytes"].toDouble()),
+                .createdAt = object["created_at"].toString()
+            });
+        }
+        emit nodeAttachmentsReceived(nodeId, attachments);
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::createAttachment(
+    const int nodeId,
+    const QString &originalName,
+    const QString &storageName,
+    const qint64 sizeBytes
+) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/attachments"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QJsonObject json{
+        {"original_name", originalName},
+        {"storage_name", storageName},
+        {"size_bytes", sizeBytes}
+    };
+    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (requestSucceeded(reply)) {
+            emit nodeAttachmentsChanged(nodeId);
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::deleteAttachment(const int nodeId, const int id) {
+    const QNetworkRequest request(buildUrl("/attachments/" + QString::number(id)));
+    QNetworkReply *reply = manager.deleteResource(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        if (requestSucceeded(reply)) {
+            emit nodeAttachmentsChanged(nodeId);
         }
         reply->deleteLater();
     });

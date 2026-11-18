@@ -1,3 +1,4 @@
+pub mod attachment_handler;
 pub mod calendar_entry_handler;
 pub mod document_handler;
 pub mod domain_handler;

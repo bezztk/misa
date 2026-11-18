@@ -40,6 +40,7 @@ add_executable(frontend WIN32
         src/ui/RoutineDialog.cpp
         src/ui/RoutineDialog.h
         src/models/Flashcard.h
+        src/models/Attachment.h
         src/models/Metadata.h
         src/models/Skill.h
         src/models/Pursuit.h
