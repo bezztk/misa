@@ -1,16 +1,12 @@
 #include "CalendarView.h"
 #include "CalendarEntryDialog.h"
+#include "TaskEditDialog.h"
 
-#include <QComboBox>
 #include <QDateEdit>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
-#include <QLineEdit>
 #include <QLocale>
 #include <QMenu>
 #include <QPushButton>
@@ -257,50 +253,5 @@ void CalendarView::openEditDialog(const CalendarEntry &entry) {
 }
 
 void CalendarView::openTaskEditDialog(const Task &task) {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Aufgabe bearbeiten");
-
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *nameEdit = new QLineEdit(task.name, &dialog);
-    layout->addRow("Name", nameEdit);
-
-    auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
-        stateEdit->addItem(state.displayName.value_or(state.name), state.id);
-    }
-    stateEdit->setCurrentIndex(stateEdit->findData(task.stateId));
-    layout->addRow("Status", stateEdit);
-
-    auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
-        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
-    }
-    priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
-    layout->addRow("Priorität", priorityEdit);
-
-    connect(nameEdit, &QLineEdit::editingFinished, &dialog,
-            [this, taskId = task.id, nameEdit] {
-                const QString name = nameEdit->text().trimmed();
-                if (!name.isEmpty()) {
-                    apiClient.updateTaskField(taskId, TaskField::Name, name);
-                }
-            });
-    connect(stateEdit, &QComboBox::currentIndexChanged, &dialog,
-            [this, taskId = task.id, stateEdit] {
-                apiClient.updateTaskField(
-                    taskId, TaskField::StateId, stateEdit->currentData().toInt()
-                );
-            });
-    connect(priorityEdit, &QComboBox::currentIndexChanged, &dialog,
-            [this, taskId = task.id, priorityEdit] {
-                apiClient.updateTaskField(
-                    taskId, TaskField::PriorityId, priorityEdit->currentData().toInt()
-                );
-            });
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-    dialog.exec();
+    showTaskEditDialog(this, apiClient, task);
 }

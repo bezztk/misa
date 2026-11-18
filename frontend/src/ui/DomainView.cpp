@@ -1,5 +1,6 @@
 #include "DomainView.h"
 #include "DocumentEditor.h"
+#include "TaskEditDialog.h"
 
 #include <QFrame>
 #include <QApplication>
@@ -2387,51 +2388,7 @@ void DomainView::editTask(const int taskId) {
         return;
     }
 
-    QDialog dialog(this);
-    dialog.setWindowTitle("Aufgabe bearbeiten");
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *nameEdit = new QLineEdit(task->name, &dialog);
-    layout->addRow("Name", nameEdit);
-
-    auto *stateEdit = new QComboBox(&dialog);
-    for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
-        stateEdit->addItem(state.displayName.value_or(state.name), state.id);
-    }
-    stateEdit->setCurrentIndex(stateEdit->findData(task->stateId));
-    layout->addRow("Status", stateEdit);
-
-    auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
-        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
-    }
-    priorityEdit->setCurrentIndex(priorityEdit->findData(task->priorityId));
-    layout->addRow("Priorität", priorityEdit);
-
-    connect(nameEdit, &QLineEdit::editingFinished, &dialog,
-            [this, taskId, nameEdit] {
-                const QString name = nameEdit->text().trimmed();
-                if (!name.isEmpty()) {
-                    apiClient.updateTaskField(taskId, TaskField::Name, name);
-                }
-            });
-    connect(stateEdit, &QComboBox::currentIndexChanged, &dialog,
-            [this, taskId, stateEdit] {
-                apiClient.updateTaskField(
-                    taskId, TaskField::StateId, stateEdit->currentData().toInt()
-                );
-            });
-    connect(priorityEdit, &QComboBox::currentIndexChanged, &dialog,
-            [this, taskId, priorityEdit] {
-                apiClient.updateTaskField(
-                    taskId, TaskField::PriorityId, priorityEdit->currentData().toInt()
-                );
-            });
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-    dialog.exec();
+    showTaskEditDialog(this, apiClient, *task);
 }
 
 void DomainView::createPursuit(const int nodeId) {
