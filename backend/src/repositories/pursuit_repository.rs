@@ -1,7 +1,9 @@
+use crate::models::entity::EntityType;
 use crate::models::pursuit::{
     Pursuit, PursuitDetails, PursuitRequirement, PursuitRequirementTypeId,
     UpdatePursuitRequirementsRequest,
 };
+use crate::repositories::entity_repository;
 use sqlx::PgPool;
 
 pub async fn get_pursuits(
@@ -9,10 +11,10 @@ pub async fn get_pursuits(
     domain_node_id: i32,
 ) -> Result<Vec<PursuitDetails>, sqlx::Error> {
     let pursuits = sqlx::query_as::<_, Pursuit>(
-        "SELECT id, domain_node_id, progression_stage_id, name, achieved_at
+        "SELECT entity_id AS id, domain_node_id, progression_stage_id, name, achieved_at
          FROM pursuits
          WHERE domain_node_id = $1
-         ORDER BY id",
+         ORDER BY entity_id",
     )
     .bind(domain_node_id)
     .fetch_all(pool)
@@ -24,7 +26,7 @@ pub async fn get_pursuits(
                 pr.completeness_level_id, pr.flashcard_status_id,
                 pr.verification_status_id, pr.verification_level_id
          FROM pursuit_requirements pr
-         JOIN pursuits p ON p.id = pr.pursuit_id
+         JOIN pursuits p ON p.entity_id = pr.pursuit_id
          WHERE p.domain_node_id = $1
          ORDER BY pr.id",
     )
@@ -52,17 +54,30 @@ pub async fn create_pursuit(
     domain_node_id: i32,
     name: &str,
 ) -> Result<Option<PursuitDetails>, sqlx::Error> {
-    let pursuit = sqlx::query_as::<_, Pursuit>(
-        "INSERT INTO pursuits (domain_node_id, name)
-         SELECT id, $2 FROM domain_nodes WHERE id = $1
-         RETURNING id, domain_node_id, progression_stage_id, name, achieved_at",
+    let mut transaction = pool.begin().await?;
+    let node_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM domain_nodes WHERE entity_id = $1)",
     )
     .bind(domain_node_id)
-    .bind(name)
-    .fetch_optional(pool)
+    .fetch_one(&mut *transaction)
     .await?;
+    if !node_exists {
+        return Ok(None);
+    }
+    let entity_id = entity_repository::create_entity(&mut transaction, EntityType::Pursuit).await?;
+    let pursuit = sqlx::query_as::<_, Pursuit>(
+        "INSERT INTO pursuits (entity_id, domain_node_id, name)
+         VALUES ($1, $2, $3)
+         RETURNING entity_id AS id, domain_node_id, progression_stage_id, name, achieved_at",
+    )
+    .bind(entity_id)
+    .bind(domain_node_id)
+    .bind(name)
+    .fetch_one(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
 
-    Ok(pursuit.map(|pursuit| PursuitDetails {
+    Ok(Some(PursuitDetails {
         id: pursuit.id,
         domain_node_id: pursuit.domain_node_id,
         name: pursuit.name,
@@ -77,7 +92,7 @@ pub async fn update_requirements(
 ) -> Result<Option<i32>, sqlx::Error> {
     let mut transaction = pool.begin().await?;
     let domain_node_id = sqlx::query_scalar::<_, i32>(
-        "SELECT domain_node_id FROM pursuits WHERE id = $1 FOR UPDATE",
+        "SELECT domain_node_id FROM pursuits WHERE entity_id = $1 FOR UPDATE",
     )
     .bind(pursuit_id)
     .fetch_optional(&mut *transaction)
@@ -172,6 +187,11 @@ pub async fn update_requirements(
         .execute(&mut *transaction)
         .await?;
     }
+
+    sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+        .bind(pursuit_id)
+        .execute(&mut *transaction)
+        .await?;
 
     transaction.commit().await?;
     Ok(Some(domain_node_id))

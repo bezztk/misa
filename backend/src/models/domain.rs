@@ -48,16 +48,3 @@ pub struct DomainTree {
     pub domains: Vec<Domain>,
     pub nodes: Vec<DomainNode>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
-#[expect(
-    dead_code,
-    reason = "database entity retained for deferred evaluation functionality"
-)]
-pub struct CognitiveEvaluation {
-    pub id: i32,
-    pub domain_node_id: i32,
-    pub cognitive_level_id: i32,
-    pub evaluated_at: DateTime<Utc>,
-    pub note: Option<String>,
-}

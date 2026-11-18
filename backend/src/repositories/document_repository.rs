@@ -4,7 +4,7 @@ use sqlx::PgPool;
 pub async fn create_document(pool: &PgPool, node_id: i32) -> Result<Option<Document>, sqlx::Error> {
     sqlx::query_as::<_, Document>(
         "INSERT INTO documents (domain_node_id)
-         SELECT id FROM domain_nodes WHERE id = $1
+         SELECT entity_id FROM domain_nodes WHERE entity_id = $1
          RETURNING domain_node_id, content, completeness_level_id, flashcard_status_id,
                    verification_status_id, verification_level_id",
     )

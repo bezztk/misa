@@ -2698,7 +2698,7 @@ DECLARE
     v_parent JSONB;
     v_child JSONB;
     v_domain_id domains.id%TYPE;
-    v_parent_id domain_nodes.id%TYPE;
+    v_parent_id domain_nodes.entity_id%TYPE;
 BEGIN
     FOR v_domain IN SELECT value FROM jsonb_array_elements(v_data->'domains') LOOP
         IF jsonb_array_length(v_domain->'nodes') = 0 THEN
@@ -2716,12 +2716,18 @@ BEGIN
                   AND parent_id IS NULL
                   AND name = v_parent->>'name'
             ) THEN
+                WITH new_entity AS (
+                    INSERT INTO entities (type_id)
+                    VALUES (1)
+                    RETURNING id
+                )
                 INSERT INTO domain_nodes (
-                    domain_id, parent_id, name, is_system_value)
-                VALUES (v_domain_id, NULL, v_parent->>'name', TRUE)
-                RETURNING id INTO v_parent_id;
+                    entity_id, domain_id, parent_id, name, is_system_value)
+                SELECT id, v_domain_id, NULL, v_parent->>'name', TRUE
+                FROM new_entity
+                RETURNING entity_id INTO v_parent_id;
             ELSE
-                SELECT n.id INTO STRICT v_parent_id
+                SELECT n.entity_id INTO STRICT v_parent_id
                 FROM domain_nodes AS n
                 WHERE n.domain_id = v_domain_id
                   AND n.parent_id IS NULL
@@ -2735,9 +2741,15 @@ BEGIN
                       AND parent_id = v_parent_id
                       AND name = v_child->>'name'
                 ) THEN
+                   WITH new_entity AS (
+                       INSERT INTO entities (type_id)
+                       VALUES (1)
+                       RETURNING id
+                   )
                    INSERT INTO domain_nodes (
-                        domain_id, parent_id, name, is_system_value)
-                   VALUES (v_domain_id, v_parent_id, v_child->>'name', TRUE);
+                       entity_id, domain_id, parent_id, name, is_system_value)
+                   SELECT id, v_domain_id, v_parent_id, v_child->>'name', TRUE
+                   FROM new_entity;
                 END IF;
             END LOOP;
         END LOOP;

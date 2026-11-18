@@ -1,5 +1,6 @@
+use crate::models::entity::EntityType;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
-use sqlx::{PgPool, Postgres, QueryBuilder};
+use sqlx::PgPool;
 
 const PENDING_ROUTINE_EXECUTION_STATE_ID: i32 = 1;
 
@@ -44,7 +45,7 @@ pub async fn get_active_routine_execution_sources(
                       )
                 ) AS has_future_execution
          FROM systemtask_routines r
-         JOIN systemtasks st ON st.id = r.systemtask_id
+         JOIN systemtasks st ON st.entity_id = r.systemtask_id
          CROSS JOIN (
              SELECT NOW() AS now,
                     NOW() AT TIME ZONE 'Europe/Berlin' AS local_now
@@ -63,56 +64,50 @@ pub async fn create_routine_executions(
         return Ok(0);
     }
 
-    let mut query = QueryBuilder::<Postgres>::new(
-        "WITH input (
-             routine_id, name, is_optional, estimated_duration,
-             occurrence_on, occurrence_time, until_utc
-         ) AS (",
-    );
-    query.push_values(executions, |mut values, execution| {
-        values
-            .push_bind(execution.routine_id)
-            .push_bind(&execution.name)
-            .push_bind(execution.is_optional)
-            .push_bind(execution.estimated_duration)
-            .push_bind(execution.occurrence_on)
-            .push_bind(execution.time)
-            .push_bind(execution.until_utc);
-    });
-    query.push(
-        ", candidate AS (
-             SELECT input.*,
+    let mut transaction = pool.begin().await?;
+    let mut created = 0;
+    for execution in executions {
+        let result = sqlx::query(
+            "WITH candidate AS (
+             SELECT $1::INTEGER AS routine_id,
+                    $2::TEXT AS name,
+                    $3::BOOLEAN AS is_optional,
+                    $4::INTEGER AS estimated_duration,
+                    $5::DATE AS occurrence_on,
+                    $6::TIME AS occurrence_time,
+                    $7::TIMESTAMPTZ AS until_utc,
                     CASE
-                        WHEN occurrence_time::time IS NULL
-                            THEN occurrence_on::date::timestamp AT TIME ZONE 'Europe/Berlin'
-                        ELSE (occurrence_on::date + occurrence_time::time)
+                        WHEN $6::TIME IS NULL
+                            THEN $5::DATE::timestamp AT TIME ZONE 'Europe/Berlin'
+                        ELSE ($5::DATE + $6::TIME)
                              AT TIME ZONE 'Europe/Berlin'
                     END AS start_at,
                     CASE
-                        WHEN occurrence_time::time IS NULL THEN NULL
-                        ELSE (occurrence_on::date + occurrence_time::time)
+                        WHEN $6::TIME IS NULL THEN NULL
+                        ELSE ($5::DATE + $6::TIME)
                              AT TIME ZONE 'Europe/Berlin'
                     END AS scheduled_at
-             FROM input
          ),
          new_execution AS (
              INSERT INTO systemtask_routine_executions
                  (routine_id, state_id, is_optional, occurrence_on, scheduled_at)
-             SELECT routine_id, ",
-    );
-    query.push_bind(PENDING_ROUTINE_EXECUTION_STATE_ID);
-    query.push(
-        ", is_optional, occurrence_on, scheduled_at
+             SELECT routine_id, $8, is_optional, occurrence_on, scheduled_at
              FROM candidate
              WHERE scheduled_at IS NULL
                 OR until_utc::timestamptz IS NULL
                 OR scheduled_at <= until_utc::timestamptz
              ON CONFLICT (routine_id, occurrence_on) DO NOTHING
              RETURNING id, routine_id, occurrence_on
+         ),
+         new_entity AS (
+             INSERT INTO entities (type_id)
+             SELECT $9::INTEGER FROM new_execution
+             RETURNING id
          )
          INSERT INTO calendar_entries
-             (routine_execution_id, name, start_at, end_at, is_locked)
-         SELECT new_execution.id,
+             (entity_id, routine_execution_id, name, start_at, end_at, is_locked)
+         SELECT new_entity.id,
+                new_execution.id,
                 candidate.name,
                 candidate.start_at,
                 CASE
@@ -122,9 +117,22 @@ pub async fn create_routine_executions(
                 END,
                 false
          FROM new_execution
-         JOIN candidate USING (routine_id, occurrence_on)",
-    );
-
-    let result = query.build().execute(pool).await?;
-    Ok(result.rows_affected() as usize)
+         JOIN candidate USING (routine_id, occurrence_on)
+         CROSS JOIN new_entity",
+        )
+        .bind(execution.routine_id)
+        .bind(&execution.name)
+        .bind(execution.is_optional)
+        .bind(execution.estimated_duration)
+        .bind(execution.occurrence_on)
+        .bind(execution.time)
+        .bind(execution.until_utc)
+        .bind(PENDING_ROUTINE_EXECUTION_STATE_ID)
+        .bind(EntityType::CalendarEntry as i32)
+        .execute(&mut *transaction)
+        .await?;
+        created += result.rows_affected() as usize;
+    }
+    transaction.commit().await?;
+    Ok(created)
 }

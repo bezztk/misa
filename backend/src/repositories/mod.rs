@@ -2,6 +2,7 @@ pub mod attachment_repository;
 pub mod calendar_entry_repository;
 pub mod document_repository;
 pub mod domain_repository;
+pub mod entity_repository;
 pub mod flashcard_repository;
 pub mod metadata_repository;
 pub mod progression_repository;

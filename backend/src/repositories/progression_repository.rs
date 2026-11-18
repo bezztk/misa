@@ -1,13 +1,15 @@
+use crate::models::entity::EntityType;
 use crate::models::progression::{
     Progression, ProgressionDetails, ProgressionPursuit, ProgressionStage, ProgressionStageDetails,
 };
+use crate::repositories::entity_repository;
 use sqlx::PgPool;
 
 pub async fn get_progressions(pool: &PgPool) -> Result<Vec<ProgressionDetails>, sqlx::Error> {
     let progressions = sqlx::query_as::<_, Progression>(
-        "SELECT id, name, personal_relevance_id, lasting_impact_id, motivation, desired_outcome
+        "SELECT entity_id AS id, name, personal_relevance_id, lasting_impact_id, motivation, desired_outcome
          FROM progressions
-         ORDER BY id",
+         ORDER BY entity_id",
     )
     .fetch_all(pool)
     .await?;
@@ -47,7 +49,7 @@ pub async fn get_progressions(pool: &PgPool) -> Result<Vec<ProgressionDetails>, 
 
 pub async fn get_pursuits(pool: &PgPool) -> Result<Vec<ProgressionPursuit>, sqlx::Error> {
     sqlx::query_as::<_, ProgressionPursuit>(
-        "SELECT id, name, progression_stage_id FROM pursuits ORDER BY name, id",
+        "SELECT entity_id AS id, name, progression_stage_id FROM pursuits ORDER BY name, entity_id",
     )
     .fetch_all(pool)
     .await
@@ -55,20 +57,25 @@ pub async fn get_pursuits(pool: &PgPool) -> Result<Vec<ProgressionPursuit>, sqlx
 
 pub async fn get_available_pursuits(pool: &PgPool) -> Result<Vec<ProgressionPursuit>, sqlx::Error> {
     sqlx::query_as::<_, ProgressionPursuit>(
-        "SELECT id, name, progression_stage_id
+        "SELECT entity_id AS id, name, progression_stage_id
          FROM pursuits
          WHERE progression_stage_id IS NULL
-         ORDER BY name, id",
+         ORDER BY name, entity_id",
     )
     .fetch_all(pool)
     .await
 }
 
 pub async fn create_progression(pool: &PgPool, name: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO progressions (name) VALUES ($1)")
+    let mut transaction = pool.begin().await?;
+    let entity_id =
+        entity_repository::create_entity(&mut transaction, EntityType::Progression).await?;
+    sqlx::query("INSERT INTO progressions (entity_id, name) VALUES ($1, $2)")
+        .bind(entity_id)
         .bind(name)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+    transaction.commit().await?;
     Ok(())
 }
 
@@ -79,19 +86,26 @@ pub async fn update_progression(
     personal_relevance_id: Option<i32>,
     lasting_impact_id: Option<i32>,
 ) -> Result<bool, sqlx::Error> {
-    Ok(sqlx::query(
+    let mut transaction = pool.begin().await?;
+    let result = sqlx::query(
         "UPDATE progressions
          SET name = $2, personal_relevance_id = $3, lasting_impact_id = $4
-         WHERE id = $1",
+         WHERE entity_id = $1",
     )
     .bind(id)
     .bind(name)
     .bind(personal_relevance_id)
     .bind(lasting_impact_id)
-    .execute(pool)
-    .await?
-    .rows_affected()
-        > 0)
+    .execute(&mut *transaction)
+    .await?;
+    if result.rows_affected() > 0 {
+        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    transaction.commit().await?;
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn create_stage(
@@ -104,7 +118,7 @@ pub async fn create_stage(
          SELECT $1, COALESCE(MAX(stage), 0) + 1, $2
          FROM progression_stages
          WHERE progression_id = $1
-         HAVING EXISTS (SELECT 1 FROM progressions WHERE id = $1)",
+         HAVING EXISTS (SELECT 1 FROM progressions WHERE entity_id = $1)",
     )
     .bind(progression_id)
     .bind(name)
@@ -119,17 +133,24 @@ pub async fn assign_pursuit(
     stage_id: i32,
     pursuit_id: i32,
 ) -> Result<bool, sqlx::Error> {
-    Ok(sqlx::query(
+    let mut transaction = pool.begin().await?;
+    let result = sqlx::query(
         "UPDATE pursuits
          SET progression_stage_id = $1
-         WHERE id = $2
+         WHERE entity_id = $2
            AND progression_stage_id IS NULL
            AND EXISTS (SELECT 1 FROM progression_stages WHERE id = $1)",
     )
     .bind(stage_id)
     .bind(pursuit_id)
-    .execute(pool)
-    .await?
-    .rows_affected()
-        > 0)
+    .execute(&mut *transaction)
+    .await?;
+    if result.rows_affected() > 0 {
+        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+            .bind(pursuit_id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    transaction.commit().await?;
+    Ok(result.rows_affected() > 0)
 }

@@ -2,6 +2,7 @@ pub mod attachment;
 pub mod calendar_entry;
 pub mod document;
 pub mod domain;
+pub mod entity;
 pub mod flashcard;
 pub mod metadata;
 pub mod progression;

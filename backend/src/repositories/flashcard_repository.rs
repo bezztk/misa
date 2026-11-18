@@ -1,4 +1,6 @@
+use crate::models::entity::EntityType;
 use crate::models::flashcard::{EditableFlashcard, FlashcardQueueContext, FlashcardReviewContext};
+use crate::repositories::entity_repository;
 use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgPool};
 
@@ -22,18 +24,24 @@ pub async fn create_flashcard(
     front: &str,
     back: &str,
 ) -> Result<EditableFlashcard, sqlx::Error> {
-    sqlx::query_as::<_, EditableFlashcard>(
+    let mut transaction = pool.begin().await?;
+    let entity_id =
+        entity_repository::create_entity(&mut transaction, EntityType::Flashcard).await?;
+    let flashcard = sqlx::query_as::<_, EditableFlashcard>(
         "INSERT INTO flashcards
-            (domain_node_id, front, back, retention_class_id)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, front, back",
+            (entity_id, domain_node_id, front, back, retention_class_id)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING entity_id AS id, front, back",
     )
+    .bind(entity_id)
     .bind(domain_node_id)
     .bind(front)
     .bind(back)
     .bind(DEFAULT_RETENTION_CLASS_ID)
-    .fetch_one(pool)
-    .await
+    .fetch_one(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(flashcard)
 }
 
 pub async fn get_flashcards(
@@ -41,10 +49,10 @@ pub async fn get_flashcards(
     domain_node_id: i32,
 ) -> Result<Vec<EditableFlashcard>, sqlx::Error> {
     sqlx::query_as::<_, EditableFlashcard>(
-        "SELECT id, front, back
+        "SELECT entity_id AS id, front, back
          FROM flashcards
          WHERE domain_node_id = $1
-         ORDER BY id",
+         ORDER BY entity_id",
     )
     .bind(domain_node_id)
     .fetch_all(pool)
@@ -57,17 +65,26 @@ pub async fn update_flashcard(
     front: &str,
     back: &str,
 ) -> Result<Option<EditableFlashcard>, sqlx::Error> {
-    sqlx::query_as::<_, EditableFlashcard>(
+    let mut transaction = pool.begin().await?;
+    let flashcard = sqlx::query_as::<_, EditableFlashcard>(
         "UPDATE flashcards
          SET front = $2, back = $3
-         WHERE id = $1
-         RETURNING id, front, back",
+         WHERE entity_id = $1
+         RETURNING entity_id AS id, front, back",
     )
     .bind(id)
     .bind(front)
     .bind(back)
-    .fetch_optional(pool)
-    .await
+    .fetch_optional(&mut *transaction)
+    .await?;
+    if flashcard.is_some() {
+        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    transaction.commit().await?;
+    Ok(flashcard)
 }
 
 pub async fn get_due_flashcard_contexts(
@@ -75,7 +92,7 @@ pub async fn get_due_flashcard_contexts(
 ) -> Result<Vec<FlashcardQueueContext>, sqlx::Error> {
     sqlx::query_as::<_, FlashcardQueueContext>(
         "SELECT
-            f.id,
+            f.entity_id AS id,
             f.front,
             f.back,
             f.review_state_id,
@@ -87,21 +104,21 @@ pub async fn get_due_flashcard_contexts(
             (
                 SELECT fr.rating
                 FROM flashcard_reviews fr
-                WHERE fr.flashcard_id = f.id
+                WHERE fr.flashcard_id = f.entity_id
                 ORDER BY fr.reviewed_at DESC, fr.id DESC
                 LIMIT 1
             ) AS last_rating
          FROM flashcards f
          JOIN flashcard_retention_classes r ON r.id = f.retention_class_id
          WHERE f.due_at IS NULL OR f.due_at <= NOW()
-         ORDER BY f.due_at NULLS FIRST, f.id",
+         ORDER BY f.due_at NULLS FIRST, f.entity_id",
     )
     .fetch_all(pool)
     .await
 }
 
 pub async fn delete_flashcard(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM flashcards WHERE id = $1")
+    let result = sqlx::query("DELETE FROM entities WHERE id = $1")
         .bind(id)
         .execute(pool)
         .await?;
@@ -123,13 +140,13 @@ pub async fn get_flashcard_review_context(
              (
                  SELECT fr.rating
                  FROM flashcard_reviews fr
-                 WHERE fr.flashcard_id = f.id
+                 WHERE fr.flashcard_id = f.entity_id
                  ORDER BY fr.reviewed_at DESC, fr.id DESC
                  LIMIT 1
              ) AS last_rating
          FROM flashcards f
          JOIN flashcard_retention_classes r ON r.id = f.retention_class_id
-         WHERE f.id = $1
+         WHERE f.entity_id = $1
          FOR UPDATE OF f",
     )
     .bind(id)
@@ -148,7 +165,7 @@ pub async fn save_flashcard_review(
              difficulty = $3,
              last_reviewed_at = $4,
              due_at = $5
-         WHERE id = $6",
+         WHERE entity_id = $6",
     )
     .bind(review.review_state_after_id)
     .bind(review.stability)
@@ -158,6 +175,11 @@ pub async fn save_flashcard_review(
     .bind(review.flashcard_id)
     .execute(&mut *connection)
     .await?;
+
+    sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+        .bind(review.flashcard_id)
+        .execute(&mut *connection)
+        .await?;
 
     sqlx::query(
         "INSERT INTO flashcard_reviews

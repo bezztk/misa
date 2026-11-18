@@ -1,12 +1,14 @@
 use crate::models::calendar_entry::{CalendarEntry, SaveCalendarEntryRequest};
+use crate::models::entity::EntityType;
+use crate::repositories::entity_repository;
 use sqlx::PgPool;
 
 pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, sqlx::Error> {
     sqlx::query_as::<_, CalendarEntry>(
-        "SELECT id, systemtask_id, routine_execution_id, name, note,
+        "SELECT entity_id AS id, systemtask_id, routine_execution_id, name, note,
                 start_at, end_at, is_locked
          FROM calendar_entries
-         ORDER BY start_at, id",
+         ORDER BY start_at, entity_id",
     )
     .fetch_all(pool)
     .await
@@ -16,17 +18,23 @@ pub async fn create_calendar_entry(
     pool: &PgPool,
     entry: &SaveCalendarEntryRequest,
 ) -> Result<i32, sqlx::Error> {
-    sqlx::query_scalar(
-        "INSERT INTO calendar_entries (systemtask_id, name, start_at, end_at, is_locked)
-         VALUES ($1, $2, $3, $4, false)
-         RETURNING id",
+    let mut transaction = pool.begin().await?;
+    let entity_id =
+        entity_repository::create_entity(&mut transaction, EntityType::CalendarEntry).await?;
+    sqlx::query(
+        "INSERT INTO calendar_entries
+            (entity_id, systemtask_id, name, start_at, end_at, is_locked)
+         VALUES ($1, $2, $3, $4, $5, false)",
     )
+    .bind(entity_id)
     .bind(entry.systemtask_id)
     .bind(&entry.name)
     .bind(entry.start_at)
     .bind(entry.end_at)
-    .fetch_one(pool)
-    .await
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(entity_id)
 }
 
 pub async fn update_calendar_entry(
@@ -34,24 +42,33 @@ pub async fn update_calendar_entry(
     id: i32,
     entry: &SaveCalendarEntryRequest,
 ) -> Result<bool, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE calendar_entries
          SET systemtask_id = $1, name = $2, start_at = $3, end_at = $4
-         WHERE id = $5",
+         WHERE entity_id = $5",
     )
     .bind(entry.systemtask_id)
     .bind(&entry.name)
     .bind(entry.start_at)
     .bind(entry.end_at)
     .bind(id)
-    .execute(pool)
+    .execute(&mut *transaction)
     .await?;
+
+    if result.rows_affected() > 0 {
+        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    transaction.commit().await?;
 
     Ok(result.rows_affected() > 0)
 }
 
 pub async fn delete_calendar_entry(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM calendar_entries WHERE id = $1")
+    let result = sqlx::query("DELETE FROM entities WHERE id = $1")
         .bind(id)
         .execute(pool)
         .await?;
