@@ -14,7 +14,7 @@ find_package(Qt6 COMPONENTS
         Network
         REQUIRED)
 
-add_executable(frontend
+add_executable(frontend WIN32
     main.cpp
         src/api/ApiClient.cpp
         src/api/ApiClientProgression.cpp
