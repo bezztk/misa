@@ -346,62 +346,68 @@ static void showDomainNodeDialog(
     }
     layout->addLayout(form);
 
-    QObject::connect(nameEdit, &QLineEdit::editingFinished, &dialog,
-                     [&apiClient, nodeId, nameEdit] {
-                         const QString value = nameEdit->text().trimmed();
-                         if (!value.isEmpty()) {
-                             apiClient.updateDomainNodeField(
-                                 nodeId, DomainNodeField::Name, value
-                             );
-                         }
-                     });
-    QObject::connect(cognitiveCombo, &QComboBox::currentIndexChanged, &dialog,
-                     [&apiClient, nodeId, cognitiveCombo] {
-                         apiClient.updateDomainNodeField(
-                             nodeId,
-                             DomainNodeField::CognitiveLevelId,
-                             jsonValue(selectedMetadata(cognitiveCombo))
-                         );
-                     });
-    if (hasDocument) {
-        QObject::connect(completenessCombo, &QComboBox::currentIndexChanged, &dialog,
-                         [&apiClient, nodeId, completenessCombo] {
-                             apiClient.updateDomainNodeField(
-                                 nodeId,
-                                 DomainNodeField::CompletenessLevelId,
-                                 jsonValue(selectedMetadata(completenessCombo))
-                             );
-                         });
-        QObject::connect(flashcardStatusCombo, &QComboBox::currentIndexChanged, &dialog,
-                         [&apiClient, nodeId, flashcardStatusCombo] {
-                             apiClient.updateDomainNodeField(
-                                 nodeId,
-                                 DomainNodeField::FlashcardStatusId,
-                                 jsonValue(selectedMetadata(flashcardStatusCombo))
-                             );
-                         });
-        QObject::connect(verificationStatusCombo, &QComboBox::currentIndexChanged, &dialog,
-                         [&apiClient, nodeId, verificationStatusCombo] {
-                             apiClient.updateDomainNodeField(
-                                 nodeId,
-                                 DomainNodeField::VerificationStatusId,
-                                 jsonValue(selectedMetadata(verificationStatusCombo))
-                             );
-                         });
-        QObject::connect(verificationLevelCombo, &QComboBox::currentIndexChanged, &dialog,
-                         [&apiClient, nodeId, verificationLevelCombo] {
-                             apiClient.updateDomainNodeField(
-                                 nodeId,
-                                 DomainNodeField::VerificationLevelId,
-                                 jsonValue(selectedMetadata(verificationLevelCombo))
-                             );
-                         });
-    }
-
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
     dialog.exec();
+
+    const QString updatedName = nameEdit->text().trimmed();
+    if (!updatedName.isEmpty() && updatedName != name) {
+        apiClient.updateDomainNodeField(
+            nodeId, DomainNodeField::Name, updatedName
+        );
+    }
+
+    const std::optional<int> updatedCognitiveLevelId = selectedMetadata(cognitiveCombo);
+    if (updatedCognitiveLevelId != cognitiveLevelId) {
+        apiClient.updateDomainNodeField(
+            nodeId,
+            DomainNodeField::CognitiveLevelId,
+            jsonValue(updatedCognitiveLevelId)
+        );
+    }
+
+    if (hasDocument) {
+        const std::optional<int> updatedCompletenessLevelId =
+            selectedMetadata(completenessCombo);
+        if (updatedCompletenessLevelId != completenessLevelId) {
+            apiClient.updateDomainNodeField(
+                nodeId,
+                DomainNodeField::CompletenessLevelId,
+                jsonValue(updatedCompletenessLevelId)
+            );
+        }
+
+        const std::optional<int> updatedFlashcardStatusId =
+            selectedMetadata(flashcardStatusCombo);
+        if (updatedFlashcardStatusId != flashcardStatusId) {
+            apiClient.updateDomainNodeField(
+                nodeId,
+                DomainNodeField::FlashcardStatusId,
+                jsonValue(updatedFlashcardStatusId)
+            );
+        }
+
+        const std::optional<int> updatedVerificationStatusId =
+            selectedMetadata(verificationStatusCombo);
+        if (updatedVerificationStatusId != verificationStatusId) {
+            apiClient.updateDomainNodeField(
+                nodeId,
+                DomainNodeField::VerificationStatusId,
+                jsonValue(updatedVerificationStatusId)
+            );
+        }
+
+        const std::optional<int> updatedVerificationLevelId =
+            selectedMetadata(verificationLevelCombo);
+        if (updatedVerificationLevelId != verificationLevelId) {
+            apiClient.updateDomainNodeField(
+                nodeId,
+                DomainNodeField::VerificationLevelId,
+                jsonValue(updatedVerificationLevelId)
+            );
+        }
+    }
 }
 
 static bool showFlashcardDialog(
