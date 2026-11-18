@@ -114,8 +114,8 @@ pub fn create_router(pool: PgPool) -> Router {
             axum::routing::post(progression_handler::assign_pursuit),
         )
         .route(
-            "/skills/{id}",
-            axum::routing::patch(skill_handler::update_skill),
+            "/skills/{id}/fields/{field_id}",
+            axum::routing::patch(skill_handler::update_skill_field),
         )
         .route("/metadata", get(metadata_handler::get_metadata))
         .route(

@@ -5,6 +5,11 @@
 
 #include <optional>
 
+enum class SkillField {
+    Name = 1,
+    PsychomotorLevelId = 2
+};
+
 struct Skill {
     int id;
     int domainNodeId;

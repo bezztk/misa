@@ -89,8 +89,7 @@ public:
     void getNodeSkills(int nodeId);
     void createSkill(int nodeId, std::optional<int> parentSkillId,
                      const QString& name, std::optional<int> psychomotorLevelId);
-    void updateSkill(int nodeId, int id, const QString& name,
-                     std::optional<int> psychomotorLevelId);
+    void updateSkillField(int nodeId, int id, SkillField field, const QJsonValue& value);
     void getNodePursuits(int nodeId);
     void createPursuit(int nodeId, const QString& name);
     void updatePursuitRequirements(int nodeId, int pursuitId,

@@ -42,7 +42,9 @@ VALUES (1, 1, 1, 'name'),
        (6, 1, 6, 'verification_level_id'),
        (7, 2, 1, 'name'),
        (8, 2, 2, 'state_id'),
-       (9, 2, 3, 'priority_id');
+       (9, 2, 3, 'priority_id'),
+       (10, 5, 1, 'name'),
+       (11, 5, 2, 'psychomotor_level_id');
 
 CREATE TABLE entity_field_versions
 (

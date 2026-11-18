@@ -56,8 +56,6 @@ static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
 static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
 static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int ATTACHMENT_COUNT_ROLE = Qt::UserRole + 14;
-static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
-static constexpr int PSYCHOMOTOR_LEVEL_ROLE = Qt::UserRole + 2;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
 static constexpr int ATTACHMENT_STORAGE_NAME_ROLE = Qt::UserRole + 1;
 
@@ -479,6 +477,49 @@ static bool showSkillDialog(
     name = nameEdit->text().trimmed();
     psychomotorLevelId = selectedMetadata(levelCombo);
     return true;
+}
+
+static void showSkillEditDialog(
+    QWidget *parent,
+    ApiClient &apiClient,
+    const Skill &skill
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle("Skill bearbeiten");
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *nameEdit = new QLineEdit(skill.name, &dialog);
+    auto *levelCombo = new QComboBox(&dialog);
+    fillMetadataCombo(levelCombo, apiClient.metadata().psychomotorLevels);
+    selectMetadata(levelCombo, skill.psychomotorLevelId);
+    form->addRow("Name", nameEdit);
+    form->addRow("Psychomotorisches Niveau", levelCombo);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
+
+    const QString name = nameEdit->text().trimmed();
+    if (!name.isEmpty() && name != skill.name) {
+        apiClient.updateSkillField(
+            skill.domainNodeId,
+            skill.id,
+            SkillField::Name,
+            name
+        );
+    }
+
+    const std::optional<int> psychomotorLevelId = selectedMetadata(levelCombo);
+    if (psychomotorLevelId != skill.psychomotorLevelId) {
+        apiClient.updateSkillField(
+            skill.domainNodeId,
+            skill.id,
+            SkillField::PsychomotorLevelId,
+            jsonValue(psychomotorLevelId)
+        );
+    }
 }
 
 static bool showPursuitDialog(
@@ -2127,8 +2168,6 @@ void DomainView::renderSkills(const std::vector<Skill> &skills) {
 
             auto *item = new QStandardItem(skillText(apiClient.metadata(), skill));
             item->setData(skill.id, Qt::UserRole);
-            item->setData(skill.name, SKILL_NAME_ROLE);
-            setOptionalRole(item, PSYCHOMOTOR_LEVEL_ROLE, skill.psychomotorLevelId);
             if (parentItem) {
                 parentItem->appendRow(item);
             } else {
@@ -2199,21 +2238,17 @@ void DomainView::editSkill(const QModelIndex &index) {
         return;
     }
 
-    QString name = index.data(SKILL_NAME_ROLE).toString();
-    std::optional<int> psychomotorLevelId = optionalRole(
-        index,
-        PSYCHOMOTOR_LEVEL_ROLE
+    const int skillId = index.data(Qt::UserRole).toInt();
+    const auto skill = std::find_if(
+        currentSkills.begin(),
+        currentSkills.end(),
+        [skillId](const Skill &item) { return item.id == skillId; }
     );
-    if (showSkillDialog(
-        this, apiClient.metadata(), "Skill bearbeiten", name, psychomotorLevelId
-    )) {
-        apiClient.updateSkill(
-            currentNodeId,
-            index.data(Qt::UserRole).toInt(),
-            name,
-            psychomotorLevelId
-        );
+    if (skill == currentSkills.end()) {
+        return;
     }
+
+    showSkillEditDialog(this, apiClient, *skill);
 }
 
 void DomainView::renderTasks() {

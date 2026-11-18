@@ -1,6 +1,7 @@
 use crate::models::entity::EntityType;
-use crate::models::skill::Skill;
+use crate::models::skill::{Skill, SkillField, SkillFieldUpdate};
 use crate::repositories::entity_repository;
+use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_skills(pool: &PgPool, domain_node_id: i32) -> Result<Vec<Skill>, sqlx::Error> {
@@ -54,30 +55,70 @@ pub async fn create_skill(
     Ok(Some(skill))
 }
 
-pub async fn update_skill(
+pub async fn update_skill_field(
     pool: &PgPool,
     id: i32,
-    name: &str,
-    psychomotor_level_id: Option<i32>,
-) -> Result<Option<Skill>, sqlx::Error> {
+    update: SkillFieldUpdate,
+) -> Result<bool, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    let skill = sqlx::query_as::<_, Skill>(
-        "UPDATE skills
-         SET name = $2, psychomotor_level_id = $3
-         WHERE entity_id = $1
-         RETURNING entity_id AS id, domain_node_id, parent_skill_id, name, psychomotor_level_id",
-    )
-    .bind(id)
-    .bind(name)
-    .bind(psychomotor_level_id)
-    .fetch_optional(&mut *transaction)
-    .await?;
-    if skill.is_some() {
-        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+
+    let (field, old_value, new_value) = match update {
+        SkillFieldUpdate::Name(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, String>(
+                "SELECT name FROM skills WHERE entity_id = $1 FOR UPDATE",
+            )
             .bind(id)
-            .execute(&mut *transaction)
-            .await?;
-    }
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE skills SET name = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await?;
+            (SkillField::Name, json!(old_value), json!(value))
+        }
+        SkillFieldUpdate::PsychomotorLevelId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT psychomotor_level_id FROM skills WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE skills SET psychomotor_level_id = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (
+                SkillField::PsychomotorLevelId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+    };
+
+    entity_repository::create_field_version(
+        &mut transaction,
+        id,
+        EntityType::Skill,
+        field as i32,
+        old_value,
+        new_value,
+    )
+    .await?;
     transaction.commit().await?;
-    Ok(skill)
+
+    Ok(true)
 }

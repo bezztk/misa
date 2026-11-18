@@ -73,18 +73,19 @@ void ApiClient::createSkill(
     });
 }
 
-void ApiClient::updateSkill(
+void ApiClient::updateSkillField(
     const int nodeId,
     const int id,
-    const QString &name,
-    const std::optional<int> psychomotorLevelId
+    const SkillField field,
+    const QJsonValue &value
 ) {
-    QNetworkRequest request(buildUrl("/skills/" + QString::number(id)));
+    QNetworkRequest request(buildUrl(
+        "/skills/" + QString::number(id)
+        + "/fields/" + QString::number(static_cast<int>(field))
+    ));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QJsonObject json;
-    json["name"] = name;
-    json["psychomotor_level_id"] = psychomotorLevelId.has_value()
-        ? QJsonValue(*psychomotorLevelId) : QJsonValue(QJsonValue::Null);
+    json["value"] = value;
     QNetworkReply *reply = manager.sendCustomRequest(
         request,
         "PATCH",
