@@ -1,5 +1,6 @@
 #include "TaskView.h"
 #include "CalendarEntryDialog.h"
+#include "DialogUtils.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
 
@@ -378,9 +379,12 @@ void TaskView::openCreateDialog() {
     );
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     layout->addRow(buttons);
+    prepareDialog(dialog);
 
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+    if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
         return;
     }
 
@@ -404,7 +408,7 @@ void TaskView::openScheduleDialog(const Task &task) {
         .endAt = initialStart.addSecs(3600),
         .isReminder = true,
         .systemTaskId = task.id
-    });
+    }, "Erstellen", false);
     if (entry) {
         apiClient.createCalendarEntry(*entry);
     }

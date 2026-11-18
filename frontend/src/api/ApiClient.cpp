@@ -157,6 +157,7 @@ void ApiClient::createFlashcard(
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodeFlashcardsChanged(nodeId);
+            emit flashcardCreated();
         }
         reply->deleteLater();
     });
@@ -183,6 +184,7 @@ void ApiClient::updateFlashcardField(
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodeFlashcardsChanged(nodeId);
+            emit flashcardUpdated();
         }
         reply->deleteLater();
     });

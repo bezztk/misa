@@ -8,9 +8,12 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -164,6 +167,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
 
     setCentralWidget(central);
 
+    toastLabel = new QLabel(this);
+    toastLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    toastLabel->setAlignment(Qt::AlignCenter);
+    toastLabel->setStyleSheet(R"(
+        QLabel {
+            color: white;
+            background: rgba(32, 32, 32, 0.94);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 7px;
+            padding: 9px 16px;
+        }
+    )");
+    toastLabel->hide();
+    toastTimer = new QTimer(this);
+    toastTimer->setSingleShot(true);
+    connect(toastTimer, &QTimer::timeout, toastLabel, &QLabel::hide);
+
     connect(workButton, &QPushButton::clicked, this, [stack, workspace, taskView] {
         taskView->refreshTasks();
         stack->setCurrentWidget(workspace);
@@ -176,8 +196,63 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
         stack->setCurrentWidget(domainView);
     });
 
+    connect(&apiClient, &ApiClient::taskCreated, this,
+            [this] { showToast("Aufgabe erstellt"); });
+    connect(&apiClient, &ApiClient::taskUpdated, this,
+            [this] { showToast("Aufgabe aktualisiert"); });
+    connect(&apiClient, &ApiClient::calendarEntryCreated, this,
+            [this] { showToast("Kalendereintrag erstellt"); });
+    connect(&apiClient, &ApiClient::calendarEntryUpdated, this,
+            [this] { showToast("Kalendereintrag aktualisiert"); });
+    connect(&apiClient, &ApiClient::flashcardCreated, this,
+            [this] { showToast("Lernkarte erstellt"); });
+    connect(&apiClient, &ApiClient::flashcardUpdated, this,
+            [this] { showToast("Lernkarte aktualisiert"); });
+    connect(&apiClient, &ApiClient::skillCreated, this,
+            [this] { showToast("Skill erstellt"); });
+    connect(&apiClient, &ApiClient::skillUpdated, this,
+            [this] { showToast("Skill aktualisiert"); });
+    connect(&apiClient, &ApiClient::pursuitCreated, this,
+            [this] { showToast("Bestrebung erstellt"); });
+    connect(&apiClient, &ApiClient::pursuitUpdated, this,
+            [this] { showToast("Bestrebung aktualisiert"); });
+    connect(&apiClient, &ApiClient::progressionCreated, this,
+            [this] { showToast("Progression erstellt"); });
+    connect(&apiClient, &ApiClient::progressionUpdated, this,
+            [this] { showToast("Progression aktualisiert"); });
+    connect(&apiClient, &ApiClient::progressionStageCreated, this,
+            [this] { showToast("Progressionsstufe erstellt"); });
+    connect(&apiClient, &ApiClient::pursuitAssigned, this,
+            [this] { showToast("Bestrebung hinzugefügt"); });
+    connect(&apiClient, &ApiClient::domainNodeCreated, this,
+            [this](const DomainNode &) { showToast("Knoten erstellt"); });
+    connect(&apiClient, &ApiClient::domainNodeFieldUpdated, this,
+            [this](const int, const DomainNodeField, const QJsonValue &) {
+                showToast("Knoten aktualisiert");
+            });
+    connect(&apiClient, &ApiClient::documentCreated, this,
+            [this](const Document &) { showToast("Dokument erstellt"); });
+
     apiClient.getMetadata();
     apiClient.getTasks();
+}
+
+void MainWindow::showToast(const QString &message) {
+    toastLabel->setText(message);
+    toastLabel->adjustSize();
+    positionToast();
+    toastLabel->raise();
+    toastLabel->show();
+    toastTimer->start(2500);
+}
+
+void MainWindow::positionToast() {
+    toastLabel->move((width() - toastLabel->width()) / 2, 24);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    positionToast();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

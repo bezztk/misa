@@ -261,7 +261,7 @@ void CalendarView::openCreateDialog() {
         .startAt = initialStart,
         .endAt = initialStart.addSecs(3600),
         .isReminder = true
-    });
+    }, "Erstellen", false);
     if (entry) {
         apiClient.createCalendarEntry(*entry);
     }
@@ -279,7 +279,9 @@ void CalendarView::openEditDialog(const CalendarEntry &entry) {
             : std::nullopt,
         .isReminder = entry.isReminder(),
         .systemTaskId = entry.systemTaskId
-        }
+        },
+        "Fertig",
+        true
     );
     if (updatedEntry) {
         apiClient.updateCalendarEntry(entry.id, *updatedEntry);

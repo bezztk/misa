@@ -1,4 +1,5 @@
 #include "CalendarEntryDialog.h"
+#include "DialogUtils.h"
 
 #include <QComboBox>
 #include <QDateTimeEdit>
@@ -7,11 +8,14 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPushButton>
 
 std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     QWidget *parent,
     const QString &title,
-    const CreateCalendarEntry &initialEntry
+    const CreateCalendarEntry &initialEntry,
+    const QString &acceptText,
+    const bool acceptOnOutsideClick
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle(title);
@@ -73,9 +77,13 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     );
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    buttons->button(QDialogButtonBox::Save)->setText(acceptText);
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     layout->addRow(buttons);
+    prepareDialog(dialog);
 
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+    if (execDialog(dialog, acceptOnOutsideClick) != QDialog::Accepted
+        || nameEdit->text().trimmed().isEmpty()) {
         return std::nullopt;
     }
 

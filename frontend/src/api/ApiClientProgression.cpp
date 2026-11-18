@@ -68,6 +68,7 @@ void ApiClient::createSkill(
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodeSkillsChanged(nodeId);
+            emit skillCreated();
         }
         reply->deleteLater();
     });
@@ -95,6 +96,7 @@ void ApiClient::updateSkillField(
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodeSkillsChanged(nodeId);
+            emit skillUpdated();
         }
         reply->deleteLater();
     });
@@ -170,6 +172,7 @@ void ApiClient::createPursuit(const int nodeId, const QString &name) {
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodePursuitsChanged(nodeId);
+            emit pursuitCreated();
         }
         reply->deleteLater();
     });
@@ -208,6 +211,7 @@ void ApiClient::updatePursuitRequirements(
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         if (requestSucceeded(reply)) {
             emit nodePursuitsChanged(nodeId);
+            emit pursuitUpdated();
         }
         reply->deleteLater();
     });
@@ -303,6 +307,7 @@ void ApiClient::createProgression(const QString &name) {
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (requestSucceeded(reply)) {
             emit progressionsChanged();
+            emit progressionCreated();
         }
         reply->deleteLater();
     });
@@ -327,6 +332,7 @@ void ApiClient::updateProgressionField(
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (requestSucceeded(reply)) {
             emit progressionsChanged();
+            emit progressionUpdated();
         }
         reply->deleteLater();
     });
@@ -344,6 +350,7 @@ void ApiClient::createProgressionStage(const int progressionId, const QString &n
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (requestSucceeded(reply)) {
             emit progressionsChanged();
+            emit progressionStageCreated();
         }
         reply->deleteLater();
     });
@@ -361,6 +368,7 @@ void ApiClient::assignPursuitToStage(const int stageId, const int pursuitId) {
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (requestSucceeded(reply)) {
             emit progressionsChanged();
+            emit pursuitAssigned();
         }
         reply->deleteLater();
     });

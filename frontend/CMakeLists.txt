@@ -26,6 +26,8 @@ add_executable(frontend WIN32
         src/ui/CalendarView.h
         src/ui/CalendarEntryDialog.cpp
         src/ui/CalendarEntryDialog.h
+        src/ui/DialogUtils.cpp
+        src/ui/DialogUtils.h
         src/ui/TaskEditDialog.cpp
         src/ui/TaskEditDialog.h
         src/ui/VersionHistoryDialog.cpp

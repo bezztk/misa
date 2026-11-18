@@ -12,7 +12,9 @@ class QWidget;
 std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     QWidget *parent,
     const QString &title,
-    const CreateCalendarEntry &initialEntry
+    const CreateCalendarEntry &initialEntry,
+    const QString &acceptText,
+    bool acceptOnOutsideClick
 );
 
 #endif // FRONTEND_CALENDARENTRYDIALOG_H

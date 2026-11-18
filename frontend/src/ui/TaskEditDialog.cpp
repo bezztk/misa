@@ -1,4 +1,5 @@
 #include "TaskEditDialog.h"
+#include "DialogUtils.h"
 
 #include "../api/ApiClient.h"
 #include "../models/Task.h"
@@ -8,6 +9,7 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QLineEdit>
+#include <QPushButton>
 
 void showTaskEditDialog(
     QWidget *parent,
@@ -35,10 +37,12 @@ void showTaskEditDialog(
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     layout->addRow(buttons);
-    dialog.exec();
+    prepareDialog(dialog);
+    execDialog(dialog, true);
 
     const QString name = nameEdit->text().trimmed();
     if (!name.isEmpty() && name != task.name) {

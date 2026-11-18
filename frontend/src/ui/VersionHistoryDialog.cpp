@@ -1,4 +1,5 @@
 #include "VersionHistoryDialog.h"
+#include "DialogUtils.h"
 
 #include "../api/ApiClient.h"
 
@@ -7,6 +8,7 @@
 #include <QHeaderView>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <QPushButton>
 
 static QString metadataName(
     const std::vector<MetadataItem> &items,
@@ -171,9 +173,11 @@ void showVersionHistoryDialog(
     );
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    buttons->button(QDialogButtonBox::Close)->setText("Schließen");
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
+    prepareDialog(dialog, 820);
 
     apiClient.getEntityFieldVersions(entityId);
-    dialog.exec();
+    execDialog(dialog);
 }

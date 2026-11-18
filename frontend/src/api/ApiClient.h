@@ -37,12 +37,18 @@ signals:
     void flashcardRatingFailed();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
     void nodeFlashcardsChanged(int nodeId);
+    void flashcardCreated();
+    void flashcardUpdated();
     void nodeAttachmentsReceived(int nodeId, const std::vector<Attachment>& attachments);
     void nodeAttachmentsChanged(int nodeId);
     void nodeSkillsReceived(int nodeId, const std::vector<Skill>& skills);
     void nodeSkillsChanged(int nodeId);
+    void skillCreated();
+    void skillUpdated();
     void nodePursuitsReceived(int nodeId, const std::vector<Pursuit>& pursuits);
     void nodePursuitsChanged(int nodeId);
+    void pursuitCreated();
+    void pursuitUpdated();
     void progressionsReceived(const std::vector<Progression>& progressions,
                               const std::vector<ProgressionPursuit>& pursuits);
     void availableProgressionPursuitsReceived(
@@ -50,6 +56,10 @@ signals:
         const std::vector<ProgressionPursuit>& pursuits
     );
     void progressionsChanged();
+    void progressionCreated();
+    void progressionUpdated();
+    void progressionStageCreated();
+    void pursuitAssigned();
     void domainTreeReceived(
         const std::vector<MetadataItem>& domains,
         const std::vector<DomainNode>& nodes

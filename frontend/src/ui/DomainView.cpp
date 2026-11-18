@@ -1,4 +1,5 @@
 #include "DomainView.h"
+#include "DialogUtils.h"
 #include "DocumentEditor.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
@@ -18,7 +19,6 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
-#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -345,10 +345,12 @@ static void showDomainNodeDialog(
     }
     layout->addLayout(form);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     layout->addWidget(buttons);
-    dialog.exec();
+    prepareDialog(dialog);
+    execDialog(dialog, true);
 
     const QString updatedName = nameEdit->text().trimmed();
     if (!updatedName.isEmpty() && updatedName != name) {
@@ -417,7 +419,7 @@ static bool showFlashcardDialog(
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle(title);
-    dialog.resize(480, 280);
+    dialog.resize(540, 340);
 
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
@@ -433,9 +435,12 @@ static bool showFlashcardDialog(
     );
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    buttons->button(QDialogButtonBox::Ok)->setText("Erstellen");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     layout->addWidget(buttons);
+    prepareDialog(dialog);
 
-    if (dialog.exec() != QDialog::Accepted) {
+    if (execDialog(dialog) != QDialog::Accepted) {
         return false;
     }
 
@@ -452,7 +457,7 @@ static void showFlashcardEditDialog(
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle("Lernkarte bearbeiten");
-    dialog.resize(480, 280);
+    dialog.resize(540, 340);
 
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
@@ -462,10 +467,12 @@ static void showFlashcardEditDialog(
     form->addRow("Back", backEdit);
     layout->addLayout(form);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     layout->addWidget(buttons);
-    dialog.exec();
+    prepareDialog(dialog);
+    execDialog(dialog, true);
 
     const QString front = frontEdit->toPlainText().trimmed();
     if (!front.isEmpty() && front != flashcard.front) {
@@ -513,9 +520,12 @@ static bool showSkillDialog(
     );
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     layout->addWidget(buttons);
+    prepareDialog(dialog);
 
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+    if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
         return false;
     }
 
@@ -541,10 +551,12 @@ static void showSkillEditDialog(
     form->addRow("Psychomotorisches Niveau", levelCombo);
     layout->addLayout(form);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     layout->addWidget(buttons);
-    dialog.exec();
+    prepareDialog(dialog);
+    execDialog(dialog, true);
 
     const QString name = nameEdit->text().trimmed();
     if (!name.isEmpty() && name != skill.name) {
@@ -664,15 +676,13 @@ static bool showPursuitDialog(
     skillArea->setWidget(skillContent);
     layout->addWidget(skillArea, 1);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
     layout->addWidget(buttons);
+    prepareDialog(dialog);
 
-    if (dialog.exec() != QDialog::Accepted) {
+    if (execDialog(dialog, true) != QDialog::Accepted) {
         return false;
     }
 
@@ -712,10 +722,12 @@ static void showProgressionDialog(
     layout->addRow("Persönliche Relevanz", relevanceCombo);
     layout->addRow("Lasting Impact", impactCombo);
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     layout->addRow(buttons);
-    dialog.exec();
+    prepareDialog(dialog);
+    execDialog(dialog, true);
 
     const QString name = nameEdit->text().trimmed();
     if (!name.isEmpty() && name != progression.name) {
@@ -881,16 +893,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     layout->addWidget(progressionWidget);
 
     connect(addProgressionButton, &QPushButton::clicked, this, [this] {
-        bool accepted;
-        const QString name = QInputDialog::getText(
+        const auto input = showTextInputDialog(
             this,
             "Progression hinzufügen",
-            "Name",
-            QLineEdit::Normal,
-            {},
-            &accepted
-        ).trimmed();
-        if (accepted && !name.isEmpty()) {
+            "Name"
+        );
+        const QString name = input ? input->trimmed() : QString();
+        if (!name.isEmpty()) {
             apiClient.createProgression(name);
         }
     });
@@ -2005,16 +2014,13 @@ void DomainView::editProgression(const int progressionId) {
 }
 
 void DomainView::addProgressionStage(const int progressionId) {
-    bool accepted;
-    const QString name = QInputDialog::getText(
+    const auto input = showTextInputDialog(
         this,
         "Progressionsstufe hinzufügen",
-        "Name",
-        QLineEdit::Normal,
-        {},
-        &accepted
-    ).trimmed();
-    if (accepted && !name.isEmpty()) {
+        "Name"
+    );
+    const QString name = input ? input->trimmed() : QString();
+    if (!name.isEmpty()) {
         apiClient.createProgressionStage(progressionId, name);
     }
 }
@@ -2042,18 +2048,15 @@ void DomainView::showAvailablePursuits(
         return;
     }
 
-    bool accepted;
-    const QString name = QInputDialog::getItem(
+    const auto selection = showItemInputDialog(
         this,
         "Bestrebung hinzufügen",
         "Bestrebung",
         names,
-        0,
-        false,
-        &accepted
+        "Hinzufügen"
     );
-    if (accepted) {
-        apiClient.assignPursuitToStage(stageId, ids[names.indexOf(name)]);
+    if (selection) {
+        apiClient.assignPursuitToStage(stageId, ids[names.indexOf(*selection)]);
     }
 }
 
@@ -2116,17 +2119,14 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         );
 
         if (menu.exec(treeView->viewport()->mapToGlobal(position)) == createAction) {
-            bool accepted;
-            const QString name = QInputDialog::getText(
+            const auto input = showTextInputDialog(
                 treeView,
                 "Root-Knoten hinzufügen",
-                "Name",
-                QLineEdit::Normal,
-                {},
-                &accepted
-            ).trimmed();
+                "Name"
+            );
+            const QString name = input ? input->trimmed() : QString();
 
-            if (accepted && !name.isEmpty()) {
+            if (!name.isEmpty()) {
                 apiClient.createRootDomainNode(index.data(DOMAIN_ID_ROLE).toInt(), name);
             }
         }
@@ -2191,17 +2191,14 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     const int nodeId = index.data(Qt::UserRole).toInt();
 
     if (selectedAction == createAction) {
-        bool accepted;
-        const QString name = QInputDialog::getText(
+        const auto input = showTextInputDialog(
             treeView,
             "Unterknoten hinzufügen",
-            "Name",
-            QLineEdit::Normal,
-            {},
-            &accepted
-        ).trimmed();
+            "Name"
+        );
+        const QString name = input ? input->trimmed() : QString();
 
-        if (accepted && !name.isEmpty()) {
+        if (!name.isEmpty()) {
             apiClient.createDomainNode(nodeId, name);
         }
     } else if (selectedAction == editAction) {
@@ -2592,9 +2589,12 @@ void DomainView::createTask(const int nodeId) {
     );
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     layout->addRow(buttons);
+    prepareDialog(dialog);
 
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+    if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
         return;
     }
 
@@ -2619,16 +2619,13 @@ void DomainView::editTask(const int taskId) {
 }
 
 void DomainView::createPursuit(const int nodeId) {
-    bool accepted;
-    const QString name = QInputDialog::getText(
+    const auto input = showTextInputDialog(
         this,
         "Bestrebung hinzufügen",
-        "Name",
-        QLineEdit::Normal,
-        {},
-        &accepted
-    ).trimmed();
-    if (accepted && !name.isEmpty()) {
+        "Name"
+    );
+    const QString name = input ? input->trimmed() : QString();
+    if (!name.isEmpty()) {
         apiClient.createPursuit(nodeId, name);
     }
 }

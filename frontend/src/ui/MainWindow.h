@@ -6,6 +6,9 @@
 
 class DomainView;
 class QCloseEvent;
+class QLabel;
+class QResizeEvent;
+class QTimer;
 
 class MainWindow : public QMainWindow {
 public:
@@ -13,10 +16,16 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void showToast(const QString &message);
+    void positionToast();
+
     ApiClient apiClient;
     DomainView *domainView;
+    QLabel *toastLabel;
+    QTimer *toastTimer;
     bool closeAfterSave = false;
 };
 
