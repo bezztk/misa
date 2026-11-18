@@ -55,6 +55,7 @@ signals:
     );
     void domainNodeCreated(const DomainNode& node);
     void domainNodeUpdated(const DomainNode& node);
+    void domainNodeDeleted(int nodeId);
     void documentCreated(const Document& document);
     void documentReceived(const Document& document);
     void documentLoadFailed(int nodeId);
@@ -104,6 +105,7 @@ public:
     void getDomainTree();
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);
+    void deleteDomainNode(int id);
     void updateDomainNode(int id, const QString& name,
                           std::optional<int> cognitiveLevelId,
                           std::optional<int> completenessLevelId,

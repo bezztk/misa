@@ -113,6 +113,15 @@ pub async fn create_root_domain_node(
     .await
 }
 
+pub async fn delete_domain_node(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM domain_nodes WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn update_domain_node(
     pool: &PgPool,
     id: i32,

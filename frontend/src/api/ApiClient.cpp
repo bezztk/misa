@@ -394,6 +394,19 @@ void ApiClient::createRootDomainNode(const int domainId, const QString &name) {
     });
 }
 
+void ApiClient::deleteDomainNode(const int id) {
+    const QNetworkRequest request(buildUrl("/domain-nodes/" + QString::number(id)));
+    QNetworkReply *reply = manager.deleteResource(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, id] {
+        if (requestSucceeded(reply)) {
+            emit domainNodeDeleted(id);
+        }
+
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::updateDomainNode(
     const int id,
     const QString &name,

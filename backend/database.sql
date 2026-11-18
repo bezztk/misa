@@ -129,7 +129,8 @@ VALUES ('Mathematik'),
        ('Kunst'),
        ('Sport und Bewegung'),
        ('Geschichte'),
-       ('Sprache und Kommunikation');
+       ('Sprache und Kommunikation'),
+       ('Anderes');
 
 CREATE TABLE domain_nodes
 (

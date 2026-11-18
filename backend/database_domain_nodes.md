@@ -949,8 +949,6 @@
 ## 17.4 Tanz
 
 - Tanztechnik und Körpertraining
-- Choreografie
-- Urbaner Tanz
 
 # 18. Sport und Bewegung
 

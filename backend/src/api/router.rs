@@ -38,7 +38,8 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/domain-nodes/{id}",
-            axum::routing::patch(domain_handler::update_domain_node),
+            axum::routing::patch(domain_handler::update_domain_node)
+                .delete(domain_handler::delete_domain_node),
         )
         .route(
             "/domain-nodes/{node_id}/document",

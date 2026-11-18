@@ -64,3 +64,14 @@ pub async fn update_domain_node(
 
     Ok(Json(node))
 }
+
+pub async fn delete_domain_node(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+) -> ApiResult<StatusCode> {
+    if !domain_repository::delete_domain_node(&pool, id).await? {
+        return Err(ApiError::NotFound);
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}

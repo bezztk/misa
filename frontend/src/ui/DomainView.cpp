@@ -1141,6 +1141,23 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     );
                 }
             });
+    connect(&apiClient, &ApiClient::domainNodeDeleted, this,
+            [this](const int nodeId) {
+                QStandardItem *item = findDomainNodeItem(nodeId);
+                QStandardItem *currentItem = currentNodeId == -1
+                    ? nullptr
+                    : findDomainNodeItem(currentNodeId);
+                for (QStandardItem *ancestor = currentItem;
+                     ancestor;
+                     ancestor = ancestor->parent()) {
+                    if (ancestor == item) {
+                        requestDocumentChange(-1);
+                        break;
+                    }
+                }
+
+                item->parent()->removeRow(item->row());
+            });
     connect(&apiClient, &ApiClient::domainNodeRoutineReceived, this,
             [this](const int, const Routine &routine) {
                 editRoutine(routine);
@@ -1732,6 +1749,8 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             ? "Routine bearbeiten"
             : "Routine hinzufügen"
     );
+    menu.addSeparator();
+    QAction *deleteAction = menu.addAction("Löschen");
     QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
     const int nodeId = index.data(Qt::UserRole).toInt();
 
@@ -1798,6 +1817,13 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         } else {
             createRoutine(nodeId, index.data(NODE_NAME_ROLE).toString());
         }
+    } else if (selectedAction == deleteAction
+               && QMessageBox::question(
+                   treeView,
+                   "Bereich löschen",
+                   "Bereich einschließlich aller Unterbereiche löschen?"
+               ) == QMessageBox::Yes) {
+        saveBeforeClose([this, nodeId] { apiClient.deleteDomainNode(nodeId); });
     }
 }
 
