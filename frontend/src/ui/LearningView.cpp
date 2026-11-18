@@ -70,7 +70,7 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
 
     remainingLabel = new QLabel(content);
     remainingLabel->setStyleSheet(R"(
-        color: #777777;
+        color: #969696;
         font-size: 11px;
     )");
     headerLayout->addWidget(title);
@@ -106,7 +106,7 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     frontFont.setBold(true);
     front->setFont(frontFont);
     backLabel = new QLabel("Antwort", card);
-    backLabel->setStyleSheet("color: #777777; font-size: 11px;");
+    backLabel->setStyleSheet("color: #969696; font-size: 11px;");
     backLabel->hide();
     back = new QLabel(card);
     back->setWordWrap(true);
@@ -326,11 +326,11 @@ void LearningView::updateMetadataBanner() {
     const FlashcardReviewQueueItem &flashcard = flashcards[currentIndex];
     metadataLabel->setText(QString(
         "<table cellspacing='0' cellpadding='1'>"
-        "<tr><td style='color:#777777'>Zustand</td><td style='color:#D0D0D0; padding-left:12px'>%1</td></tr>"
-        "<tr><td style='color:#777777'>Retention</td><td style='color:#D0D0D0; padding-left:12px'>%2</td></tr>"
-        "<tr><td style='color:#777777'>Stabilität</td><td style='color:#D0D0D0; padding-left:12px'>%3</td></tr>"
-        "<tr><td style='color:#777777'>Schwierigkeit</td><td style='color:#D0D0D0; padding-left:12px'>%4</td></tr>"
-        "<tr><td style='color:#777777'>Lernschritt</td><td style='color:#D0D0D0; padding-left:12px'>%5</td></tr>"
+        "<tr><td style='color:#969696'>Zustand</td><td style='color:#D0D0D0; padding-left:12px'>%1</td></tr>"
+        "<tr><td style='color:#969696'>Retention</td><td style='color:#D0D0D0; padding-left:12px'>%2</td></tr>"
+        "<tr><td style='color:#969696'>Stabilität</td><td style='color:#D0D0D0; padding-left:12px'>%3</td></tr>"
+        "<tr><td style='color:#969696'>Schwierigkeit</td><td style='color:#D0D0D0; padding-left:12px'>%4</td></tr>"
+        "<tr><td style='color:#969696'>Lernschritt</td><td style='color:#D0D0D0; padding-left:12px'>%5</td></tr>"
         "</table>"
     ).arg(
         flashcardStateName(flashcard.reviewStateId).toHtmlEscaped(),

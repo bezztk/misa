@@ -263,7 +263,7 @@ void TaskView::renderTasks() {
         item->setForeground(0, taskPriorityColor(apiClient.metadata(), task.priorityId));
         if (closed) {
             for (int column = 0; column < taskList->columnCount(); ++column) {
-                item->setForeground(column, QColor("#777777"));
+                item->setForeground(column, QColor("#969696"));
             }
         }
     };
@@ -285,7 +285,7 @@ void TaskView::renderTasks() {
                 QFont font = separator->font(0);
                 font.setBold(true);
                 separator->setFont(0, font);
-                separator->setForeground(0, QColor("#777777"));
+                separator->setForeground(0, QColor("#969696"));
                 separator->setFlags(Qt::NoItemFlags);
                 separator->setFirstColumnSpanned(true);
                 hasClosed = true;
@@ -297,7 +297,7 @@ void TaskView::renderTasks() {
     if (!hasActive && !hasClosed) {
         auto *empty = new QTreeWidgetItem(taskList);
         empty->setText(0, "Keine Aufgaben in dieser Ansicht.");
-        empty->setForeground(0, QColor("#777777"));
+        empty->setForeground(0, QColor("#969696"));
         empty->setFlags(Qt::NoItemFlags);
         empty->setFirstColumnSpanned(true);
     }

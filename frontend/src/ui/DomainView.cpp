@@ -1520,14 +1520,14 @@ void DomainView::renderProgressionStages() {
     if (!selectedProgression) {
         auto *label = new QLabel("Noch keine Progression ausgewählt.");
         label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("color: #777777;");
+        label->setStyleSheet("color: palette(mid);");
         progressionStagesLayout->addWidget(label, 1);
         return;
     }
     if (selectedProgression->stages.empty()) {
         auto *label = new QLabel("Noch keine Progressionsstufen angelegt.");
         label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("color: #777777;");
+        label->setStyleSheet("color: palette(mid);");
         progressionStagesLayout->addWidget(label, 1);
         return;
     }
