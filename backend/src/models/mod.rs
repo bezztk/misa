@@ -1,5 +1,6 @@
 pub mod attachment;
 pub mod calendar_entry;
+pub mod comment;
 pub mod document;
 pub mod domain;
 pub mod entity;

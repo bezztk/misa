@@ -1,5 +1,5 @@
 use crate::api::handlers::{
-    attachment_handler, calendar_entry_handler, document_handler, domain_handler,
+    attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
     flashcard_handler, metadata_handler, progression_handler, pursuit_handler, routine_handler,
     skill_handler, task_handler,
 };
@@ -21,6 +21,15 @@ pub fn create_router(pool: PgPool) -> Router {
             "/calendar-entries/{id}",
             axum::routing::patch(calendar_entry_handler::update_calendar_entry)
                 .delete(calendar_entry_handler::delete_calendar_entry),
+        )
+        .route(
+            "/entities/{entity_id}/comments",
+            axum::routing::post(comment_handler::create_comment),
+        )
+        .route(
+            "/comments/{id}",
+            axum::routing::patch(comment_handler::update_comment)
+                .delete(comment_handler::delete_comment),
         )
         .route("/domain-tree", get(domain_handler::get_domain_tree))
         .route(

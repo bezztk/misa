@@ -22,6 +22,16 @@ CREATE TABLE entities
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE comments
+(
+    id         integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    entity_id  integer     NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
+    content    text        NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_comments_entity_id ON comments (entity_id);
 --endregion
 
 --region Globale Metadaten

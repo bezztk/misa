@@ -1,5 +1,6 @@
 pub mod attachment_repository;
 pub mod calendar_entry_repository;
+pub mod comment_repository;
 pub mod document_repository;
 pub mod domain_repository;
 pub mod entity_repository;
