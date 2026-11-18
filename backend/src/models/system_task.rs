@@ -2,7 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 pub const OPEN_SYSTEM_TASK_STATE_ID: i32 = 1;
-pub const NORMAL_SYSTEM_TASK_PRIORITY_ID: i32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct SystemTaskGroup {
@@ -31,7 +30,6 @@ pub struct SystemTaskPriority {
 )]
 pub struct SystemTask {
     pub id: i32,
-    pub pursuit_id: Option<i32>,
     pub domain_node_id: Option<i32>,
     pub group_id: Option<i32>,
     pub name: String,
@@ -50,7 +48,7 @@ pub struct SystemTask {
 pub struct TaskListItem {
     pub id: i32,
     pub name: String,
-    pub pursuit_id: Option<i32>,
+    pub domain_node_id: Option<i32>,
     pub group_id: Option<i32>,
     pub state_id: i32,
     pub priority_id: i32,
@@ -61,7 +59,7 @@ pub struct CreateTaskRequest {
     pub name: String,
     pub group_id: Option<i32>,
     pub priority_id: i32,
-    pub pursuit_id: Option<i32>,
+    pub domain_node_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]

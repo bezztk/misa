@@ -28,12 +28,6 @@ pub fn create_router(pool: PgPool) -> Router {
             axum::routing::post(domain_handler::create_domain_node),
         )
         .route(
-            "/domain-nodes/{node_id}/routine",
-            get(routine_handler::get_domain_node_routine)
-                .post(routine_handler::create_domain_node_routine)
-                .put(routine_handler::update_domain_node_routine),
-        )
-        .route(
             "/domains/{domain_id}/nodes",
             axum::routing::post(domain_handler::create_root_domain_node),
         )
@@ -102,7 +96,6 @@ pub fn create_router(pool: PgPool) -> Router {
             "/pursuits/available",
             get(progression_handler::get_available_pursuits),
         )
-        .route("/pursuits", get(pursuit_handler::get_all_pursuits))
         .route(
             "/progression-stages/{id}/pursuits",
             axum::routing::post(progression_handler::assign_pursuit),

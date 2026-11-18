@@ -30,21 +30,14 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
              GROUP BY domain_node_id
          ),
          task_counts AS (
-             SELECT p.domain_node_id, COUNT(*) AS count
-             FROM systemtasks st
-             JOIN pursuits p ON p.id = st.pursuit_id
-             GROUP BY p.domain_node_id
-         ),
-         routine_nodes AS (
-             SELECT st.domain_node_id
-             FROM systemtask_routines r
-             JOIN systemtasks st ON st.id = r.systemtask_id
-             WHERE st.domain_node_id IS NOT NULL
+             SELECT domain_node_id, COUNT(*) AS count
+             FROM systemtasks
+             WHERE domain_node_id IS NOT NULL
+             GROUP BY domain_node_id
          )
          SELECT dn.id, dn.domain_id, dn.parent_id, dn.cognitive_level_id, dn.name,
                 dn.is_system_value, dn.last_reviewed_at,
                 d.domain_node_id IS NOT NULL AS has_document,
-                rn.domain_node_id IS NOT NULL AS has_routine,
                 COALESCE(fc.count, 0) AS flashcard_count,
                 COALESCE(ac.count, 0) AS attachment_count,
                 COALESCE(sc.count, 0) AS skill_count,
@@ -59,7 +52,6 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
          LEFT JOIN skill_counts sc ON sc.domain_node_id = dn.id
          LEFT JOIN pursuit_counts pc ON pc.domain_node_id = dn.id
          LEFT JOIN task_counts tc ON tc.domain_node_id = dn.id
-         LEFT JOIN routine_nodes rn ON rn.domain_node_id = dn.id
          ORDER BY dn.domain_id, dn.id",
     )
     .fetch_all(pool)
@@ -79,7 +71,6 @@ pub async fn create_domain_node(
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
                    0::BIGINT AS attachment_count,
-                   FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
                    0::BIGINT AS task_count,
@@ -107,7 +98,6 @@ pub async fn create_root_domain_node(
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
                    0::BIGINT AS attachment_count,
-                   FALSE AS has_routine,
                    0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
                    0::BIGINT AS task_count,
@@ -159,19 +149,13 @@ pub async fn update_domain_node(
          WHERE id = $1
          RETURNING id, domain_id, parent_id, cognitive_level_id, name, is_system_value, last_reviewed_at,
                    EXISTS (SELECT 1 FROM documents WHERE domain_node_id = domain_nodes.id) AS has_document,
-                   EXISTS (
-                       SELECT 1 FROM systemtask_routines r
-                       JOIN systemtasks st ON st.id = r.systemtask_id
-                       WHERE st.domain_node_id = domain_nodes.id
-                   ) AS has_routine,
                    (SELECT COUNT(*) FROM flashcards WHERE domain_node_id = domain_nodes.id) AS flashcard_count,
                    (SELECT COUNT(*) FROM attachments WHERE domain_node_id = domain_nodes.id) AS attachment_count,
                    (SELECT COUNT(*) FROM skills WHERE domain_node_id = domain_nodes.id) AS skill_count,
                    (SELECT COUNT(*) FROM pursuits WHERE domain_node_id = domain_nodes.id) AS pursuit_count,
                    (SELECT COUNT(*)
-                    FROM systemtasks st
-                    JOIN pursuits p ON p.id = st.pursuit_id
-                    WHERE p.domain_node_id = domain_nodes.id) AS task_count,
+                    FROM systemtasks
+                    WHERE domain_node_id = domain_nodes.id) AS task_count,
                    (SELECT completeness_level_id FROM documents WHERE domain_node_id = domain_nodes.id) AS completeness_level_id,
                    (SELECT flashcard_status_id FROM documents WHERE domain_node_id = domain_nodes.id) AS flashcard_status_id,
                    (SELECT verification_status_id FROM documents WHERE domain_node_id = domain_nodes.id) AS verification_status_id,

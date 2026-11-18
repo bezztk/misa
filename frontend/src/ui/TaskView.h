@@ -26,7 +26,7 @@ private:
     const Task *taskById(int id) const;
 
     std::vector<Task> tasks;
-    std::vector<TaskPursuit> pursuits;
+    std::vector<DomainNode> domainNodes;
     ApiClient &apiClient;
     QComboBox *viewSelector;
     QTreeWidget *taskList;

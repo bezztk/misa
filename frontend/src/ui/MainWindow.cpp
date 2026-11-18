@@ -139,8 +139,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
-    connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
-            [this](const int) { apiClient.getTaskPursuits(); });
     connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
             [this](const int) { apiClient.getDueFlashcards(); });
     connect(&apiClient, &ApiClient::requestFailed, this,
@@ -180,7 +178,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
 
     apiClient.getMetadata();
     apiClient.getTasks();
-    apiClient.getTaskPursuits();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

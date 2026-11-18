@@ -12,7 +12,6 @@ struct DomainNode {
     std::optional<int> cognitiveLevelId{};
     QString name;
     bool hasDocument;
-    bool hasRoutine;
     int flashcardCount;
     int attachmentCount;
     int skillCount;

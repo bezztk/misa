@@ -36,8 +36,8 @@ private:
         const std::vector<DomainNode> &nodes
     );
     void showDomainNodeContextMenu(const QPoint &position);
-    void createRoutine(int nodeId, const QString& nodeName);
-    void editRoutine(const Routine& routine);
+    void createTask(int nodeId);
+    void editTask(int taskId);
     QStandardItem *findDomainItem(int domainId);
     QStandardItem *findDomainNodeItem(int nodeId);
     void requestDocumentChange(int nodeId, bool hasDocument = false);
@@ -62,9 +62,8 @@ private:
     void createSkill(int nodeId, std::optional<int> parentSkillId = std::nullopt);
     void editSkill(const QModelIndex &index);
     void updateSkillCount(int nodeId, int count);
+    void renderTasks();
     void renderPursuits();
-    void showPursuitContextMenu(const QPoint &position);
-    void createPursuitTask(int pursuitId);
     void createPursuit(int nodeId);
     void editPursuit(const QModelIndex &index);
     void updatePursuitCount(int nodeId, int count);
@@ -111,6 +110,9 @@ private:
     QListView *attachmentListView;
     QStandardItemModel *attachmentModel;
     QWidget *skillWidget;
+    QLabel *noTasksLabel;
+    QListView *taskListView;
+    QStandardItemModel *taskModel;
     QLabel *noPursuitsLabel;
     QTreeView *pursuitTreeView;
     QStandardItemModel *pursuitModel;

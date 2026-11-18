@@ -83,7 +83,6 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .domainId = object["domain_id"].toInt(),
         .name = object["name"].toString(),
         .hasDocument = object["has_document"].toBool(),
-        .hasRoutine = object["has_routine"].toBool(),
         .flashcardCount = object["flashcard_count"].toInt(),
         .attachmentCount = object["attachment_count"].toInt(),
         .skillCount = object["skill_count"].toInt(),
@@ -111,37 +110,6 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     }
 
     return node;
-}
-
-static Routine parseRoutine(const QJsonObject &object) {
-    Routine routine{
-        .id = object["id"].toInt(),
-        .systemTaskId = object["systemtask_id"].toInt(),
-        .domainNodeId = object["domain_node_id"].toInt(),
-        .name = object["name"].toString(),
-        .recurrenceRuleSet = object["recurrence_rule_set"].toString(),
-        .timezone = object["timezone"].toString(),
-        .isOptional = object["is_optional"].toBool(),
-        .isActive = object["is_active"].toBool()
-    };
-    if (!object["estimated_duration"].isNull()) {
-        routine.estimatedDuration = object["estimated_duration"].toInt();
-    }
-    return routine;
-}
-
-static QJsonObject routineJson(const SaveRoutine &routine) {
-    QJsonObject json{
-        {"name", routine.name},
-        {"recurrence_rule_set", routine.recurrenceRuleSet},
-        {"timezone", routine.timezone},
-        {"is_optional", routine.isOptional},
-        {"is_active", routine.isActive}
-    };
-    json["estimated_duration"] = routine.estimatedDuration.has_value()
-        ? QJsonValue(*routine.estimatedDuration)
-        : QJsonValue(QJsonValue::Null);
-    return json;
 }
 
 void ApiClient::getNodeFlashcards(const int nodeId) {
@@ -651,62 +619,6 @@ void ApiClient::rateFlashcard(const int id, const ReviewFlashcard reviewFlashcar
             emit flashcardRatingFailed();
         }
 
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getDomainNodeRoutine(const int nodeId) {
-    const QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/routine"
-    ));
-    QNetworkReply *reply = manager.get(request);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        QJsonDocument response;
-        if (readJson(reply, "Routine konnte nicht geladen werden", response)
-            && response.isObject()) {
-            emit domainNodeRoutineReceived(nodeId, parseRoutine(response.object()));
-        } else if (!response.isNull() && !response.isObject()) {
-            emit requestFailed("Routine konnte nicht geladen werden: Ungültige Serverantwort");
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createDomainNodeRoutine(const int nodeId, const SaveRoutine &routine) {
-    QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/routine"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.post(request, QJsonDocument(routineJson(routine)).toJson());
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        QJsonDocument response;
-        if (readJson(reply, "Routine konnte nicht erstellt werden", response)
-            && response.isObject()) {
-            emit domainNodeRoutineSaved(nodeId, parseRoutine(response.object()));
-        } else if (!response.isNull() && !response.isObject()) {
-            emit requestFailed("Routine konnte nicht erstellt werden: Ungültige Serverantwort");
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updateDomainNodeRoutine(const int nodeId, const SaveRoutine &routine) {
-    QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/routine"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.put(request, QJsonDocument(routineJson(routine)).toJson());
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        QJsonDocument response;
-        if (readJson(reply, "Routine konnte nicht aktualisiert werden", response)
-            && response.isObject()) {
-            emit domainNodeRoutineSaved(nodeId, parseRoutine(response.object()));
-        } else if (!response.isNull() && !response.isObject()) {
-            emit requestFailed("Routine konnte nicht aktualisiert werden: Ungültige Serverantwort");
-        }
         reply->deleteLater();
     });
 }

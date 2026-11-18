@@ -3,12 +3,8 @@ use sqlx::PgPool;
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
     sqlx::query_as::<_, TaskListItem>(
-        "SELECT id, name, pursuit_id, group_id, state_id, priority_id
+        "SELECT id, name, domain_node_id, group_id, state_id, priority_id
          FROM systemtasks
-         WHERE NOT EXISTS (
-             SELECT 1 FROM systemtask_routines
-             WHERE systemtask_id = systemtasks.id
-         )
          ORDER BY id DESC",
     )
     .fetch_all(pool)
@@ -20,10 +16,10 @@ pub async fn create_task(
     name: &str,
     group_id: Option<i32>,
     priority_id: i32,
-    pursuit_id: Option<i32>,
+    domain_node_id: Option<i32>,
 ) -> Result<i32, sqlx::Error> {
     sqlx::query_scalar(
-        "INSERT INTO systemtasks (name, group_id, state_id, priority_id, pursuit_id)
+        "INSERT INTO systemtasks (name, group_id, state_id, priority_id, domain_node_id)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id",
     )
@@ -31,7 +27,7 @@ pub async fn create_task(
     .bind(group_id)
     .bind(OPEN_SYSTEM_TASK_STATE_ID)
     .bind(priority_id)
-    .bind(pursuit_id)
+    .bind(domain_node_id)
     .fetch_one(pool)
     .await
 }

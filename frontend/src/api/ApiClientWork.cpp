@@ -34,8 +34,8 @@ void ApiClient::getTasks() {
             if (!object["group_id"].isNull()) {
                 task.groupId = object["group_id"].toInt();
             }
-            if (!object["pursuit_id"].isNull()) {
-                task.pursuitId = object["pursuit_id"].toInt();
+            if (!object["domain_node_id"].isNull()) {
+                task.domainNodeId = object["domain_node_id"].toInt();
             }
             task.stateId = object["state_id"].toInt();
             task.priorityId = object["priority_id"].toInt();
@@ -45,31 +45,6 @@ void ApiClient::getTasks() {
 
         emit taskReceived(tasks);
 
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::getTaskPursuits() {
-    QNetworkReply *reply = manager.get(QNetworkRequest(buildUrl("/pursuits")));
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        QJsonDocument response;
-        if (!readJson(reply, "Vorhaben laden", response) || !response.isArray()) {
-            if (!response.isNull() && !response.isArray()) {
-                emit requestFailed("Vorhaben laden: Unerwartetes Datenformat");
-            }
-            reply->deleteLater();
-            return;
-        }
-
-        std::vector<TaskPursuit> pursuits;
-        for (const QJsonValue &value : response.array()) {
-            const QJsonObject object = value.toObject();
-            pursuits.push_back(TaskPursuit{
-                .id = object["id"].toInt(),
-                .name = object["name"].toString()
-            });
-        }
-        emit taskPursuitsReceived(pursuits);
         reply->deleteLater();
     });
 }
@@ -84,8 +59,8 @@ void ApiClient::createTask(const CreateTask &task) {
         ? QJsonValue(*task.groupId)
         : QJsonValue(QJsonValue::Null);
     json["priority_id"] = task.priorityId;
-    json["pursuit_id"] = task.pursuitId.has_value()
-        ? QJsonValue(*task.pursuitId)
+    json["domain_node_id"] = task.domainNodeId.has_value()
+        ? QJsonValue(*task.domainNodeId)
         : QJsonValue(QJsonValue::Null);
 
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());

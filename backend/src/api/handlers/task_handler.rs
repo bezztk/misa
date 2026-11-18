@@ -25,7 +25,7 @@ pub async fn create_task(
         payload.name.trim(),
         payload.group_id,
         payload.priority_id,
-        payload.pursuit_id,
+        payload.domain_node_id,
     )
     .await?;
 

@@ -54,12 +54,6 @@ pub struct PursuitDetails {
     pub requirements: Vec<PursuitRequirement>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
-pub struct PursuitListItem {
-    pub id: i32,
-    pub name: String,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct SkillRequirementRequest {
     pub skill_id: i32,

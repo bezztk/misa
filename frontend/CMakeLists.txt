@@ -37,8 +37,6 @@ add_executable(frontend WIN32
         src/ui/DomainView.h
         src/ui/DocumentEditor.cpp
         src/ui/DocumentEditor.h
-        src/ui/RoutineDialog.cpp
-        src/ui/RoutineDialog.h
         src/models/Flashcard.h
         src/models/Attachment.h
         src/models/Metadata.h
@@ -46,7 +44,6 @@ add_executable(frontend WIN32
         src/models/Pursuit.h
         src/models/Progression.h
         src/models/CalendarEntry.h
-        src/models/Routine.h
 )
 target_link_libraries(frontend
         Qt6::Core

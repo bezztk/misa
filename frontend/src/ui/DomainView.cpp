@@ -1,6 +1,5 @@
 #include "DomainView.h"
 #include "DocumentEditor.h"
-#include "RoutineDialog.h"
 
 #include <QFrame>
 #include <QApplication>
@@ -54,7 +53,6 @@ static constexpr int VERIFICATION_LEVEL_ROLE = Qt::UserRole + 8;
 static constexpr int NODE_NAME_ROLE = Qt::UserRole + 9;
 static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
 static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
-static constexpr int HAS_ROUTINE_ROLE = Qt::UserRole + 12;
 static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int ATTACHMENT_COUNT_ROLE = Qt::UserRole + 14;
 static constexpr int SKILL_NAME_ROLE = Qt::UserRole + 1;
@@ -95,9 +93,7 @@ public:
         addIndicator(SKILL_COUNT_ROLE, "★", QColor("#FFD54F"));
         addIndicator(FLASHCARD_COUNT_ROLE, "▣", QColor("#64B5F6"));
         addIndicator(ATTACHMENT_COUNT_ROLE, "📎", QColor("#BDBDBD"));
-        const bool hasRoutine = index.data(HAS_ROUTINE_ROLE).toBool();
-
-        if (indicators.empty() && !hasRoutine) {
+        if (indicators.empty()) {
             QStyledItemDelegate::paint(painter, option, index);
             return;
         }
@@ -129,23 +125,12 @@ public:
             ? option.rect.right() + 1
             : option.rect.right() - indicatorWidth - 5;
         QStyleOptionViewItem nameOption(option);
-        if (hasRoutine) {
-            nameOption.rect.setLeft(option.rect.left() + 18);
-        }
         nameOption.rect.setRight(
             indicators.empty() ? option.rect.right() : indicatorLeft - 7
         );
         QStyledItemDelegate::paint(painter, nameOption, index);
 
         painter->save();
-        if (hasRoutine) {
-            painter->setPen(QColor("#64B5F6"));
-            painter->drawText(
-                QRect(option.rect.left() + 2, option.rect.top(), 14, option.rect.height()),
-                Qt::AlignCenter,
-                "↻"
-            );
-        }
         int x = indicatorLeft;
         for (const Indicator &indicator : indicators) {
             painter->setPen(indicator.color);
@@ -258,7 +243,6 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.skillCount, SKILL_COUNT_ROLE);
     item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
     item->setData(node.taskCount, TASK_COUNT_ROLE);
-    item->setData(node.hasRoutine, HAS_ROUTINE_ROLE);
     setOptionalRole(item, COGNITIVE_LEVEL_ROLE, node.cognitiveLevelId);
     setOptionalRole(item, COMPLETENESS_LEVEL_ROLE, node.completenessLevelId);
     setOptionalRole(item, FLASHCARD_STATUS_ROLE, node.flashcardStatusId);
@@ -274,12 +258,8 @@ static void refreshDomainNodeText(QStandardItem *item) {
     const int skillCount = item->data(SKILL_COUNT_ROLE).toInt();
     const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
     const int taskCount = item->data(TASK_COUNT_ROLE).toInt();
-    const bool hasRoutine = item->data(HAS_ROUTINE_ROLE).toBool();
 
     QStringList details;
-    if (hasRoutine) {
-        details.append("Routine");
-    }
     if (taskCount > 0) {
         details.append("Aufgaben: " + QString::number(taskCount));
     }
@@ -887,7 +867,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillWidget->setFixedWidth(300);
     skillWidget->setStyleSheet(R"(
         QWidget#skillPanel, QWidget#sidebarContent,
-        QWidget#pursuitPanel, QWidget#skillsPanel, QWidget#flashcardsPanel,
+        QWidget#taskPanel, QWidget#pursuitPanel, QWidget#skillsPanel, QWidget#flashcardsPanel,
         QWidget#attachmentsPanel,
         QScrollArea#sidebarScrollArea {
             background: palette(base);
@@ -896,6 +876,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 0;
         }
+        QPushButton#taskSectionButton,
         QPushButton#pursuitSectionButton,
         QPushButton#skillSectionButton,
         QPushButton#attachmentSectionButton {
@@ -905,8 +886,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             text-align: left;
             font-weight: bold;
         }
+        QPushButton#taskSectionButton {
+            background: rgba(224, 224, 224, 0.12);
+        }
         QPushButton#pursuitSectionButton {
             background: rgba(76, 175, 80, 0.16);
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
         QPushButton#skillSectionButton {
             background: rgba(255, 193, 7, 0.16);
@@ -933,6 +918,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             padding-right: 8px;
             font-size: 10px;
         }
+        QPushButton#taskSectionButton:hover {
+            background: rgba(224, 224, 224, 0.18);
+        }
         QPushButton#pursuitSectionButton:hover {
             background: rgba(76, 175, 80, 0.24);
         }
@@ -949,12 +937,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: palette(base);
             border: none;
         }
-        QListView#flashcardList, QListView#attachmentList {
+        QListView#taskList, QListView#flashcardList, QListView#attachmentList {
             background: palette(base);
             border: none;
             outline: none;
         }
-        QListView#flashcardList::item, QListView#attachmentList::item {
+        QListView#taskList::item, QListView#flashcardList::item,
+        QListView#attachmentList::item {
             border: none;
             padding: 2px 4px;
         }
@@ -996,6 +985,35 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarListLayout->setContentsMargins(1, 1, 1, 1);
     sidebarListLayout->setSpacing(0);
 
+    auto *taskSectionButton = new QPushButton("▾  Aufgaben", sidebarList);
+    taskSectionButton->setObjectName("taskSectionButton");
+    taskSectionButton->setCheckable(true);
+    taskSectionButton->setChecked(true);
+
+    auto *taskPanel = new QWidget(sidebarList);
+    taskPanel->setObjectName("taskPanel");
+    taskPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    auto *taskPanelLayout = new QVBoxLayout(taskPanel);
+    taskPanelLayout->setContentsMargins(8, 6, 8, 6);
+    taskPanelLayout->setSpacing(4);
+
+    noTasksLabel = new QLabel("Noch keine Aufgaben angelegt.", taskPanel);
+    noTasksLabel->setWordWrap(true);
+    noTasksLabel->setStyleSheet("color: palette(mid);");
+    taskPanelLayout->addWidget(noTasksLabel);
+
+    taskListView = new QListView(taskPanel);
+    taskListView->setObjectName("taskList");
+    taskListView->setFrameShape(QFrame::NoFrame);
+    taskListView->setTextElideMode(Qt::ElideRight);
+    taskListView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    taskListView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    taskListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    taskListView->setContextMenuPolicy(Qt::CustomContextMenu);
+    taskModel = new QStandardItemModel(taskListView);
+    taskListView->setModel(taskModel);
+    taskPanelLayout->addWidget(taskListView);
+
     auto *pursuitPanel = new QWidget(sidebarList);
     pursuitPanel->setObjectName("pursuitPanel");
     pursuitPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
@@ -1021,7 +1039,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     pursuitTreeView->setUniformRowHeights(true);
     pursuitTreeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     pursuitTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    pursuitTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     pursuitModel = new QStandardItemModel(pursuitTreeView);
     pursuitTreeView->setModel(pursuitModel);
     pursuitLayout->addWidget(pursuitTreeView);
@@ -1128,6 +1145,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     attachmentListView->setModel(attachmentModel);
     attachmentPanelLayout->addWidget(attachmentListView);
 
+    sidebarListLayout->addWidget(taskSectionButton);
+    sidebarListLayout->addWidget(taskPanel);
     sidebarListLayout->addWidget(pursuitSectionButton);
     sidebarListLayout->addWidget(pursuitPanel);
     sidebarListLayout->addWidget(skillSectionButton);
@@ -1142,6 +1161,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillLayout->addWidget(sidebarScrollArea);
     skillWidget->hide();
 
+    connect(taskSectionButton, &QPushButton::toggled, this,
+            [taskSectionButton, taskPanel](const bool expanded) {
+                taskSectionButton->setText(
+                    expanded ? "▾  Aufgaben" : "▸  Aufgaben"
+                );
+                taskPanel->setVisible(expanded);
+            });
     connect(pursuitSectionButton, &QPushButton::toggled, this,
             [pursuitSectionButton, pursuitPanel](const bool expanded) {
                 pursuitSectionButton->setText(
@@ -1236,18 +1262,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
                 item->parent()->removeRow(item->row());
             });
-    connect(&apiClient, &ApiClient::domainNodeRoutineReceived, this,
-            [this](const int, const Routine &routine) {
-                editRoutine(routine);
-            });
-    connect(&apiClient, &ApiClient::domainNodeRoutineSaved, this,
-            [this](const int nodeId, const Routine &) {
-                QStandardItem *item = findDomainNodeItem(nodeId);
-                if (item) {
-                    item->setData(true, HAS_ROUTINE_ROLE);
-                    refreshDomainNodeText(item);
-                }
-            });
     connect(&apiClient, &ApiClient::documentReceived, this,
             [this](const Document &document) {
                 if (!documentLoadPending || document.domainNodeId != pendingDocumentNodeId) {
@@ -1337,6 +1351,26 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     });
     connect(flashcardListView, &QListView::clicked, this,
             [this](const QModelIndex &index) { editFlashcard(index.row()); });
+    connect(taskListView, &QListView::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                const QModelIndex index = taskListView->indexAt(position);
+                if (!index.isValid()) {
+                    return;
+                }
+
+                QMenu menu(taskListView);
+                QAction *editAction = menu.addAction("Bearbeiten");
+                QAction *deleteAction = menu.addAction("Löschen");
+                QAction *selectedAction = menu.exec(
+                    taskListView->viewport()->mapToGlobal(position)
+                );
+                const int taskId = index.data(Qt::UserRole).toInt();
+                if (selectedAction == editAction) {
+                    editTask(taskId);
+                } else if (selectedAction == deleteAction) {
+                    apiClient.deleteTask(taskId);
+                }
+            });
     connect(flashcardListView, &QListView::customContextMenuRequested, this,
             [this](const QPoint &position) {
                 const QModelIndex index = flashcardListView->indexAt(position);
@@ -1367,6 +1401,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     auto *item = new QStandardItem(flashcard.front);
                     item->setData(flashcard.id, Qt::UserRole);
                     item->setData(flashcard.back, FLASHCARD_BACK_ROLE);
+                    item->setIcon(QIcon(":/assets/icons/flashcards-white.png"));
                     item->setSizeHint(QSize(0, 24));
                     flashcardModel->appendRow(item);
                 }
@@ -1420,8 +1455,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             });
     connect(pursuitTreeView, &QTreeView::clicked, this,
             [this](const QModelIndex &index) { editPursuit(index); });
-    connect(pursuitTreeView, &QTreeView::customContextMenuRequested, this,
-            [this](const QPoint &position) { showPursuitContextMenu(position); });
     connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
             [this](const int nodeId) { apiClient.getNodePursuits(nodeId); });
     connect(&apiClient, &ApiClient::nodePursuitsReceived, this,
@@ -1437,6 +1470,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             [this](const std::vector<Task> &tasks) {
                 currentTasks = tasks;
                 updateCurrentTaskCount();
+                renderTasks();
                 renderPursuits();
             });
     connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
@@ -1517,10 +1551,12 @@ void DomainView::continueDocumentChange() {
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     attachmentModel->removeRows(0, attachmentModel->rowCount());
+    taskModel->removeRows(0, taskModel->rowCount());
     skillModel->removeRows(0, skillModel->rowCount());
     pursuitModel->removeRows(0, pursuitModel->rowCount());
     currentSkills.clear();
     currentPursuits.clear();
+    renderTasks();
     noSkillsLabel->show();
     skillTreeView->hide();
     noPursuitsLabel->show();
@@ -1855,15 +1891,11 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         createDocumentAction = menu.addAction("Dokument erstellen");
     }
     menu.addSeparator();
-    QAction *createFlashcardAction = menu.addAction("Lernkarte hinzufügen");
-    QAction *createAttachmentAction = menu.addAction("Anhang hinzufügen");
+    QAction *createTaskAction = menu.addAction("Aufgabe hinzufügen");
     QAction *createPursuitAction = menu.addAction("Bestrebung hinzufügen");
     QAction *createSkillAction = menu.addAction("Skill hinzufügen");
-    QAction *routineAction = menu.addAction(
-        index.data(HAS_ROUTINE_ROLE).toBool()
-            ? "Routine bearbeiten"
-            : "Routine hinzufügen"
-    );
+    QAction *createFlashcardAction = menu.addAction("Lernkarte hinzufügen");
+    QAction *createAttachmentAction = menu.addAction("Anhang hinzufügen");
     menu.addSeparator();
     QAction *deleteAction = menu.addAction("Löschen");
     QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
@@ -1920,20 +1952,16 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         }
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
         apiClient.createDocument(nodeId);
-    } else if (selectedAction == createFlashcardAction) {
-        createFlashcard(nodeId);
-    } else if (selectedAction == createAttachmentAction) {
-        addAttachments(nodeId);
+    } else if (selectedAction == createTaskAction) {
+        createTask(nodeId);
     } else if (selectedAction == createPursuitAction) {
         createPursuit(nodeId);
     } else if (selectedAction == createSkillAction) {
         createSkill(nodeId);
-    } else if (selectedAction == routineAction) {
-        if (index.data(HAS_ROUTINE_ROLE).toBool()) {
-            apiClient.getDomainNodeRoutine(nodeId);
-        } else {
-            createRoutine(nodeId, index.data(NODE_NAME_ROLE).toString());
-        }
+    } else if (selectedAction == createFlashcardAction) {
+        createFlashcard(nodeId);
+    } else if (selectedAction == createAttachmentAction) {
+        addAttachments(nodeId);
     } else if (selectedAction == deleteAction
                && QMessageBox::question(
                    treeView,
@@ -1941,33 +1969,6 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
                    "Bereich einschließlich aller Unterbereiche löschen?"
                ) == QMessageBox::Yes) {
         saveBeforeClose([this, nodeId] { apiClient.deleteDomainNode(nodeId); });
-    }
-}
-
-void DomainView::createRoutine(const int nodeId, const QString &nodeName) {
-    SaveRoutine routine{
-        .name = nodeName,
-        .timezone = "Europe/Berlin",
-        .estimatedDuration = 30,
-        .isOptional = false,
-        .isActive = true
-    };
-    if (showRoutineDialog(this, "Routine hinzufügen", routine)) {
-        apiClient.createDomainNodeRoutine(nodeId, routine);
-    }
-}
-
-void DomainView::editRoutine(const Routine &existing) {
-    SaveRoutine routine{
-        .name = existing.name,
-        .recurrenceRuleSet = existing.recurrenceRuleSet,
-        .timezone = existing.timezone,
-        .estimatedDuration = existing.estimatedDuration,
-        .isOptional = existing.isOptional,
-        .isActive = existing.isActive
-    };
-    if (showRoutineDialog(this, "Routine bearbeiten", routine, existing)) {
-        apiClient.updateDomainNodeRoutine(existing.domainNodeId, routine);
     }
 }
 
@@ -2140,6 +2141,27 @@ void DomainView::editSkill(const QModelIndex &index) {
     }
 }
 
+void DomainView::renderTasks() {
+    taskModel->clear();
+
+    for (const Task &task : currentTasks) {
+        if (task.domainNodeId != currentNodeId) {
+            continue;
+        }
+
+        auto *item = new QStandardItem(task.name);
+        item->setData(task.id, Qt::UserRole);
+        item->setIcon(QIcon(":/assets/icons/task-white.png"));
+        item->setSizeHint(QSize(0, 24));
+        taskModel->appendRow(item);
+    }
+
+    const int count = taskModel->rowCount();
+    noTasksLabel->setVisible(count == 0);
+    taskListView->setVisible(count > 0);
+    taskListView->setFixedHeight(count * 28);
+}
+
 void DomainView::renderPursuits() {
     pursuitModel->clear();
     pursuitModel->setColumnCount(1);
@@ -2239,13 +2261,6 @@ void DomainView::renderPursuits() {
             }
         }
 
-        for (const Task &task : currentTasks) {
-            if (task.pursuitId == pursuit.id) {
-                auto *taskItem = new QStandardItem("Aufgabe: " + task.name);
-                taskItem->setIcon(QIcon(":/assets/icons/task-white.png"));
-                pursuitItem->appendRow(taskItem);
-            }
-        }
         pursuitModel->appendRow(pursuitItem);
     }
 
@@ -2261,20 +2276,7 @@ void DomainView::renderPursuits() {
     );
 }
 
-void DomainView::showPursuitContextMenu(const QPoint &position) {
-    const QModelIndex index = pursuitTreeView->indexAt(position);
-    if (!index.isValid() || !index.data(Qt::UserRole).isValid()) {
-        return;
-    }
-
-    QMenu menu(pursuitTreeView);
-    QAction *createTaskAction = menu.addAction("Aufgabe erstellen");
-    if (menu.exec(pursuitTreeView->viewport()->mapToGlobal(position)) == createTaskAction) {
-        createPursuitTask(index.data(Qt::UserRole).toInt());
-    }
-}
-
-void DomainView::createPursuitTask(const int pursuitId) {
+void DomainView::createTask(const int nodeId) {
     QDialog dialog(this);
     dialog.setWindowTitle("Aufgabe erstellen");
     auto *layout = new QFormLayout(&dialog);
@@ -2304,7 +2306,56 @@ void DomainView::createPursuitTask(const int pursuitId) {
         .name = nameEdit->text().trimmed(),
         .groupId = std::nullopt,
         .priorityId = priorityEdit->currentData().toInt(),
-        .pursuitId = pursuitId
+        .domainNodeId = nodeId
+    });
+}
+
+void DomainView::editTask(const int taskId) {
+    const auto task = std::find_if(
+        currentTasks.begin(), currentTasks.end(),
+        [taskId](const Task &item) { return item.id == taskId; }
+    );
+    if (task == currentTasks.end()) {
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Aufgabe bearbeiten");
+    auto *layout = new QFormLayout(&dialog);
+
+    auto *nameEdit = new QLineEdit(task->name, &dialog);
+    layout->addRow("Name", nameEdit);
+
+    auto *stateEdit = new QComboBox(&dialog);
+    for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
+        stateEdit->addItem(state.displayName.value_or(state.name), state.id);
+    }
+    stateEdit->setCurrentIndex(stateEdit->findData(task->stateId));
+    layout->addRow("Status", stateEdit);
+
+    auto *priorityEdit = new QComboBox(&dialog);
+    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
+        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
+    }
+    priorityEdit->setCurrentIndex(priorityEdit->findData(task->priorityId));
+    layout->addRow("Priorität", priorityEdit);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    apiClient.updateTask(taskId, UpdateTask{
+        .name = nameEdit->text().trimmed(),
+        .stateId = stateEdit->currentData().toInt(),
+        .priorityId = priorityEdit->currentData().toInt()
     });
 }
 
@@ -2362,16 +2413,7 @@ void DomainView::updateCurrentTaskCount() {
     const int count = static_cast<int>(std::count_if(
         currentTasks.begin(),
         currentTasks.end(),
-        [this](const Task &task) {
-            return task.pursuitId.has_value()
-                && std::any_of(
-                    currentPursuits.begin(),
-                    currentPursuits.end(),
-                    [&task](const Pursuit &pursuit) {
-                        return task.pursuitId == pursuit.id;
-                    }
-                );
-        }
+        [this](const Task &task) { return task.domainNodeId == currentNodeId; }
     ));
     QStandardItem *item = findDomainNodeItem(currentNodeId);
     item->setData(count, TASK_COUNT_ROLE);
@@ -2503,7 +2545,7 @@ void DomainView::updateFlashcardView() {
     const int count = flashcardModel->rowCount();
     noFlashcardsLabel->setVisible(count == 0);
     flashcardListView->setVisible(count > 0);
-    flashcardListView->setFixedHeight(count * 24);
+    flashcardListView->setFixedHeight(count * 28);
 }
 
 QStandardItem *DomainView::findDomainItem(const int domainId) {

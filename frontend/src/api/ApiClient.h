@@ -10,7 +10,6 @@
 #include "../models/Pursuit.h"
 #include "../models/Progression.h"
 #include "../models/CalendarEntry.h"
-#include "../models/Routine.h"
 #include <QNetworkAccessManager>
 
 class QJsonDocument;
@@ -26,13 +25,10 @@ signals:
     void taskCreated();
     void taskUpdated();
     void taskDeleted();
-    void taskPursuitsReceived(const std::vector<TaskPursuit>& pursuits);
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
     void calendarEntryUpdated();
     void calendarEntryDeleted();
-    void domainNodeRoutineReceived(int nodeId, const Routine& routine);
-    void domainNodeRoutineSaved(int nodeId, const Routine& routine);
     void routineExecutionsGenerated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void flashcardRated();
@@ -69,7 +65,6 @@ public:
     const Metadata& metadata() const;
     void getMetadata();
     void getTasks();
-    void getTaskPursuits();
     void createTask(const CreateTask& task);
     void updateTask(int id, const UpdateTask& task);
     void deleteTask(int id);
@@ -77,9 +72,6 @@ public:
     void createCalendarEntry(const CreateCalendarEntry& entry);
     void updateCalendarEntry(int id, const CreateCalendarEntry& entry);
     void deleteCalendarEntry(int id);
-    void getDomainNodeRoutine(int nodeId);
-    void createDomainNodeRoutine(int nodeId, const SaveRoutine& routine);
-    void updateDomainNodeRoutine(int nodeId, const SaveRoutine& routine);
     void generateRoutineExecutions();
 
     void getDueFlashcards();

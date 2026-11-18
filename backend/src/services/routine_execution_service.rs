@@ -37,10 +37,6 @@ struct Occurrence {
     until_utc: Option<DateTime<Utc>>,
 }
 
-pub fn valid_recurrence_rule_set(value: &str) -> bool {
-    parse_rule(value).is_some()
-}
-
 pub async fn generate_next_executions(pool: &PgPool) -> Result<usize, sqlx::Error> {
     let routines = routine_repository::get_active_routine_execution_sources(pool).await?;
     let mut executions = Vec::new();

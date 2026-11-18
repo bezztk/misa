@@ -25,7 +25,7 @@ static constexpr int TASK_ID_ROLE = Qt::UserRole;
 
 static constexpr int NAVIGATION_ALL = 0;
 static constexpr int NAVIGATION_GROUP = 1;
-static constexpr int NAVIGATION_PURSUIT = 2;
+static constexpr int NAVIGATION_DOMAIN_NODE = 2;
 
 static QString metadataName(const std::vector<MetadataItem> &items, const int id) {
     for (const MetadataItem &item : items) {
@@ -91,11 +91,10 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     auto *createButton = new QPushButton("Neue Aufgabe", content);
     connect(createButton, &QPushButton::clicked, this, [this] { openCreateDialog(); });
     headerLayout->addWidget(title);
-    headerLayout->addSpacing(12);
-    headerLayout->addWidget(viewSelector);
     headerLayout->addStretch();
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
+    contentLayout->addWidget(viewSelector, 0, Qt::AlignLeft);
 
     taskList = new QTreeWidget(content);
     taskList->setColumnCount(2);
@@ -160,17 +159,35 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                 renderViewSelector();
                 renderTasks();
             });
-    connect(&apiClient, &ApiClient::taskPursuitsReceived, this,
-            [this](const std::vector<TaskPursuit> &receivedPursuits) {
-                pursuits = receivedPursuits;
+    connect(&apiClient, &ApiClient::domainTreeReceived, this,
+            [this](const std::vector<MetadataItem> &,
+                   const std::vector<DomainNode> &receivedNodes) {
+                domainNodes = receivedNodes;
                 renderViewSelector();
                 renderTasks();
+            });
+    connect(&apiClient, &ApiClient::domainNodeCreated, this,
+            [this](const DomainNode &node) { domainNodes.push_back(node); });
+    connect(&apiClient, &ApiClient::domainNodeUpdated, this,
+            [this](const DomainNode &node) {
+                const auto existing = std::find_if(
+                    domainNodes.begin(), domainNodes.end(),
+                    [node](const DomainNode &item) { return item.id == node.id; }
+                );
+                if (existing != domainNodes.end()) {
+                    *existing = node;
+                }
+            });
+    connect(&apiClient, &ApiClient::domainNodeDeleted, this,
+            [this](const int nodeId) {
+                std::erase_if(domainNodes, [nodeId](const DomainNode &node) {
+                    return node.id == nodeId;
+                });
             });
 }
 
 void TaskView::refreshTasks() {
     apiClient.getTasks();
-    apiClient.getTaskPursuits();
 }
 
 void TaskView::refreshMetadata() {
@@ -193,8 +210,8 @@ void TaskView::renderViewSelector() {
                 if (type == NAVIGATION_GROUP) {
                     return task.groupId == id;
                 }
-                if (type == NAVIGATION_PURSUIT) {
-                    return task.pursuitId == id;
+                if (type == NAVIGATION_DOMAIN_NODE) {
+                    return task.domainNodeId == id;
                 }
                 return true;
             }));
@@ -227,10 +244,10 @@ void TaskView::renderViewSelector() {
     for (const MetadataItem &group : apiClient.metadata().systemTaskGroups) {
         addEntry(group.name, NAVIGATION_GROUP, group.id);
     }
-    addHeading("Bestrebungen");
-    for (const TaskPursuit &pursuit : pursuits) {
-        if (countFor(NAVIGATION_PURSUIT, pursuit.id) > 0) {
-            addEntry(pursuit.name, NAVIGATION_PURSUIT, pursuit.id);
+    addHeading("Domain Nodes");
+    for (const DomainNode &node : domainNodes) {
+        if (countFor(NAVIGATION_DOMAIN_NODE, node.id) > 0) {
+            addEntry(node.name, NAVIGATION_DOMAIN_NODE, node.id);
         }
     }
 
@@ -250,8 +267,8 @@ void TaskView::renderTasks() {
         if (selectedNavigationType == NAVIGATION_GROUP) {
             return task.groupId == selectedNavigationId;
         }
-        if (selectedNavigationType == NAVIGATION_PURSUIT) {
-            return task.pursuitId == selectedNavigationId;
+        if (selectedNavigationType == NAVIGATION_DOMAIN_NODE) {
+            return task.domainNodeId == selectedNavigationId;
         }
         return true;
     };
@@ -344,7 +361,7 @@ void TaskView::openCreateDialog() {
         .name = nameEdit->text().trimmed(),
         .groupId = groupEdit->currentData().toInt(),
         .priorityId = priorityEdit->currentData().toInt(),
-        .pursuitId = std::nullopt
+        .domainNodeId = std::nullopt
     });
 }
 

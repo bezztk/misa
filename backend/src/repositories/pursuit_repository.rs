@@ -1,14 +1,8 @@
 use crate::models::pursuit::{
-    Pursuit, PursuitDetails, PursuitListItem, PursuitRequirement, PursuitRequirementTypeId,
+    Pursuit, PursuitDetails, PursuitRequirement, PursuitRequirementTypeId,
     UpdatePursuitRequirementsRequest,
 };
 use sqlx::PgPool;
-
-pub async fn get_all_pursuits(pool: &PgPool) -> Result<Vec<PursuitListItem>, sqlx::Error> {
-    sqlx::query_as::<_, PursuitListItem>("SELECT id, name FROM pursuits ORDER BY name, id")
-        .fetch_all(pool)
-        .await
-}
 
 pub async fn get_pursuits(
     pool: &PgPool,
