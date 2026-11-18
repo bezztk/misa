@@ -143,17 +143,18 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                     "Bearbeiten"
                 );
                 QAction *scheduleAction = menu.addAction(
-                    QIcon(":/assets/icons/add.png"),
+                    QIcon(":/assets/icons/clock.png"),
                     "Einplanen"
-                );
-                QAction *deleteAction = menu.addAction(
-                    QIcon(":/assets/icons/delete.png"),
-                    "Löschen"
                 );
                 menu.addSeparator();
                 QAction *historyAction = menu.addAction(
                     QIcon(":/assets/icons/version_history.png"),
                     "Versionshistorie"
+                );
+                menu.addSeparator();
+                QAction *deleteAction = menu.addAction(
+                    QIcon(":/assets/icons/delete.png"),
+                    "Löschen"
                 );
                 QAction *selectedAction = menu.exec(
                     taskList->viewport()->mapToGlobal(position)
