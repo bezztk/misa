@@ -1,8 +1,10 @@
 use crate::models::entity::EntityType;
 use crate::models::progression::{
-    Progression, ProgressionDetails, ProgressionPursuit, ProgressionStage, ProgressionStageDetails,
+    Progression, ProgressionDetails, ProgressionField, ProgressionFieldUpdate, ProgressionPursuit,
+    ProgressionStage, ProgressionStageDetails,
 };
 use crate::repositories::entity_repository;
+use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_progressions(pool: &PgPool) -> Result<Vec<ProgressionDetails>, sqlx::Error> {
@@ -79,33 +81,96 @@ pub async fn create_progression(pool: &PgPool, name: &str) -> Result<(), sqlx::E
     Ok(())
 }
 
-pub async fn update_progression(
+pub async fn update_progression_field(
     pool: &PgPool,
     id: i32,
-    name: &str,
-    personal_relevance_id: Option<i32>,
-    lasting_impact_id: Option<i32>,
+    update: ProgressionFieldUpdate,
 ) -> Result<bool, sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    let result = sqlx::query(
-        "UPDATE progressions
-         SET name = $2, personal_relevance_id = $3, lasting_impact_id = $4
-         WHERE entity_id = $1",
-    )
-    .bind(id)
-    .bind(name)
-    .bind(personal_relevance_id)
-    .bind(lasting_impact_id)
-    .execute(&mut *transaction)
-    .await?;
-    if result.rows_affected() > 0 {
-        sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")
+
+    let (field, old_value, new_value) = match update {
+        ProgressionFieldUpdate::Name(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, String>(
+                "SELECT name FROM progressions WHERE entity_id = $1 FOR UPDATE",
+            )
             .bind(id)
-            .execute(&mut *transaction)
-            .await?;
-    }
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE progressions SET name = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(&value)
+                .execute(&mut *transaction)
+                .await?;
+            (ProgressionField::Name, json!(old_value), json!(value))
+        }
+        ProgressionFieldUpdate::PersonalRelevanceId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT personal_relevance_id FROM progressions WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE progressions SET personal_relevance_id = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (
+                ProgressionField::PersonalRelevanceId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+        ProgressionFieldUpdate::LastingImpactId(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT lasting_impact_id FROM progressions WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE progressions SET lasting_impact_id = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (
+                ProgressionField::LastingImpactId,
+                json!(old_value),
+                json!(value),
+            )
+        }
+    };
+
+    entity_repository::create_field_version(
+        &mut transaction,
+        id,
+        EntityType::Progression,
+        field as i32,
+        old_value,
+        new_value,
+    )
+    .await?;
     transaction.commit().await?;
-    Ok(result.rows_affected() > 0)
+
+    Ok(true)
 }
 
 pub async fn create_stage(

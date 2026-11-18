@@ -101,8 +101,8 @@ pub fn create_router(pool: PgPool) -> Router {
                 .post(progression_handler::create_progression),
         )
         .route(
-            "/progressions/{id}",
-            axum::routing::patch(progression_handler::update_progression),
+            "/progressions/{id}/fields/{field_id}",
+            axum::routing::patch(progression_handler::update_progression_field),
         )
         .route(
             "/progressions/{id}/stages",

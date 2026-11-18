@@ -692,42 +692,56 @@ static bool showPursuitDialog(
     return true;
 }
 
-static bool showProgressionDialog(
+static void showProgressionDialog(
     QWidget *parent,
-    const Metadata &metadata,
-    QString &name,
-    std::optional<int> &personalRelevanceId,
-    std::optional<int> &lastingImpactId
+    ApiClient &apiClient,
+    const Progression &progression
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle("Progression bearbeiten");
     auto *layout = new QFormLayout(&dialog);
-    auto *nameEdit = new QLineEdit(name, &dialog);
+    auto *nameEdit = new QLineEdit(progression.name, &dialog);
     auto *relevanceCombo = new QComboBox(&dialog);
     auto *impactCombo = new QComboBox(&dialog);
-    fillMetadataCombo(relevanceCombo, metadata.personalRelevanceLevels);
-    fillMetadataCombo(impactCombo, metadata.lastingImpacts);
-    selectMetadata(relevanceCombo, personalRelevanceId);
-    selectMetadata(impactCombo, lastingImpactId);
+    fillMetadataCombo(relevanceCombo, apiClient.metadata().personalRelevanceLevels);
+    fillMetadataCombo(impactCombo, apiClient.metadata().lastingImpacts);
+    selectMetadata(relevanceCombo, progression.personalRelevanceId);
+    selectMetadata(impactCombo, progression.lastingImpactId);
     layout->addRow("Name", nameEdit);
     layout->addRow("Persönliche Relevanz", relevanceCombo);
     layout->addRow("Lasting Impact", impactCombo);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addRow(buttons);
+    dialog.exec();
 
-    if (dialog.exec() != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return false;
+    const QString name = nameEdit->text().trimmed();
+    if (!name.isEmpty() && name != progression.name) {
+        apiClient.updateProgressionField(
+            progression.id,
+            ProgressionField::Name,
+            name
+        );
     }
-    name = nameEdit->text().trimmed();
-    personalRelevanceId = selectedMetadata(relevanceCombo);
-    lastingImpactId = selectedMetadata(impactCombo);
-    return true;
+
+    const std::optional<int> personalRelevanceId = selectedMetadata(relevanceCombo);
+    if (personalRelevanceId != progression.personalRelevanceId) {
+        apiClient.updateProgressionField(
+            progression.id,
+            ProgressionField::PersonalRelevanceId,
+            jsonValue(personalRelevanceId)
+        );
+    }
+
+    const std::optional<int> lastingImpactId = selectedMetadata(impactCombo);
+    if (lastingImpactId != progression.lastingImpactId) {
+        apiClient.updateProgressionField(
+            progression.id,
+            ProgressionField::LastingImpactId,
+            jsonValue(lastingImpactId)
+        );
+    }
 }
 
 DomainView::DomainView(ApiClient &client, QWidget *parent)
@@ -1915,14 +1929,7 @@ void DomainView::editProgression(const int progressionId) {
         if (progression.id != progressionId) {
             continue;
         }
-        QString name = progression.name;
-        std::optional<int> relevanceId = progression.personalRelevanceId;
-        std::optional<int> impactId = progression.lastingImpactId;
-        if (showProgressionDialog(
-            this, apiClient.metadata(), name, relevanceId, impactId
-        )) {
-            apiClient.updateProgression(progression.id, name, relevanceId, impactId);
-        }
+        showProgressionDialog(this, apiClient, progression);
         return;
     }
 }

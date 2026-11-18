@@ -98,9 +98,7 @@ public:
     void getProgressions();
     void getAvailableProgressionPursuits(int stageId);
     void createProgression(const QString& name);
-    void updateProgression(int id, const QString& name,
-                           std::optional<int> personalRelevanceId,
-                           std::optional<int> lastingImpactId);
+    void updateProgressionField(int id, ProgressionField field, const QJsonValue& value);
     void createProgressionStage(int progressionId, const QString& name);
     void assignPursuitToStage(int stageId, int pursuitId);
     void getDomainTree();

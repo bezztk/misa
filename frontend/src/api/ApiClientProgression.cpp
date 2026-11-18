@@ -308,20 +308,17 @@ void ApiClient::createProgression(const QString &name) {
     });
 }
 
-void ApiClient::updateProgression(
+void ApiClient::updateProgressionField(
     const int id,
-    const QString &name,
-    const std::optional<int> personalRelevanceId,
-    const std::optional<int> lastingImpactId
+    const ProgressionField field,
+    const QJsonValue &value
 ) {
-    QNetworkRequest request(buildUrl("/progressions/" + QString::number(id)));
+    QNetworkRequest request(buildUrl(
+        "/progressions/" + QString::number(id)
+        + "/fields/" + QString::number(static_cast<int>(field))
+    ));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["name"] = name;
-    json["personal_relevance_id"] = personalRelevanceId.has_value()
-        ? QJsonValue(*personalRelevanceId) : QJsonValue(QJsonValue::Null);
-    json["lasting_impact_id"] = lastingImpactId.has_value()
-        ? QJsonValue(*lastingImpactId) : QJsonValue(QJsonValue::Null);
+    QJsonObject json{{"value", value}};
     QNetworkReply *reply = manager.sendCustomRequest(
         request,
         "PATCH",

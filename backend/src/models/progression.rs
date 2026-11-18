@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Progression {
@@ -58,10 +59,35 @@ pub struct CreateProgressionRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateProgressionRequest {
-    pub name: String,
-    pub personal_relevance_id: Option<i32>,
-    pub lasting_impact_id: Option<i32>,
+pub struct ProgressionFieldUpdateRequest {
+    pub value: Value,
+}
+
+#[repr(i32)]
+#[derive(Clone, Copy)]
+pub enum ProgressionField {
+    Name = 1,
+    PersonalRelevanceId = 2,
+    LastingImpactId = 3,
+}
+
+impl TryFrom<i32> for ProgressionField {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Name),
+            2 => Ok(Self::PersonalRelevanceId),
+            3 => Ok(Self::LastingImpactId),
+            _ => Err(()),
+        }
+    }
+}
+
+pub enum ProgressionFieldUpdate {
+    Name(String),
+    PersonalRelevanceId(Option<i32>),
+    LastingImpactId(Option<i32>),
 }
 
 #[derive(Debug, Deserialize)]

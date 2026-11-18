@@ -1,7 +1,8 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::progression::{
     AssignPursuitRequest, CreateProgressionRequest, CreateProgressionStageRequest,
-    ProgressionOverview, ProgressionPursuit, UpdateProgressionRequest,
+    ProgressionField, ProgressionFieldUpdate, ProgressionFieldUpdateRequest, ProgressionOverview,
+    ProgressionPursuit,
 };
 use crate::repositories::progression_repository;
 use crate::validation::valid_name;
@@ -36,25 +37,33 @@ pub async fn create_progression(
     Ok(StatusCode::CREATED)
 }
 
-pub async fn update_progression(
+pub async fn update_progression_field(
     State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-    Json(payload): Json<UpdateProgressionRequest>,
+    Path((id, field_id)): Path<(i32, i32)>,
+    Json(payload): Json<ProgressionFieldUpdateRequest>,
 ) -> ApiResult<StatusCode> {
-    if !valid_name(&payload.name, 150) {
-        return Err(ApiError::BadRequest);
-    }
-    if !progression_repository::update_progression(
-        &pool,
-        id,
-        payload.name.trim(),
-        payload.personal_relevance_id,
-        payload.lasting_impact_id,
-    )
-    .await?
-    {
+    let field = ProgressionField::try_from(field_id).map_err(|_| ApiError::BadRequest)?;
+    let update = match field {
+        ProgressionField::Name => {
+            let name = serde_json::from_value::<String>(payload.value)
+                .map_err(|_| ApiError::BadRequest)?;
+            if !valid_name(&name, 150) {
+                return Err(ApiError::BadRequest);
+            }
+            ProgressionFieldUpdate::Name(name.trim().to_string())
+        }
+        ProgressionField::PersonalRelevanceId => ProgressionFieldUpdate::PersonalRelevanceId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+        ProgressionField::LastingImpactId => ProgressionFieldUpdate::LastingImpactId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+    };
+
+    if !progression_repository::update_progression_field(&pool, id, update).await? {
         return Err(ApiError::NotFound);
     }
+
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -6,6 +6,12 @@
 #include <optional>
 #include <vector>
 
+enum class ProgressionField {
+    Name = 1,
+    PersonalRelevanceId = 2,
+    LastingImpactId = 3
+};
+
 struct ProgressionPursuit {
     int id;
     QString name;
