@@ -1092,6 +1092,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QWidget#attachmentsPanel,
         QScrollArea#sidebarScrollArea {
             background: palette(base);
+            border: none;
         }
         QWidget#sidebarList {
             border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1112,19 +1113,16 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QPushButton#pursuitSectionButton {
             background: rgba(76, 175, 80, 0.16);
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
         QPushButton#skillSectionButton {
             background: rgba(255, 193, 7, 0.16);
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
         QPushButton#attachmentSectionButton {
             background: rgba(189, 189, 189, 0.16);
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
         }
         QWidget#flashcardSectionHeader {
             background: rgba(33, 150, 243, 0.16);
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            border: none;
         }
         QPushButton#flashcardSectionButton {
             padding: 7px 8px;
@@ -1157,6 +1155,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
             border: none;
+            outline: none;
+        }
+        QTreeView#pursuitTree::item, QTreeView#skillTree::item {
+            border: none;
+            padding: 2px 4px;
         }
         QListView#taskList, QListView#flashcardList, QListView#attachmentList {
             background: palette(base);
@@ -2565,6 +2568,10 @@ void DomainView::renderSkills(const std::vector<Skill> &skills) {
                 static_cast<int>(skill.comments.size()),
                 COMMENT_COUNT_ROLE
             );
+            if (!parentItem) {
+                item->setIcon(QIcon(":/assets/icons/star.png"));
+                item->setSizeHint(QSize(0, 24));
+            }
             if (parentItem) {
                 parentItem->appendRow(item);
             } else {
@@ -2715,9 +2722,8 @@ void DomainView::renderPursuits() {
             static_cast<int>(pursuit.comments.size()),
             COMMENT_COUNT_ROLE
         );
-        QFont font = pursuitItem->font();
-        font.setBold(true);
-        pursuitItem->setFont(font);
+        pursuitItem->setIcon(QIcon(":/assets/icons/pursuit.png"));
+        pursuitItem->setSizeHint(QSize(0, 24));
 
         for (const PursuitRequirement &requirement : pursuit.requirements) {
             QString text;
