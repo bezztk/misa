@@ -1054,20 +1054,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     documentEditor = new DocumentEditor(documentWidget);
     documentEditor->setObjectName("documentEditor");
-    documentEditor->setMaximumWidth(900);
     autosaveTimer = new QTimer(this);
     autosaveTimer->setInterval(1000);
     autosaveTimer->setSingleShot(true);
     maximumAutosaveTimer = new QTimer(this);
     maximumAutosaveTimer->setInterval(5000);
     maximumAutosaveTimer->setSingleShot(true);
-    auto *documentEditorLayout = new QHBoxLayout();
-    documentEditorLayout->setContentsMargins(0, 0, 0, 0);
-    documentEditorLayout->setSpacing(0);
-    documentEditorLayout->addStretch();
-    documentEditorLayout->addWidget(documentEditor, 900);
-    documentEditorLayout->addStretch();
-    documentLayout->addLayout(documentEditorLayout, 1);
+    documentLayout->addWidget(documentEditor, 1);
 
     documentMetadataWidget = new QWidget(editorWidget);
     documentMetadataWidget->setObjectName("documentMetadataBar");
@@ -1543,7 +1536,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 documentLoadPending = false;
                 QStandardItem *item = findDomainNodeItem(document.domainNodeId);
                 item->setData(true, HAS_DOCUMENT_ROLE);
-                item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                item->setIcon(QIcon(":/assets/icons/file.png"));
                 treeView->setCurrentIndex(item->index());
                 currentDocumentNodeId = document.domainNodeId;
                 savedContent = document.content;
@@ -1572,7 +1565,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             [this](const Document &document) {
                 QStandardItem *item = findDomainNodeItem(document.domainNodeId);
                 item->setData(true, HAS_DOCUMENT_ROLE);
-                item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                item->setIcon(QIcon(":/assets/icons/file.png"));
                 requestDocumentChange(document.domainNodeId, true);
             });
     connect(&apiClient, &ApiClient::documentDeleted, this,
@@ -2242,7 +2235,7 @@ void DomainView::renderDomainTree(
                 item->setData(node.hasDocument, HAS_DOCUMENT_ROLE);
                 setDomainNodeRoles(item, node);
                 if (node.hasDocument) {
-                    item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                    item->setIcon(QIcon(":/assets/icons/file.png"));
                 }
                 parentItem->appendRow(item);
                 refreshDomainNodeText(item);
