@@ -1,26 +1,11 @@
 #include "DocumentEditor.h"
 
 #include <QPainter>
-#include <QResizeEvent>
-#include <QTextBlock>
-
-class LineNumberArea : public QWidget {
-public:
-    explicit LineNumberArea(DocumentEditor *editor)
-        : QWidget(editor), editor(editor) {}
-
-    QSize sizeHint() const override {
-        return {editor->lineNumberAreaWidth(), 0};
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        editor->paintLineNumbers(event);
-    }
-
-private:
-    DocumentEditor *editor;
-};
+#include <QUrl>
+#include <QVBoxLayout>
+#include <QWebChannel>
+#include <QWebEnginePage>
+#include <QWebEngineView>
 
 SaveStatus::SaveStatus(QWidget *parent) : QWidget(parent) {
     setFixedSize(24, 24);
@@ -65,77 +50,58 @@ void SaveStatus::paintEvent(QPaintEvent *) {
     }
 }
 
+void DocumentEditorBridge::editorReady() {
+    emit ready();
+}
+
+void DocumentEditorBridge::contentChanged(const QString &markdown, const int revision) {
+    emit markdownEdited(markdown, revision);
+}
+
 DocumentEditor::DocumentEditor(QWidget *parent)
-    : QPlainTextEdit(parent), lineNumberArea(new LineNumberArea(this)) {
-    connect(this, &QPlainTextEdit::blockCountChanged, this,
-            [this] { updateLineNumberAreaWidth(); });
-    connect(this, &QPlainTextEdit::updateRequest, this,
-            [this](const QRect &rect, const int dy) {
-                updateLineNumberArea(rect, dy);
-            });
-    updateLineNumberAreaWidth();
-}
+    : QWidget(parent),
+      webView(new QWebEngineView(this)),
+      webChannel(new QWebChannel(this)),
+      bridge(new DocumentEditorBridge(this)) {
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(webView);
 
-int DocumentEditor::lineNumberAreaWidth() const {
-    int digits = 1;
-    for (int count = qMax(1, blockCount()); count >= 10; count /= 10) {
-        ++digits;
-    }
-    return 8 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
-}
+    webChannel->registerObject(QStringLiteral("documentBridge"), bridge);
+    webView->page()->setWebChannel(webChannel);
 
-void DocumentEditor::updateLineNumberAreaWidth() {
-    setViewportMargins(lineNumberAreaWidth() + 12, 10, 12, 10);
-}
-
-void DocumentEditor::updateLineNumberArea(const QRect &rect, const int dy) {
-    if (dy) {
-        lineNumberArea->scroll(0, dy);
-    } else {
-        lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
-    }
-    if (rect.contains(viewport()->rect())) {
-        updateLineNumberAreaWidth();
-    }
-}
-
-void DocumentEditor::resizeEvent(QResizeEvent *event) {
-    QPlainTextEdit::resizeEvent(event);
-    const QRect contents = contentsRect();
-    lineNumberArea->setGeometry(
-        QRect(
-            contents.left(),
-            contents.top() + 10,
-            lineNumberAreaWidth(),
-            contents.height() - 20
-        )
-    );
-}
-
-void DocumentEditor::paintLineNumbers(QPaintEvent *event) {
-    QPainter painter(lineNumberArea);
-    painter.fillRect(event->rect(), palette().color(QPalette::Base));
-    painter.setPen(palette().color(QPalette::Light));
-
-    QTextBlock block = firstVisibleBlock();
-    int blockNumber = block.blockNumber();
-    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
-    int bottom = top + qRound(blockBoundingRect(block).height());
-
-    while (block.isValid() && top <= event->rect().bottom()) {
-        if (block.isVisible() && bottom >= event->rect().top()) {
-            painter.drawText(
-                0,
-                top,
-                lineNumberArea->width() - 4,
-                fontMetrics().height(),
-                Qt::AlignRight,
-                QString::number(blockNumber + 1)
-            );
+    connect(bridge, &DocumentEditorBridge::ready, this, [this] {
+        editorReady = true;
+        emit bridge->setMarkdownRequested(currentMarkdown, currentRevision);
+    });
+    connect(
+        bridge,
+        &DocumentEditorBridge::markdownEdited,
+        this,
+        [this](const QString &markdown, const int revision) {
+            if (revision != currentRevision || markdown == currentMarkdown) {
+                return;
+            }
+            currentMarkdown = markdown;
+            emit markdownChanged();
         }
-        block = block.next();
-        top = bottom;
-        bottom = top + qRound(blockBoundingRect(block).height());
-        ++blockNumber;
+    );
+
+    webView->setUrl(QUrl(QStringLiteral("qrc:/editor/index.html")));
+}
+
+QString DocumentEditor::markdown() const {
+    return currentMarkdown;
+}
+
+void DocumentEditor::setMarkdown(const QString &markdown) {
+    currentMarkdown = markdown;
+    ++currentRevision;
+    if (editorReady) {
+        emit bridge->setMarkdownRequested(markdown, currentRevision);
     }
+}
+
+void DocumentEditor::clear() {
+    setMarkdown({});
 }

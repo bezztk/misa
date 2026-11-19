@@ -1,0 +1,22 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "msvc-debug",
+      "displayName": "MSVC Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_MAKE_PROGRAM": "C:/Qt/Tools/Ninja/ninja.exe",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.12.0/msvc2022_64"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "msvc-debug",
+      "configurePreset": "msvc-debug"
+    }
+  ]
+}

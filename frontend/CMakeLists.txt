@@ -1,18 +1,63 @@
 ﻿cmake_minimum_required(VERSION 4.4)
-project(frontend)
+project(frontend LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+if (WIN32 AND NOT MSVC)
+    message(FATAL_ERROR "The Misa frontend must be built with the MSVC toolchain.")
+endif()
 
 find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
         Network
+        WebEngineWidgets
+        WebChannel
         REQUIRED)
+
+find_program(NPM_EXECUTABLE NAMES npm.cmd npm REQUIRED)
+
+set(EDITOR_WEB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/editor")
+set(EDITOR_DIST_DIR "${EDITOR_WEB_DIR}/dist")
+set(EDITOR_NODE_MODULES_MARKER "${EDITOR_WEB_DIR}/node_modules/.package-lock.json")
+set(EDITOR_WEB_OUTPUTS
+        "${EDITOR_DIST_DIR}/index.html"
+        "${EDITOR_DIST_DIR}/editor.js"
+        "${EDITOR_DIST_DIR}/editor.css"
+)
+
+add_custom_command(
+        OUTPUT "${EDITOR_NODE_MODULES_MARKER}"
+        COMMAND "${NPM_EXECUTABLE}" ci
+        WORKING_DIRECTORY "${EDITOR_WEB_DIR}"
+        DEPENDS
+        "${EDITOR_WEB_DIR}/package.json"
+        "${EDITOR_WEB_DIR}/package-lock.json"
+        COMMENT "Installing Milkdown editor dependencies"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT ${EDITOR_WEB_OUTPUTS}
+        COMMAND "${NPM_EXECUTABLE}" run build
+        WORKING_DIRECTORY "${EDITOR_WEB_DIR}"
+        DEPENDS
+        "${EDITOR_NODE_MODULES_MARKER}"
+        "${EDITOR_WEB_DIR}/index.html"
+        "${EDITOR_WEB_DIR}/tsconfig.json"
+        "${EDITOR_WEB_DIR}/vite.config.ts"
+        "${EDITOR_WEB_DIR}/src/main.ts"
+        "${EDITOR_WEB_DIR}/src/style.css"
+        COMMENT "Building Milkdown editor"
+        VERBATIM
+)
+
+add_custom_target(editor_web DEPENDS ${EDITOR_WEB_OUTPUTS})
+set_source_files_properties(${EDITOR_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
 
 add_executable(frontend WIN32
     main.cpp
@@ -57,27 +102,28 @@ target_link_libraries(frontend
         Qt6::Gui
         Qt6::Widgets
         Qt6::Network
+        Qt6::WebEngineWidgets
+        Qt6::WebChannel
 )
 
+target_compile_options(frontend PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+add_dependencies(frontend editor_web)
+
 if (WIN32)
+    get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:Qt6::Core>"
-            "$<TARGET_FILE:Qt6::Gui>"
-            "$<TARGET_FILE:Qt6::Widgets>"
-            "$<TARGET_FILE:Qt6::Network>"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-    )
-
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms"
-
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/platforms"
+            COMMAND "${QT_BIN_DIR}/windeployqt.exe" "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMENT "Deploying Qt and Qt WebEngine runtime files"
+            VERBATIM
     )
 endif()
+
+qt_add_resources(frontend "document_editor"
+        PREFIX "/editor"
+        BASE "${EDITOR_DIST_DIR}"
+        FILES ${EDITOR_WEB_OUTPUTS}
+)
 
 qt_add_resources(frontend "icons"
         PREFIX "/"

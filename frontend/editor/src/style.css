@@ -1,0 +1,58 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Segoe UI", sans-serif;
+  background: transparent;
+}
+
+html,
+body,
+#editor {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #ffffff;
+  color: #202124;
+}
+
+.milkdown {
+  --crepe-font-default: "Segoe UI", sans-serif;
+  --crepe-font-title: "Segoe UI", sans-serif;
+  --crepe-base-font-size: 15px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.milkdown .ProseMirror {
+  min-height: calc(100vh - 72px);
+  padding: 24px 48px 64px;
+  box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1e1f22;
+    color: #f2f2f2;
+  }
+
+  .milkdown {
+    --crepe-color-background: #1e1f22;
+    --crepe-color-on-background: #e6e6e6;
+    --crepe-color-surface: #191a1d;
+    --crepe-color-surface-low: #242529;
+    --crepe-color-on-surface: #d1d1d1;
+    --crepe-color-on-surface-variant: #a9a9a9;
+    --crepe-color-outline: #757575;
+    --crepe-color-primary: #b5b5b5;
+    --crepe-color-secondary: #4d4d4d;
+    --crepe-color-on-secondary: #d6d6d6;
+    --crepe-color-inverse: #e5e5e5;
+    --crepe-color-on-inverse: #2a2a2a;
+    --crepe-color-inline-code: #ff6666;
+    --crepe-color-error: #ff6666;
+    --crepe-color-hover: #2a2b2f;
+    --crepe-color-selected: #34363b;
+    --crepe-color-inline-area: #2b2b2b;
+  }
+}

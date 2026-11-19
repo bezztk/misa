@@ -1,12 +1,14 @@
 #ifndef FRONTEND_DOCUMENTEDITOR_H
 #define FRONTEND_DOCUMENTEDITOR_H
 
-#include <QPlainTextEdit>
+#include <QObject>
+#include <QString>
 #include <QTimer>
 #include <QWidget>
 
 class QPaintEvent;
-class QResizeEvent;
+class QWebChannel;
+class QWebEngineView;
 
 class SaveStatus : public QWidget {
 public:
@@ -24,20 +26,42 @@ private:
     int angle = 0;
 };
 
-class DocumentEditor : public QPlainTextEdit {
+class DocumentEditorBridge final : public QObject {
+    Q_OBJECT
+
+public:
+    using QObject::QObject;
+
+public slots:
+    void editorReady();
+    void contentChanged(const QString &markdown, int revision);
+
+signals:
+    void ready();
+    void markdownEdited(const QString &markdown, int revision);
+    void setMarkdownRequested(const QString &markdown, int revision);
+};
+
+class DocumentEditor final : public QWidget {
+    Q_OBJECT
+
 public:
     explicit DocumentEditor(QWidget *parent = nullptr);
-    int lineNumberAreaWidth() const;
-    void paintLineNumbers(QPaintEvent *event);
 
-protected:
-    void resizeEvent(QResizeEvent *event) override;
+    [[nodiscard]] QString markdown() const;
+    void setMarkdown(const QString &markdown);
+    void clear();
+
+signals:
+    void markdownChanged();
 
 private:
-    void updateLineNumberAreaWidth();
-    void updateLineNumberArea(const QRect &rect, int dy);
-
-    QWidget *lineNumberArea;
+    QWebEngineView *webView;
+    QWebChannel *webChannel;
+    DocumentEditorBridge *bridge;
+    QString currentMarkdown;
+    int currentRevision = 0;
+    bool editorReady = false;
 };
 
 #endif // FRONTEND_DOCUMENTEDITOR_H

@@ -939,7 +939,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QWidget#documentEditorPanel {
             background: palette(base);
         }
-        QPlainTextEdit#documentEditor {
+        QWidget#documentEditor {
             background: palette(base);
             border: none;
         }
@@ -990,7 +990,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     connect(toggleDocumentPreviewButton, &QPushButton::clicked, this, [this] {
         const bool showPreview = documentStack->currentWidget() == documentEditor;
         if (showPreview) {
-            documentPreview->setMarkdown(documentEditor->toPlainText());
+            documentPreview->setMarkdown(documentEditor->markdown());
         }
         documentStack->setCurrentWidget(
             showPreview ? static_cast<QWidget *>(documentPreview)
@@ -1462,7 +1462,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 currentDocumentNodeId = document.domainNodeId;
                 documentTitle->setText(item->data(NODE_NAME_ROLE).toString());
                 savedContent = document.content;
-                documentEditor->setPlainText(document.content);
+                documentEditor->setMarkdown(document.content);
                 if (documentStack->currentWidget() == documentPreview) {
                     documentPreview->setMarkdown(document.content);
                 }
@@ -1707,12 +1707,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 renderTasks();
                 renderPursuits();
             });
-    connect(documentEditor, &QPlainTextEdit::textChanged, this, [this] {
+    connect(documentEditor, &DocumentEditor::markdownChanged, this, [this] {
         if (currentDocumentNodeId == -1) {
             return;
         }
 
-        if (documentEditor->toPlainText() == savedContent) {
+        if (documentEditor->markdown() == savedContent) {
             autosaveTimer->stop();
             saveStatus->setState(SaveStatus::Saved);
         } else {
@@ -1824,13 +1824,13 @@ void DomainView::continueDocumentChange() {
 
 void DomainView::startSave() {
     if (saveInProgress || currentDocumentNodeId == -1
-        || documentEditor->toPlainText() == savedContent) {
+        || documentEditor->markdown() == savedContent) {
         return;
     }
 
     saveInProgress = true;
     savingDocumentNodeId = currentDocumentNodeId;
-    savingContent = documentEditor->toPlainText();
+    savingContent = documentEditor->markdown();
     saveStatus->setState(SaveStatus::Saving);
     apiClient.updateDocument(currentDocumentNodeId, savingContent);
 }
@@ -1840,7 +1840,7 @@ void DomainView::finishPendingActions() {
         return;
     }
 
-    if (currentDocumentNodeId != -1 && documentEditor->toPlainText() != savedContent) {
+    if (currentDocumentNodeId != -1 && documentEditor->markdown() != savedContent) {
         startSave();
         return;
     }
