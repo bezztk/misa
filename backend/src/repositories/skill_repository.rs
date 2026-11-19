@@ -1,11 +1,11 @@
 use crate::models::entity::EntityType;
 use crate::models::skill::{Skill, SkillField, SkillFieldUpdate};
-use crate::repositories::entity_repository;
+use crate::repositories::{comment_repository, entity_repository};
 use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_skills(pool: &PgPool, domain_node_id: i32) -> Result<Vec<Skill>, sqlx::Error> {
-    sqlx::query_as::<_, Skill>(
+    let mut skills = sqlx::query_as::<_, Skill>(
         "SELECT entity_id AS id, domain_node_id, parent_skill_id, name, psychomotor_level_id
          FROM skills
          WHERE domain_node_id = $1
@@ -13,7 +13,17 @@ pub async fn get_skills(pool: &PgPool, domain_node_id: i32) -> Result<Vec<Skill>
     )
     .bind(domain_node_id)
     .fetch_all(pool)
-    .await
+    .await?;
+    let entity_ids = skills.iter().map(|skill| skill.id).collect::<Vec<_>>();
+    let comments = comment_repository::get_comments_for_entities(pool, &entity_ids).await?;
+    for skill in &mut skills {
+        skill.comments = comments
+            .iter()
+            .filter(|comment| comment.entity_id == skill.id)
+            .cloned()
+            .collect();
+    }
+    Ok(skills)
 }
 
 pub async fn create_skill(

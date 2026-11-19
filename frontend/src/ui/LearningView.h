@@ -35,6 +35,8 @@ private:
     QPushButton* showAnswerButton;
     QPushButton* startButton;
     QPushButton* pauseButton;
+    QWidget* learningCard;
+    QPushButton* commentButton;
 
     void reloadFlashcards();
     void showStartScreen();
@@ -42,6 +44,8 @@ private:
     void showAnswer();
     void rateFlashcard(FlashcardRating);
     void updateMetadataBanner();
+    void showCurrentComments();
+    void updateCommentButton();
 
     ApiClient &apiClient;
     bool ratingPending = false;

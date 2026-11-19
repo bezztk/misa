@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::models::comment::Comment;
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
 pub struct Domain {
     pub id: i32,
@@ -27,6 +29,8 @@ pub struct DomainNode {
     pub flashcard_status_id: Option<i32>,
     pub verification_status_id: Option<i32>,
     pub verification_level_id: Option<i32>,
+    #[sqlx(skip)]
+    pub comments: Vec<Comment>,
 }
 
 #[derive(Debug, Deserialize)]

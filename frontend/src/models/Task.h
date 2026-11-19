@@ -3,6 +3,9 @@
 
 #include <QString>
 #include <optional>
+#include <vector>
+
+#include "Comment.h"
 
 enum class TaskField {
     Name = 1,
@@ -17,6 +20,7 @@ struct Task {
     QString name;
     int stateId;
     int priorityId;
+    std::vector<Comment> comments;
 };
 
 struct CreateTask {

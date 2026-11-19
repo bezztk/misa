@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::models::comment::Comment;
+
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct FlashcardRetentionClass {
     pub id: i32,
@@ -103,6 +105,8 @@ pub struct EditableFlashcard {
     pub id: i32,
     pub front: String,
     pub back: String,
+    #[sqlx(skip)]
+    pub comments: Vec<Comment>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -146,6 +150,7 @@ pub struct FlashcardQueueItem {
     pub stability: Option<f32>,
     pub difficulty: Option<f32>,
     pub preview: FlashcardReviewPreview,
+    pub comments: Vec<Comment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

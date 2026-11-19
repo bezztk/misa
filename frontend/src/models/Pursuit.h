@@ -6,6 +6,8 @@
 #include <optional>
 #include <vector>
 
+#include "Comment.h"
+
 struct PursuitRequirement {
     int id;
     int requirementTypeId;
@@ -23,6 +25,7 @@ struct Pursuit {
     int domainNodeId;
     QString name;
     std::vector<PursuitRequirement> requirements{};
+    std::vector<Comment> comments;
 };
 
 struct PursuitSkillRequirement {

@@ -1,5 +1,6 @@
 #include "TaskView.h"
 #include "CalendarEntryDialog.h"
+#include "CommentUi.h"
 #include "DialogUtils.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
@@ -110,6 +111,24 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     taskList->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     taskList->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     taskList->setContextMenuPolicy(Qt::CustomContextMenu);
+    taskList->setItemDelegate(new CommentIndicatorDelegate(
+        [this](const int taskId) {
+            Task *task = taskById(taskId);
+            if (!task) {
+                return;
+            }
+            showCommentsDialog(
+                taskList,
+                apiClient,
+                task->id,
+                "Kommentare – " + task->name,
+                task->comments
+            );
+            renderTasks();
+        },
+        {},
+        taskList
+    ));
     contentLayout->addWidget(taskList, 1);
     layout->addStretch();
     layout->addWidget(content, 1);
@@ -147,6 +166,12 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                     QIcon(":/assets/icons/clock.png"),
                     "Einplanen"
                 );
+                QAction *commentsAction = menu.addAction(
+                    QIcon(":/assets/icons/speech-bubble.png"),
+                    task->comments.empty()
+                        ? "Kommentare anzeigen"
+                        : "Kommentare anzeigen (" + QString::number(task->comments.size()) + ")"
+                );
                 menu.addSeparator();
                 QAction *historyAction = menu.addAction(
                     QIcon(":/assets/icons/version_history.png"),
@@ -164,6 +189,16 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
                     openEditDialog(*task);
                 } else if (selectedAction == scheduleAction) {
                     openScheduleDialog(*task);
+                } else if (selectedAction == commentsAction) {
+                    Task *editableTask = taskById(task->id);
+                    showCommentsDialog(
+                        taskList,
+                        apiClient,
+                        editableTask->id,
+                        "Kommentare – " + editableTask->name,
+                        editableTask->comments
+                    );
+                    renderTasks();
                 } else if (selectedAction == deleteAction) {
                     apiClient.deleteTask(task->id);
                 } else if (selectedAction == historyAction) {
@@ -303,6 +338,8 @@ void TaskView::renderTasks() {
     const auto addTask = [this](const Task &task, const bool closed) {
         auto *item = new QTreeWidgetItem(taskList);
         item->setData(0, TASK_ID_ROLE, task.id);
+        item->setData(0, COMMENT_ENTITY_ID_ROLE, task.id);
+        item->setData(0, COMMENT_COUNT_ROLE, static_cast<int>(task.comments.size()));
         item->setText(0, task.name);
         item->setText(1, taskStateName(apiClient.metadata(), task.stateId));
         item->setForeground(0, taskPriorityColor(apiClient.metadata(), task.priorityId));
@@ -348,7 +385,7 @@ void TaskView::renderTasks() {
     }
 }
 
-const Task *TaskView::taskById(const int id) const {
+Task *TaskView::taskById(const int id) {
     const auto task = std::find_if(tasks.begin(), tasks.end(),
                                    [id](const Task &item) { return item.id == id; });
     return task == tasks.end() ? nullptr : &*task;

@@ -2,18 +2,28 @@ use crate::models::entity::EntityType;
 use crate::models::system_task::{
     OPEN_SYSTEM_TASK_STATE_ID, TaskField, TaskFieldUpdate, TaskListItem,
 };
-use crate::repositories::entity_repository;
+use crate::repositories::{comment_repository, entity_repository};
 use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
-    sqlx::query_as::<_, TaskListItem>(
+    let mut tasks = sqlx::query_as::<_, TaskListItem>(
         "SELECT entity_id AS id, name, domain_node_id, group_id, state_id, priority_id
          FROM systemtasks
          ORDER BY entity_id DESC",
     )
     .fetch_all(pool)
-    .await
+    .await?;
+    let entity_ids = tasks.iter().map(|task| task.id).collect::<Vec<_>>();
+    let comments = comment_repository::get_comments_for_entities(pool, &entity_ids).await?;
+    for task in &mut tasks {
+        task.comments = comments
+            .iter()
+            .filter(|comment| comment.entity_id == task.id)
+            .cloned()
+            .collect();
+    }
+    Ok(tasks)
 }
 
 pub async fn create_task(

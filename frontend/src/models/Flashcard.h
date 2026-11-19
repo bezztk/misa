@@ -5,6 +5,9 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
+
+#include "Comment.h"
 
 enum class FlashcardField {
     Front = 1,
@@ -15,6 +18,7 @@ struct Flashcard {
     int id;
     QString front;
     QString back;
+    std::vector<Comment> comments;
 };
 
 enum class FlashcardRating : std::int16_t {
@@ -41,6 +45,7 @@ struct FlashcardReviewQueueItem {
     std::optional<float> stability;
     std::optional<float> difficulty;
     FlashcardReviewPreview preview;
+    std::vector<Comment> comments;
 };
 
 struct ReviewFlashcard {

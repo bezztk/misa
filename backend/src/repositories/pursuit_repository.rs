@@ -3,7 +3,7 @@ use crate::models::pursuit::{
     Pursuit, PursuitDetails, PursuitRequirement, PursuitRequirementTypeId,
     UpdatePursuitRequirementsRequest,
 };
-use crate::repositories::entity_repository;
+use crate::repositories::{comment_repository, entity_repository};
 use sqlx::PgPool;
 
 pub async fn get_pursuits(
@@ -34,6 +34,12 @@ pub async fn get_pursuits(
     .fetch_all(pool)
     .await?;
 
+    let entity_ids = pursuits
+        .iter()
+        .map(|pursuit| pursuit.id)
+        .collect::<Vec<_>>();
+    let comments = comment_repository::get_comments_for_entities(pool, &entity_ids).await?;
+
     Ok(pursuits
         .into_iter()
         .map(|pursuit| PursuitDetails {
@@ -43,6 +49,11 @@ pub async fn get_pursuits(
             requirements: requirements
                 .iter()
                 .filter(|requirement| requirement.pursuit_id == pursuit.id)
+                .cloned()
+                .collect(),
+            comments: comments
+                .iter()
+                .filter(|comment| comment.entity_id == pursuit.id)
                 .cloned()
                 .collect(),
         })
@@ -82,6 +93,7 @@ pub async fn create_pursuit(
         domain_node_id: pursuit.domain_node_id,
         name: pursuit.name,
         requirements: Vec::new(),
+        comments: Vec::new(),
     }))
 }
 

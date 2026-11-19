@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::models::comment::Comment;
+
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct PursuitRequirementType {
     pub id: i32,
@@ -52,6 +54,7 @@ pub struct PursuitDetails {
     pub domain_node_id: i32,
     pub name: String,
     pub requirements: Vec<PursuitRequirement>,
+    pub comments: Vec<Comment>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -39,6 +39,7 @@ void ApiClient::getTasks() {
             }
             task.stateId = object["state_id"].toInt();
             task.priorityId = object["priority_id"].toInt();
+            task.comments = parseComments(object["comments"].toArray());
 
             tasks.push_back(task);
         }

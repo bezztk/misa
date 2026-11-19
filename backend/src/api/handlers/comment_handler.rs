@@ -11,7 +11,11 @@ pub async fn create_comment(
     Path(entity_id): Path<i32>,
     Json(payload): Json<CreateCommentRequest>,
 ) -> ApiResult<(StatusCode, Json<Comment>)> {
-    let comment = comment_repository::create_comment(&pool, entity_id, &payload.content).await?;
+    let content = payload.content.trim();
+    if content.is_empty() {
+        return Err(ApiError::BadRequest);
+    }
+    let comment = comment_repository::create_comment(&pool, entity_id, content).await?;
 
     Ok((StatusCode::CREATED, Json(comment)))
 }
@@ -21,7 +25,11 @@ pub async fn update_comment(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateCommentRequest>,
 ) -> ApiResult<Json<Comment>> {
-    let comment = comment_repository::update_comment(&pool, id, &payload.content)
+    let content = payload.content.trim();
+    if content.is_empty() {
+        return Err(ApiError::BadRequest);
+    }
+    let comment = comment_repository::update_comment(&pool, id, content)
         .await?
         .ok_or(ApiError::NotFound)?;
 

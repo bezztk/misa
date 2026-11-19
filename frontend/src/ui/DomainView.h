@@ -34,8 +34,10 @@ private:
         const std::vector<DomainNode> &nodes
     );
     void showDomainNodeContextMenu(const QPoint &position);
+    void showDomainNodeComments(int nodeId);
     void createTask(int nodeId);
     void editTask(int taskId);
+    void showTaskComments(int taskId);
     QStandardItem *findDomainItem(int domainId);
     QStandardItem *findDomainNodeItem(int nodeId);
     void requestDocumentChange(int nodeId, bool hasDocument = false);
@@ -44,6 +46,7 @@ private:
     void finishPendingActions();
     void createFlashcard(int nodeId);
     void editFlashcard(int row);
+    void showFlashcardComments(int flashcardId);
     void updateFlashcardCount(int nodeId, int count);
     void updateFlashcardView();
     void addAttachments(int nodeId);
@@ -57,6 +60,7 @@ private:
     );
     void renderSkills(const std::vector<Skill> &skills);
     void showSkillContextMenu(const QPoint &position);
+    void showSkillComments(int skillId);
     void createSkill(int nodeId, std::optional<int> parentSkillId = std::nullopt);
     void editSkill(const QModelIndex &index);
     void updateSkillCount(int nodeId, int count);
@@ -64,6 +68,7 @@ private:
     void renderPursuits();
     void createPursuit(int nodeId);
     void editPursuit(const QModelIndex &index);
+    void showPursuitComments(int pursuitId);
     void updatePursuitCount(int nodeId, int count);
     void updateCurrentTaskCount();
     void renderProgressions();
@@ -87,6 +92,7 @@ private:
     QHBoxLayout *progressionStagesLayout;
     std::vector<Progression> progressions;
     std::vector<ProgressionPursuit> progressionPursuits;
+    std::vector<DomainNode> domainNodes;
     int currentProgressionId = -1;
     QWidget *editorWidget;
     QVBoxLayout *editorLayout;
@@ -117,6 +123,7 @@ private:
     std::vector<Skill> currentSkills;
     std::vector<Pursuit> currentPursuits;
     std::vector<Task> currentTasks;
+    std::vector<Flashcard> currentFlashcards;
     QTimer *autosaveTimer;
     int currentNodeId = -1;
     int currentDocumentNodeId = -1;
@@ -125,6 +132,7 @@ private:
     bool documentChangePending = false;
     bool documentLoadPending = false;
     bool saveInProgress = false;
+    bool commentIndicatorPressed = false;
     int savingDocumentNodeId = -1;
     QString savedContent;
     QString savingContent;

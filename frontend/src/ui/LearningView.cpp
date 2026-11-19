@@ -1,9 +1,13 @@
 ﻿#include "LearningView.h"
 
+#include "CommentUi.h"
+
 #include <QHideEvent>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QIcon>
+#include <QMenu>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -81,7 +85,8 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     headerLayout->addWidget(refreshButton);
     layout->addLayout(headerLayout);
 
-    auto *card = new QFrame(content);
+    learningCard = new QFrame(content);
+    auto *card = learningCard;
     card->setObjectName("learningCard");
     card->setStyleSheet(R"(
         QFrame#learningCard {
@@ -172,6 +177,10 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
 
     cardLayout->addWidget(metadataWidget, 0, Qt::AlignRight);
     auto *actionLayout = new QHBoxLayout();
+    commentButton = new QPushButton(card);
+    commentButton->setIcon(QIcon(":/assets/icons/speech-bubble.png"));
+    commentButton->hide();
+    actionLayout->addWidget(commentButton);
     actionLayout->addStretch();
     actionLayout->addWidget(startButton);
     actionLayout->addWidget(showAnswerButton);
@@ -203,6 +212,24 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     });
 
     connect(refreshButton, &QPushButton::clicked, this, &LearningView::reloadFlashcards);
+    connect(commentButton, &QPushButton::clicked, this, [this] {
+        showCurrentComments();
+    });
+    learningCard->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(learningCard, &QWidget::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                if (currentIndex >= flashcards.size()) {
+                    return;
+                }
+                QMenu menu(learningCard);
+                QAction *commentsAction = menu.addAction(
+                    QIcon(":/assets/icons/speech-bubble.png"),
+                    "Kommentare anzeigen"
+                );
+                if (menu.exec(learningCard->mapToGlobal(position)) == commentsAction) {
+                    showCurrentComments();
+                }
+            });
 
     connect(&apiClient, &ApiClient::flashcardRated, this, [this] {
         ratingPending = false;
@@ -256,6 +283,7 @@ void LearningView::showStartScreen() {
     back->clear();
     metadataWidget->hide();
     ratingWidget->hide();
+    commentButton->hide();
 }
 
 void LearningView::rateFlashcard(FlashcardRating rating) {
@@ -291,6 +319,7 @@ void LearningView::showCurrentFlashcard() {
     back->clear();
     ratingWidget->hide();
     showAnswerButton->show();
+    updateCommentButton();
 
     remainingLabel->setText(
     "Verbleibende Karten in der Warteschlange: " + QString::number(flashcards.size() - currentIndex)
@@ -339,4 +368,30 @@ void LearningView::updateMetadataBanner() {
         metricText(flashcard.difficulty),
         QString::number(flashcard.learningStep)
     ));
+}
+
+void LearningView::showCurrentComments() {
+    if (currentIndex >= flashcards.size()) {
+        return;
+    }
+    FlashcardReviewQueueItem &flashcard = flashcards[currentIndex];
+    showCommentsDialog(
+        learningCard,
+        apiClient,
+        flashcard.id,
+        "Kommentare – Lernkarte",
+        flashcard.comments
+    );
+    updateCommentButton();
+}
+
+void LearningView::updateCommentButton() {
+    if (currentIndex >= flashcards.size() || flashcards[currentIndex].comments.empty()) {
+        commentButton->hide();
+        return;
+    }
+    commentButton->setText(
+        QString::number(static_cast<int>(flashcards[currentIndex].comments.size()))
+    );
+    commentButton->show();
 }

@@ -3,7 +3,7 @@ use crate::models::flashcard::{
     EditableFlashcard, FlashcardField, FlashcardFieldUpdate, FlashcardQueueContext,
     FlashcardReviewContext,
 };
-use crate::repositories::entity_repository;
+use crate::repositories::{comment_repository, entity_repository};
 use chrono::{DateTime, Utc};
 use serde_json::json;
 use sqlx::{PgConnection, PgPool};
@@ -52,7 +52,7 @@ pub async fn get_flashcards(
     pool: &PgPool,
     domain_node_id: i32,
 ) -> Result<Vec<EditableFlashcard>, sqlx::Error> {
-    sqlx::query_as::<_, EditableFlashcard>(
+    let mut flashcards = sqlx::query_as::<_, EditableFlashcard>(
         "SELECT entity_id AS id, front, back
          FROM flashcards
          WHERE domain_node_id = $1
@@ -60,7 +60,20 @@ pub async fn get_flashcards(
     )
     .bind(domain_node_id)
     .fetch_all(pool)
-    .await
+    .await?;
+    let entity_ids = flashcards
+        .iter()
+        .map(|flashcard| flashcard.id)
+        .collect::<Vec<_>>();
+    let comments = comment_repository::get_comments_for_entities(pool, &entity_ids).await?;
+    for flashcard in &mut flashcards {
+        flashcard.comments = comments
+            .iter()
+            .filter(|comment| comment.entity_id == flashcard.id)
+            .cloned()
+            .collect();
+    }
+    Ok(flashcards)
 }
 
 pub async fn update_flashcard_field(

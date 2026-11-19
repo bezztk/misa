@@ -1,6 +1,21 @@
 use crate::models::comment::Comment;
 use sqlx::PgPool;
 
+pub async fn get_comments_for_entities(
+    pool: &PgPool,
+    entity_ids: &[i32],
+) -> Result<Vec<Comment>, sqlx::Error> {
+    sqlx::query_as::<_, Comment>(
+        "SELECT id, entity_id, content, created_at, updated_at
+         FROM comments
+         WHERE entity_id = ANY($1)
+         ORDER BY entity_id, created_at, id",
+    )
+    .bind(entity_ids)
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn create_comment(
     pool: &PgPool,
     entity_id: i32,

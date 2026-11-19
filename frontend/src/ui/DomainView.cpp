@@ -1,5 +1,6 @@
 #include "DomainView.h"
 #include "DialogUtils.h"
+#include "CommentUi.h"
 #include "DocumentEditor.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
@@ -25,6 +26,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -61,7 +63,13 @@ static constexpr int ATTACHMENT_STORAGE_NAME_ROLE = Qt::UserRole + 1;
 
 class DomainNodeDelegate final : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    DomainNodeDelegate(
+        std::function<void(int)> openComments,
+        std::function<void()> indicatorPressed,
+        QObject *parent
+    ) : QStyledItemDelegate(parent),
+        openComments(std::move(openComments)),
+        indicatorPressed(std::move(indicatorPressed)) {}
 
     void paint(
         QPainter *painter,
@@ -123,6 +131,11 @@ public:
             ATTACHMENT_COUNT_ROLE,
             ":/assets/icons/attach-file.png",
             QColor("#BDBDBD")
+        );
+        addIconIndicator(
+            COMMENT_COUNT_ROLE,
+            ":/assets/icons/speech-bubble.png",
+            QColor("#E0E0E0")
         );
         if (indicators.empty()) {
             QStyledItemDelegate::paint(painter, option, index);
@@ -192,6 +205,37 @@ public:
         }
         painter->restore();
     }
+
+    bool editorEvent(
+        QEvent *event,
+        QAbstractItemModel *,
+        const QStyleOptionViewItem &option,
+        const QModelIndex &index
+    ) override {
+        const int count = index.data(COMMENT_COUNT_ROLE).toInt();
+        if (count <= 0
+            || (event->type() != QEvent::MouseButtonPress
+                && event->type() != QEvent::MouseButtonRelease)) {
+            return false;
+        }
+        const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        const int width = 14 + 3
+            + QFontMetrics(option.font).horizontalAdvance(QString::number(count));
+        if (mouseEvent->button() != Qt::LeftButton
+            || mouseEvent->position().x() < option.rect.right() - width - 5) {
+            return false;
+        }
+        if (event->type() == QEvent::MouseButtonPress) {
+            indicatorPressed();
+            return true;
+        }
+        openComments(index.data(Qt::UserRole).toInt());
+        return true;
+    }
+
+private:
+    std::function<void(int)> openComments;
+    std::function<void()> indicatorPressed;
 };
 
 static QString metadataName(const MetadataItem &item) {
@@ -298,6 +342,7 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.skillCount, SKILL_COUNT_ROLE);
     item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
     item->setData(node.taskCount, TASK_COUNT_ROLE);
+    item->setData(static_cast<int>(node.comments.size()), COMMENT_COUNT_ROLE);
     setOptionalRole(item, COGNITIVE_LEVEL_ROLE, node.cognitiveLevelId);
     setOptionalRole(item, COMPLETENESS_LEVEL_ROLE, node.completenessLevelId);
     setOptionalRole(item, FLASHCARD_STATUS_ROLE, node.flashcardStatusId);
@@ -980,7 +1025,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     model = new QStandardItemModel(treeView);
     treeView->setModel(model);
-    treeView->setItemDelegate(new DomainNodeDelegate(treeView));
+    treeView->setItemDelegate(new DomainNodeDelegate(
+        [this](const int nodeId) { showDomainNodeComments(nodeId); },
+        [this] { commentIndicatorPressed = true; },
+        treeView
+    ));
 
     editorWidget = new QWidget(splitter);
     editorWidget->setObjectName("documentEditorPanel");
@@ -1200,6 +1249,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     taskListView->setContextMenuPolicy(Qt::CustomContextMenu);
     taskModel = new QStandardItemModel(taskListView);
     taskListView->setModel(taskModel);
+    taskListView->setItemDelegate(new CommentIndicatorDelegate(
+        [this](const int taskId) { showTaskComments(taskId); },
+        {},
+        taskListView
+    ));
     taskPanelLayout->addWidget(taskListView);
 
     auto *pursuitPanel = new QWidget(sidebarList);
@@ -1227,8 +1281,14 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     pursuitTreeView->setUniformRowHeights(true);
     pursuitTreeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     pursuitTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    pursuitTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     pursuitModel = new QStandardItemModel(pursuitTreeView);
     pursuitTreeView->setModel(pursuitModel);
+    pursuitTreeView->setItemDelegate(new CommentIndicatorDelegate(
+        [this](const int pursuitId) { showPursuitComments(pursuitId); },
+        [this] { commentIndicatorPressed = true; },
+        pursuitTreeView
+    ));
     pursuitLayout->addWidget(pursuitTreeView);
 
     auto *skillPanel = new QWidget(sidebarList);
@@ -1259,6 +1319,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     skillModel = new QStandardItemModel(skillTreeView);
     skillTreeView->setModel(skillModel);
+    skillTreeView->setItemDelegate(new CommentIndicatorDelegate(
+        [this](const int skillId) { showSkillComments(skillId); },
+        {},
+        skillTreeView
+    ));
     skillPanelLayout->addWidget(skillTreeView);
 
     auto *flashcardPanel = new QWidget(sidebarList);
@@ -1302,6 +1367,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     flashcardListView->setContextMenuPolicy(Qt::CustomContextMenu);
     flashcardModel = new QStandardItemModel(flashcardListView);
     flashcardListView->setModel(flashcardModel);
+    flashcardListView->setItemDelegate(new CommentIndicatorDelegate(
+        [this](const int flashcardId) { showFlashcardComments(flashcardId); },
+        [this] { commentIndicatorPressed = true; },
+        flashcardListView
+    ));
     flashcardPanelLayout->addWidget(flashcardListView);
 
     auto *attachmentSectionButton = new QPushButton("▾  Anhänge", sidebarList);
@@ -1559,6 +1629,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 showDomainNodeContextMenu(position);
             });
     connect(treeView, &QTreeView::clicked, this, [this](const QModelIndex &index) {
+        if (commentIndicatorPressed) {
+            commentIndicatorPressed = false;
+            return;
+        }
         const QModelIndex nodeIndex = index.sibling(index.row(), 0);
         if (!nodeIndex.data(Qt::UserRole).isValid()) {
             requestDocumentChange(-1);
@@ -1571,7 +1645,13 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         );
     });
     connect(flashcardListView, &QListView::clicked, this,
-            [this](const QModelIndex &index) { editFlashcard(index.row()); });
+            [this](const QModelIndex &index) {
+                if (commentIndicatorPressed) {
+                    commentIndicatorPressed = false;
+                    return;
+                }
+                editFlashcard(index.row());
+            });
     connect(taskListView, &QListView::customContextMenuRequested, this,
             [this](const QPoint &position) {
                 const QModelIndex index = taskListView->indexAt(position);
@@ -1583,6 +1663,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 QAction *editAction = menu.addAction(
                     QIcon(":/assets/icons/edit.png"),
                     "Bearbeiten"
+                );
+                QAction *commentsAction = menu.addAction(
+                    QIcon(":/assets/icons/speech-bubble.png"),
+                    "Kommentare anzeigen"
                 );
                 QAction *deleteAction = menu.addAction(
                     QIcon(":/assets/icons/delete.png"),
@@ -1599,6 +1683,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 const int taskId = index.data(Qt::UserRole).toInt();
                 if (selectedAction == editAction) {
                     editTask(taskId);
+                } else if (selectedAction == commentsAction) {
+                    showTaskComments(taskId);
                 } else if (selectedAction == deleteAction) {
                     apiClient.deleteTask(taskId);
                 } else if (selectedAction == historyAction) {
@@ -1618,6 +1704,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 }
 
                 QMenu menu(flashcardListView);
+                QAction *commentsAction = menu.addAction(
+                    QIcon(":/assets/icons/speech-bubble.png"),
+                    "Kommentare anzeigen"
+                );
                 QAction *deleteAction = menu.addAction(
                     QIcon(":/assets/icons/delete.png"),
                     "Löschen"
@@ -1630,7 +1720,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 QAction *selectedAction = menu.exec(
                     flashcardListView->viewport()->mapToGlobal(position)
                 );
-                if (selectedAction == deleteAction) {
+                if (selectedAction == commentsAction) {
+                    showFlashcardComments(index.data(Qt::UserRole).toInt());
+                } else if (selectedAction == deleteAction) {
                     apiClient.deleteFlashcard(
                         currentNodeId,
                         index.data(Qt::UserRole).toInt()
@@ -1653,11 +1745,17 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     return;
                 }
 
+                currentFlashcards = flashcards;
                 flashcardModel->removeRows(0, flashcardModel->rowCount());
                 for (const Flashcard &flashcard : flashcards) {
                     auto *item = new QStandardItem(flashcard.front);
                     item->setData(flashcard.id, Qt::UserRole);
                     item->setData(flashcard.back, FLASHCARD_BACK_ROLE);
+                    item->setData(flashcard.id, COMMENT_ENTITY_ID_ROLE);
+                    item->setData(
+                        static_cast<int>(flashcard.comments.size()),
+                        COMMENT_COUNT_ROLE
+                    );
                     item->setIcon(QIcon(":/assets/icons/flashcards-white.png"));
                     item->setSizeHint(QSize(0, 24));
                     flashcardModel->appendRow(item);
@@ -1714,7 +1812,37 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 }
             });
     connect(pursuitTreeView, &QTreeView::clicked, this,
-            [this](const QModelIndex &index) { editPursuit(index); });
+            [this](const QModelIndex &index) {
+                if (commentIndicatorPressed) {
+                    commentIndicatorPressed = false;
+                    return;
+                }
+                editPursuit(index);
+            });
+    connect(pursuitTreeView, &QTreeView::customContextMenuRequested, this,
+            [this](const QPoint &position) {
+                const QModelIndex index = pursuitTreeView->indexAt(position);
+                if (!index.isValid() || !index.data(COMMENT_ENTITY_ID_ROLE).isValid()) {
+                    return;
+                }
+                QMenu menu(pursuitTreeView);
+                QAction *editAction = menu.addAction(
+                    QIcon(":/assets/icons/edit.png"),
+                    "Bearbeiten"
+                );
+                QAction *commentsAction = menu.addAction(
+                    QIcon(":/assets/icons/speech-bubble.png"),
+                    "Kommentare anzeigen"
+                );
+                QAction *selectedAction = menu.exec(
+                    pursuitTreeView->viewport()->mapToGlobal(position)
+                );
+                if (selectedAction == editAction) {
+                    editPursuit(index);
+                } else if (selectedAction == commentsAction) {
+                    showPursuitComments(index.data(COMMENT_ENTITY_ID_ROLE).toInt());
+                }
+            });
     connect(&apiClient, &ApiClient::nodePursuitsChanged, this,
             [this](const int nodeId) { apiClient.getNodePursuits(nodeId); });
     connect(&apiClient, &ApiClient::nodePursuitsReceived, this,
@@ -1814,6 +1942,7 @@ void DomainView::continueDocumentChange() {
     pursuitModel->removeRows(0, pursuitModel->rowCount());
     currentSkills.clear();
     currentPursuits.clear();
+    currentFlashcards.clear();
     renderTasks();
     noSkillsLabel->show();
     skillTreeView->hide();
@@ -2088,6 +2217,7 @@ void DomainView::renderDomainTree(
     const std::vector<MetadataItem> &domains,
     const std::vector<DomainNode> &nodes
 ) {
+    domainNodes = nodes;
     model->clear();
     model->setColumnCount(1);
 
@@ -2167,6 +2297,10 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         QIcon(":/assets/icons/edit.png"),
         "Bearbeiten"
     );
+    QAction *commentsAction = menu.addAction(
+        QIcon(":/assets/icons/speech-bubble.png"),
+        "Kommentare anzeigen"
+    );
     QAction *createDocumentAction = nullptr;
     QAction *deleteDocumentAction = nullptr;
     if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
@@ -2239,6 +2373,8 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             optionalRole(index, VERIFICATION_STATUS_ROLE),
             optionalRole(index, VERIFICATION_LEVEL_ROLE)
         );
+    } else if (selectedAction == commentsAction) {
+        showDomainNodeComments(nodeId);
     } else if (createDocumentAction && selectedAction == createDocumentAction) {
         apiClient.createDocument(nodeId);
     } else if (deleteDocumentAction && selectedAction == deleteDocumentAction
@@ -2281,6 +2417,107 @@ void DomainView::createFlashcard(const int nodeId) {
     if (showFlashcardDialog(this, "Lernkarte erstellen", front, back)) {
         apiClient.createFlashcard(nodeId, front, back);
     }
+}
+
+void DomainView::showDomainNodeComments(const int nodeId) {
+    const auto node = std::find_if(
+        domainNodes.begin(), domainNodes.end(),
+        [nodeId](const DomainNode &item) { return item.id == nodeId; }
+    );
+    if (node == domainNodes.end()) {
+        return;
+    }
+    showCommentsDialog(
+        treeView,
+        apiClient,
+        node->id,
+        "Kommentare – " + node->name,
+        node->comments
+    );
+    if (QStandardItem *item = findDomainNodeItem(nodeId)) {
+        item->setData(static_cast<int>(node->comments.size()), COMMENT_COUNT_ROLE);
+    }
+}
+
+void DomainView::showTaskComments(const int taskId) {
+    const auto task = std::find_if(
+        currentTasks.begin(), currentTasks.end(),
+        [taskId](const Task &item) { return item.id == taskId; }
+    );
+    if (task == currentTasks.end()) {
+        return;
+    }
+    showCommentsDialog(
+        taskListView,
+        apiClient,
+        task->id,
+        "Kommentare – " + task->name,
+        task->comments
+    );
+    renderTasks();
+}
+
+void DomainView::showFlashcardComments(const int flashcardId) {
+    const auto flashcard = std::find_if(
+        currentFlashcards.begin(), currentFlashcards.end(),
+        [flashcardId](const Flashcard &item) { return item.id == flashcardId; }
+    );
+    if (flashcard == currentFlashcards.end()) {
+        return;
+    }
+    showCommentsDialog(
+        flashcardListView,
+        apiClient,
+        flashcard->id,
+        "Kommentare – Lernkarte",
+        flashcard->comments
+    );
+    for (int row = 0; row < flashcardModel->rowCount(); ++row) {
+        QStandardItem *item = flashcardModel->item(row);
+        if (item->data(Qt::UserRole).toInt() == flashcardId) {
+            item->setData(
+                static_cast<int>(flashcard->comments.size()),
+                COMMENT_COUNT_ROLE
+            );
+            break;
+        }
+    }
+}
+
+void DomainView::showSkillComments(const int skillId) {
+    const auto skill = std::find_if(
+        currentSkills.begin(), currentSkills.end(),
+        [skillId](const Skill &item) { return item.id == skillId; }
+    );
+    if (skill == currentSkills.end()) {
+        return;
+    }
+    showCommentsDialog(
+        skillTreeView,
+        apiClient,
+        skill->id,
+        "Kommentare – " + skill->name,
+        skill->comments
+    );
+    renderSkills(currentSkills);
+}
+
+void DomainView::showPursuitComments(const int pursuitId) {
+    const auto pursuit = std::find_if(
+        currentPursuits.begin(), currentPursuits.end(),
+        [pursuitId](const Pursuit &item) { return item.id == pursuitId; }
+    );
+    if (pursuit == currentPursuits.end()) {
+        return;
+    }
+    showCommentsDialog(
+        pursuitTreeView,
+        apiClient,
+        pursuit->id,
+        "Kommentare – " + pursuit->name,
+        pursuit->comments
+    );
+    renderPursuits();
 }
 
 void DomainView::addAttachments(const int nodeId) {
@@ -2349,6 +2586,11 @@ void DomainView::renderSkills(const std::vector<Skill> &skills) {
 
             auto *item = new QStandardItem(skillText(apiClient.metadata(), skill));
             item->setData(skill.id, Qt::UserRole);
+            item->setData(skill.id, COMMENT_ENTITY_ID_ROLE);
+            item->setData(
+                static_cast<int>(skill.comments.size()),
+                COMMENT_COUNT_ROLE
+            );
             if (parentItem) {
                 parentItem->appendRow(item);
             } else {
@@ -2387,6 +2629,10 @@ void DomainView::showSkillContextMenu(const QPoint &position) {
         QIcon(":/assets/icons/edit.png"),
         "Bearbeiten"
     );
+    QAction *commentsAction = menu.addAction(
+        QIcon(":/assets/icons/speech-bubble.png"),
+        "Kommentare anzeigen"
+    );
     menu.addSeparator();
     QAction *historyAction = menu.addAction(
         QIcon(":/assets/icons/version_history.png"),
@@ -2400,6 +2646,8 @@ void DomainView::showSkillContextMenu(const QPoint &position) {
         createSkill(currentNodeId, index.data(Qt::UserRole).toInt());
     } else if (selectedAction == editAction) {
         editSkill(index);
+    } else if (selectedAction == commentsAction) {
+        showSkillComments(index.data(Qt::UserRole).toInt());
     } else if (selectedAction == historyAction) {
         const int skillId = index.data(Qt::UserRole).toInt();
         const auto skill = std::find_if(
@@ -2468,6 +2716,8 @@ void DomainView::renderTasks() {
 
         auto *item = new QStandardItem(task.name);
         item->setData(task.id, Qt::UserRole);
+        item->setData(task.id, COMMENT_ENTITY_ID_ROLE);
+        item->setData(static_cast<int>(task.comments.size()), COMMENT_COUNT_ROLE);
         item->setIcon(QIcon(":/assets/icons/task-white.png"));
         item->setSizeHint(QSize(0, 24));
         taskModel->appendRow(item);
@@ -2486,6 +2736,11 @@ void DomainView::renderPursuits() {
     for (const Pursuit &pursuit : currentPursuits) {
         auto *pursuitItem = new QStandardItem(pursuit.name);
         pursuitItem->setData(pursuit.id, Qt::UserRole);
+        pursuitItem->setData(pursuit.id, COMMENT_ENTITY_ID_ROLE);
+        pursuitItem->setData(
+            static_cast<int>(pursuit.comments.size()),
+            COMMENT_COUNT_ROLE
+        );
         QFont font = pursuitItem->font();
         font.setBold(true);
         pursuitItem->setFont(font);

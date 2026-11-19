@@ -55,6 +55,13 @@ pub async fn get_due_flashcards(
     pool: &PgPool,
 ) -> Result<Vec<FlashcardQueueItem>, FlashcardServiceError> {
     let contexts = flashcard_repository::get_due_flashcard_contexts(pool).await?;
+    let entity_ids = contexts
+        .iter()
+        .map(|context| context.id)
+        .collect::<Vec<_>>();
+    let comments =
+        crate::repositories::comment_repository::get_comments_for_entities(pool, &entity_ids)
+            .await?;
     let reviewed_at = Utc::now();
     let mut flashcards = Vec::with_capacity(contexts.len());
 
@@ -82,6 +89,11 @@ pub async fn get_due_flashcards(
             stability: context.stability,
             difficulty: context.difficulty,
             preview,
+            comments: comments
+                .iter()
+                .filter(|comment| comment.entity_id == context.id)
+                .cloned()
+                .collect(),
         });
     }
 

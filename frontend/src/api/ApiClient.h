@@ -11,6 +11,7 @@
 #include "../models/Progression.h"
 #include "../models/CalendarEntry.h"
 #include "../models/EntityFieldVersion.h"
+#include "../models/Comment.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 
@@ -77,6 +78,9 @@ signals:
         const std::vector<EntityFieldVersion>& versions
     );
     void entityFieldVersionsLoadFailed(int entityId);
+    void commentCreated(int entityId, const Comment& comment);
+    void commentUpdated(const Comment& comment);
+    void commentDeleted(int id);
 
 public:
     explicit ApiClient(QObject *parent = nullptr);
@@ -127,6 +131,9 @@ public:
     void updateDocument(int nodeId, const QString& content);
     void deleteDocument(int nodeId);
     void getEntityFieldVersions(int entityId);
+    void createComment(int entityId, const QString& content);
+    void updateComment(int id, const QString& content);
+    void deleteComment(int id);
 
 private:
     static constexpr auto SCHEME = "http";

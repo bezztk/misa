@@ -12,6 +12,7 @@ static Skill parseSkill(const QJsonObject &object) {
         .domainNodeId = object["domain_node_id"].toInt(),
         .name = object["name"].toString()
     };
+    skill.comments = parseComments(object["comments"].toArray());
 
     if (!object["parent_skill_id"].isNull()) {
         skill.parentSkillId = object["parent_skill_id"].toInt();
@@ -117,6 +118,7 @@ static Pursuit parsePursuit(const QJsonObject &object) {
         .domainNodeId = object["domain_node_id"].toInt(),
         .name = object["name"].toString()
     };
+    pursuit.comments = parseComments(object["comments"].toArray());
 
     for (const QJsonValue &value : object["requirements"].toArray()) {
         const QJsonObject requirement = value.toObject();

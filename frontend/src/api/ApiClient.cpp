@@ -53,6 +53,55 @@ bool ApiClient::readJson(
     return false;
 }
 
+void ApiClient::createComment(const int entityId, const QString &content) {
+    QNetworkRequest request(buildUrl(
+        "/entities/" + QString::number(entityId) + "/comments"
+    ));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.post(
+        request,
+        QJsonDocument(QJsonObject{{"content", content}}).toJson()
+    );
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, entityId] {
+        QJsonDocument response;
+        if (readJson(reply, "Kommentar erstellen", response) && response.isObject()) {
+            emit commentCreated(entityId, parseComment(response.object()));
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateComment(const int id, const QString &content) {
+    QNetworkRequest request(buildUrl("/comments/" + QString::number(id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request,
+        "PATCH",
+        QJsonDocument(QJsonObject{{"content", content}}).toJson()
+    );
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        QJsonDocument response;
+        if (readJson(reply, "Kommentar aktualisieren", response) && response.isObject()) {
+            emit commentUpdated(parseComment(response.object()));
+        }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::deleteComment(const int id) {
+    const QNetworkRequest request(buildUrl("/comments/" + QString::number(id)));
+    QNetworkReply *reply = manager.deleteResource(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, id] {
+        if (requestSucceeded(reply)) {
+            emit commentDeleted(id);
+        }
+        reply->deleteLater();
+    });
+}
+
 static MetadataItem parseMetadataItem(const QJsonValue &value) {
     const QJsonObject object = value.toObject();
     MetadataItem item{
@@ -89,6 +138,7 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .pursuitCount = object["pursuit_count"].toInt(),
         .taskCount = object["task_count"].toInt()
     };
+    node.comments = parseComments(object["comments"].toArray());
 
     if (!object["parent_id"].isNull()) {
         node.parentId = object["parent_id"].toInt();
@@ -134,7 +184,8 @@ void ApiClient::getNodeFlashcards(const int nodeId) {
             flashcards.push_back({
                 .id = object["id"].toInt(),
                 .front = object["front"].toString(),
-                .back = object["back"].toString()
+                .back = object["back"].toString(),
+                .comments = parseComments(object["comments"].toArray())
             });
         }
         emit nodeFlashcardsReceived(nodeId, flashcards);
@@ -615,6 +666,7 @@ void ApiClient::getDueFlashcards() {
             flashcard.reviewStateId = static_cast<std::int16_t>(object["review_state_id"].toInt());
             flashcard.learningStep = static_cast<std::int16_t>(object["learning_step"].toInt());
             flashcard.retentionClassId = object["retention_class_id"].toInt();
+            flashcard.comments = parseComments(object["comments"].toArray());
 
             if (!object["stability"].isNull()) {
                 flashcard.stability = static_cast<float>(object["stability"].toDouble());

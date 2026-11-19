@@ -23,7 +23,7 @@ private:
     void openCreateDialog();
     void openEditDialog(const Task &task);
     void openScheduleDialog(const Task &task);
-    const Task *taskById(int id) const;
+    Task *taskById(int id);
 
     std::vector<Task> tasks;
     std::vector<DomainNode> domainNodes;

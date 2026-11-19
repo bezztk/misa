@@ -77,6 +77,8 @@ add_executable(frontend
         src/ui/TaskEditDialog.h
         src/ui/VersionHistoryDialog.cpp
         src/ui/VersionHistoryDialog.h
+        src/ui/CommentUi.cpp
+        src/ui/CommentUi.h
         src/ui/TaskView.cpp
         src/ui/TaskView.h
         src/models/Task.h
@@ -96,6 +98,8 @@ add_executable(frontend
         src/models/Progression.h
         src/models/CalendarEntry.h
         src/models/EntityFieldVersion.h
+        src/models/Comment.cpp
+        src/models/Comment.h
 )
 set_target_properties(frontend PROPERTIES
         WIN32_EXECUTABLE "$<CONFIG:Release>"
@@ -144,4 +148,5 @@ qt_add_resources(frontend "icons"
         assets/icons/edit.png
         assets/icons/delete.png
         assets/icons/version_history.png
+        assets/icons/speech-bubble.png
 )

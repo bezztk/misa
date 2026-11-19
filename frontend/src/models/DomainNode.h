@@ -4,6 +4,9 @@
 #include <QString>
 
 #include <optional>
+#include <vector>
+
+#include "Comment.h"
 
 enum class DomainNodeField {
     Name = 1,
@@ -30,6 +33,7 @@ struct DomainNode {
     std::optional<int> flashcardStatusId{};
     std::optional<int> verificationStatusId{};
     std::optional<int> verificationLevelId{};
+    std::vector<Comment> comments;
 };
 
 #endif // FRONTEND_DOMAINNODE_H

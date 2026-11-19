@@ -1,6 +1,6 @@
 use crate::models::domain::{Domain, DomainNode, DomainNodeField, DomainNodeFieldUpdate};
 use crate::models::entity::EntityType;
-use crate::repositories::entity_repository;
+use crate::repositories::{comment_repository, entity_repository};
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -11,7 +11,7 @@ pub async fn get_domains(pool: &PgPool) -> Result<Vec<Domain>, sqlx::Error> {
 }
 
 pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Error> {
-    sqlx::query_as::<_, DomainNode>(
+    let mut nodes = sqlx::query_as::<_, DomainNode>(
         "WITH flashcard_counts AS (
              SELECT domain_node_id, COUNT(*) AS count
              FROM flashcards
@@ -58,7 +58,17 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
          ORDER BY dn.domain_id, dn.entity_id",
     )
     .fetch_all(pool)
-    .await
+    .await?;
+    let entity_ids = nodes.iter().map(|node| node.id).collect::<Vec<_>>();
+    let comments = comment_repository::get_comments_for_entities(pool, &entity_ids).await?;
+    for node in &mut nodes {
+        node.comments = comments
+            .iter()
+            .filter(|comment| comment.entity_id == node.id)
+            .cloned()
+            .collect();
+    }
+    Ok(nodes)
 }
 
 pub async fn create_domain_node(
