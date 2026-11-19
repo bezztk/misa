@@ -985,6 +985,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     progressionLayout->addWidget(progressionContent, 1);
     progressionContent->hide();
     layout->addWidget(progressionWidget);
+    progressionWidget->hide();
 
     connect(addProgressionButton, &QPushButton::clicked, this, [this] {
         const auto input = showTextInputDialog(
@@ -1051,26 +1052,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     documentLayout->setContentsMargins(0, 0, 0, 0);
     documentLayout->setSpacing(0);
 
-    auto *header = new QWidget(documentWidget);
-    header->setObjectName("editorHeader");
-    auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(14, 8, 12, 8);
-    documentTitle = new QLabel(documentWidget);
-    QFont titleFont = documentTitle->font();
-    titleFont.setBold(true);
-    titleFont.setPointSize(titleFont.pointSize() + 4);
-    documentTitle->setFont(titleFont);
     documentEditor = new DocumentEditor(documentWidget);
     documentEditor->setObjectName("documentEditor");
     documentEditor->setMaximumWidth(900);
-    saveStatus = new SaveStatus(documentWidget);
     autosaveTimer = new QTimer(this);
     autosaveTimer->setInterval(1000);
     autosaveTimer->setSingleShot(true);
-    headerLayout->addWidget(documentTitle);
-    headerLayout->addStretch();
-    headerLayout->addWidget(saveStatus);
-    documentLayout->addWidget(header);
     auto *documentEditorLayout = new QHBoxLayout();
     documentEditorLayout->setContentsMargins(0, 0, 0, 0);
     documentEditorLayout->setSpacing(0);
@@ -1081,21 +1068,18 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     documentMetadataWidget = new QWidget(editorWidget);
     documentMetadataWidget->setObjectName("documentMetadataBar");
-    auto *documentMetadataLayout = new QVBoxLayout(documentMetadataWidget);
+    auto *documentMetadataLayout = new QHBoxLayout(documentMetadataWidget);
     documentMetadataLayout->setContentsMargins(12, 6, 12, 6);
-    documentMetadataLayout->setSpacing(2);
+    documentMetadataLayout->setSpacing(18);
     completenessLabel = new QLabel(documentMetadataWidget);
-    verificationLabel = new QLabel(documentMetadataWidget);
-    for (QLabel *label : {completenessLabel, verificationLabel}) {
-        label->setTextFormat(Qt::RichText);
-        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        label->setStyleSheet("color: #B8B8B8; font-size: 11px;");
-    }
-    documentMetadataLayout->addWidget(completenessLabel);
-    documentMetadataLayout->addWidget(verificationLabel);
+    completenessLabel->setTextFormat(Qt::RichText);
+    completenessLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    completenessLabel->setStyleSheet("color: #B8B8B8; font-size: 11px;");
+    saveStatus = new SaveStatus(documentMetadataWidget);
+    documentMetadataLayout->addWidget(completenessLabel, 1);
+    documentMetadataLayout->addWidget(saveStatus, 0, Qt::AlignRight | Qt::AlignVCenter);
 
-    editorLayout->addWidget(documentWidget);
-    editorLayout->addStretch();
+    editorLayout->addWidget(documentWidget, 1);
     editorLayout->addWidget(documentMetadataWidget);
     editorWidget->hide();
 
@@ -1494,9 +1478,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     case DomainNodeField::Name:
                         item->setData(value.toString(), NODE_NAME_ROLE);
                         refreshDomainNodeText(item);
-                        if (currentDocumentNodeId == nodeId) {
-                            documentTitle->setText(value.toString());
-                        }
                         break;
                     case DomainNodeField::CognitiveLevelId:
                         item->setData(value.isNull() ? QVariant() : value.toInt(),
@@ -1559,7 +1540,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
                 treeView->setCurrentIndex(item->index());
                 currentDocumentNodeId = document.domainNodeId;
-                documentTitle->setText(item->data(NODE_NAME_ROLE).toString());
                 savedContent = document.content;
                 documentEditor->setMarkdown(document.content);
                 updateFlashcardStatus(document.flashcardStatusId);
@@ -1568,7 +1548,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     document.verificationStatusId,
                     document.verificationLevelId
                 );
-                saveStatus->setState(SaveStatus::Hidden);
+                saveStatus->setState(SaveStatus::Saved);
                 editorWidget->show();
             });
     connect(&apiClient, &ApiClient::documentLoadFailed, this,
@@ -1581,8 +1561,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 currentDocumentNodeId = -1;
                 documentWidget->hide();
                 documentMetadataWidget->hide();
-                editorLayout->setStretch(0, 0);
-                editorLayout->setStretch(1, 1);
             });
     connect(&apiClient, &ApiClient::documentCreated, this,
             [this](const Document &document) {
@@ -1948,14 +1926,10 @@ void DomainView::continueDocumentChange() {
     skillTreeView->hide();
     noPursuitsLabel->show();
     pursuitTreeView->hide();
-    completenessLabel->hide();
-    verificationLabel->hide();
     documentMetadataWidget->hide();
     editorWidget->setVisible(nodeId != -1);
     skillWidget->setVisible(nodeId != -1);
     documentWidget->setVisible(hasDocument);
-    editorLayout->setStretch(0, hasDocument ? 1 : 0);
-    editorLayout->setStretch(1, hasDocument ? 0 : 1);
     updateFlashcardView();
     renderAttachments({});
 
@@ -3002,6 +2976,7 @@ void DomainView::updateDocumentStatus(
     const MetadataItem *completeness = findMetadataItem(
         apiClient.metadata().documentCompletenessLevels, completenessId
     );
+    QString completenessText;
     if (completeness) {
         QString phrase;
         QString color;
@@ -3018,18 +2993,17 @@ void DomainView::updateDocumentStatus(
             phrase = "vollständig";
             color = "#66BB6A";
         }
-        completenessLabel->setText(
-            "Das Dokument ist " + highlighted(phrase, color) + "."
-        );
-        completenessLabel->show();
+        completenessText = "Das Dokument ist " + highlighted(phrase, color) + ".";
     } else {
-        completenessLabel->hide();
+        completenessText = "Die Vollständigkeit des Dokuments wurde "
+            + highlighted("noch nicht bewertet", "#9E9E9E") + ".";
     }
 
     const MetadataItem *verificationStatus = findMetadataItem(
         apiClient.metadata().documentVerificationStatuses,
         verificationStatusId
     );
+    QString verificationText;
     if (verificationStatus) {
         QString statusPhrase;
         QString statusColor;
@@ -3044,7 +3018,7 @@ void DomainView::updateDocumentStatus(
             statusColor = "#66BB6A";
         }
 
-        QString text = "Das Dokument ist "
+        verificationText = "Das Dokument ist "
             + highlighted(statusPhrase, statusColor);
         const MetadataItem *verificationLevel = findMetadataItem(
             apiClient.metadata().documentVerificationLevels,
@@ -3063,17 +3037,17 @@ void DomainView::updateDocumentStatus(
                 levelPhrase = "validiert";
                 levelColor = "#66BB6A";
             }
-            text += " und wurde " + highlighted(levelPhrase, levelColor);
+            verificationText += " und wurde " + highlighted(levelPhrase, levelColor);
         }
-        verificationLabel->setText(text + ".");
-        verificationLabel->show();
+        verificationText += ".";
     } else {
-        verificationLabel->hide();
+        verificationText = "Die Verifizierung des Dokuments wurde "
+            + highlighted("noch nicht bewertet", "#9E9E9E") + ".";
     }
 
-    documentMetadataWidget->setVisible(
-        !completenessLabel->isHidden() || !verificationLabel->isHidden()
-    );
+    completenessLabel->setText(completenessText + " " + verificationText);
+    completenessLabel->show();
+    documentMetadataWidget->show();
 }
 
 void DomainView::updateFlashcardView() {

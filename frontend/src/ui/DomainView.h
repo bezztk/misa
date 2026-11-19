@@ -97,10 +97,8 @@ private:
     QWidget *editorWidget;
     QVBoxLayout *editorLayout;
     QWidget *documentWidget;
-    QLabel *documentTitle;
     QWidget *documentMetadataWidget;
     QLabel *completenessLabel;
-    QLabel *verificationLabel;
     SaveStatus *saveStatus;
     DocumentEditor *documentEditor;
     QLabel *flashcardSectionStatusLabel;

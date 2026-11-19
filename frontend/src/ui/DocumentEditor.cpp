@@ -8,7 +8,8 @@
 #include <QWebEngineView>
 
 SaveStatus::SaveStatus(QWidget *parent) : QWidget(parent) {
-    setFixedSize(24, 24);
+    setFixedHeight(24);
+    setMinimumWidth(210);
     connect(&animationTimer, &QTimer::timeout, this, [this] {
         angle = (angle + 30) % 360;
         update();
@@ -19,12 +20,12 @@ void SaveStatus::setState(const State newState) {
     state = newState;
     if (state == Saving) {
         animationTimer.start(80);
-        setToolTip("Wird gespeichert");
+        setToolTip("Wird synchronisiert");
     } else {
         animationTimer.stop();
         setToolTip(
-            state == Saved ? "Gespeichert"
-                           : state == Error ? "Speichern fehlgeschlagen" : ""
+            state == Saved ? "Synchronisiert"
+                           : state == Error ? "Synchronisierung fehlgeschlagen" : ""
         );
     }
     update();
@@ -34,19 +35,38 @@ void SaveStatus::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
+    if (state == Hidden) {
+        return;
+    }
+
     if (state == Saving) {
-        QPen pen(QColor(70, 145, 230), 2);
+        const QColor color(70, 145, 230);
+        QPen pen(color, 2);
         pen.setCapStyle(Qt::RoundCap);
         painter.setPen(pen);
-        painter.drawArc(rect().adjusted(4, 4, -4, -4), (90 - angle) * 16, 270 * 16);
+        const QString text = "Wird synchronisiert …";
+        const int textWidth = painter.fontMetrics().horizontalAdvance(text);
+        const int spinnerLeft = width() - textWidth - 24;
+        painter.drawArc(
+            QRect(spinnerLeft, 4, 16, 16),
+            (90 - angle) * 16,
+            270 * 16
+        );
+        painter.drawText(
+            rect(),
+            Qt::AlignRight | Qt::AlignVCenter,
+            text
+        );
     } else if (state == Saved) {
-        painter.setPen(QPen(QColor(90, 140, 195), 1.5));
-        painter.drawLine(5, 12, 10, 17);
-        painter.drawLine(10, 17, 19, 7);
+        painter.setPen(QColor(102, 187, 106));
+        painter.drawText(rect(), Qt::AlignRight | Qt::AlignVCenter, "Synchronisiert");
     } else if (state == Error) {
         painter.setPen(QColor(220, 80, 60));
-        painter.setFont(QFont(painter.font().family(), 16));
-        painter.drawText(rect(), Qt::AlignCenter, QString::fromUtf8("\xE2\x9A\xA0"));
+        painter.drawText(
+            rect(),
+            Qt::AlignRight | Qt::AlignVCenter,
+            "Synchronisierung fehlgeschlagen"
+        );
     }
 }
 
