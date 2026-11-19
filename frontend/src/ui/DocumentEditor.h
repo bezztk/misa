@@ -10,6 +10,7 @@ class QPaintEvent;
 class QResizeEvent;
 class QWebChannel;
 class QWebEngineView;
+class EditorLoadingOverlay;
 
 class SaveStatus : public QWidget {
 public:
@@ -36,10 +37,12 @@ public:
 public slots:
     void editorReady();
     void contentChanged(const QString &markdown, int revision);
+    void documentApplied(int revision);
 
 signals:
     void ready();
     void markdownEdited(const QString &markdown, int revision);
+    void markdownApplied(int revision);
     void setMarkdownRequested(const QString &markdown, int revision);
 };
 
@@ -60,16 +63,23 @@ protected:
 
 private:
     void scheduleMarkdownUpdate();
+    void startLoading();
+    void finishLoadingIfReady();
 
     QWebEngineView *webView;
     QWebChannel *webChannel;
     DocumentEditorBridge *bridge;
+    EditorLoadingOverlay *loadingOverlay;
     QTimer webViewResizeTimer;
     QTimer markdownUpdateTimer;
+    QTimer minimumLoadingTimer;
     QString currentMarkdown;
     int currentRevision = 0;
     bool editorReady = false;
     bool markdownUpdatePending = false;
+    bool editorLoading = false;
+    bool currentRevisionApplied = false;
+    bool minimumLoadingTimeElapsed = false;
 };
 
 #endif // FRONTEND_DOCUMENTEDITOR_H

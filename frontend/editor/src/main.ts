@@ -7,6 +7,7 @@ import './style.css'
 interface DocumentBridge {
   editorReady(): void
   contentChanged(markdown: string, revision: number): void
+  documentApplied(revision: number): void
   setMarkdownRequested: {
     connect(callback: (markdown: string, revision: number) => void): void
   }
@@ -87,6 +88,11 @@ bridge.setMarkdownRequested.connect((markdown, revision) => {
     activeRevision = documentChange.revision
     crepe.editor.action(replaceAll(documentChange.markdown, true))
     crepe.setReadonly(false)
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        bridge.documentApplied(documentChange.revision)
+      })
+    })
   }, 0)
 })
 
