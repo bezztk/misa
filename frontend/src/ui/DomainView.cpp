@@ -1058,6 +1058,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     autosaveTimer = new QTimer(this);
     autosaveTimer->setInterval(1000);
     autosaveTimer->setSingleShot(true);
+    maximumAutosaveTimer = new QTimer(this);
+    maximumAutosaveTimer->setInterval(5000);
+    maximumAutosaveTimer->setSingleShot(true);
     auto *documentEditorLayout = new QHBoxLayout();
     documentEditorLayout->setContentsMargins(0, 0, 0, 0);
     documentEditorLayout->setSpacing(0);
@@ -1605,6 +1608,18 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     finishPendingActions();
                 }
             });
+    connect(&apiClient, &ApiClient::documentVersionRestored, this,
+            [this](const Document &document) {
+                if (document.domainNodeId != currentDocumentNodeId) {
+                    return;
+                }
+
+                autosaveTimer->stop();
+                maximumAutosaveTimer->stop();
+                savedContent = document.content;
+                documentEditor->setMarkdown(document.content);
+                saveStatus->setState(SaveStatus::Saved);
+            });
     connect(treeView, &QTreeView::customContextMenuRequested, this,
             [this](const QPoint &position) {
                 showDomainNodeContextMenu(position);
@@ -1849,13 +1864,18 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
         if (documentEditor->markdown() == savedContent) {
             autosaveTimer->stop();
+            maximumAutosaveTimer->stop();
             saveStatus->setState(SaveStatus::Saved);
         } else {
             saveStatus->setState(SaveStatus::Saving);
             autosaveTimer->start();
+            if (!maximumAutosaveTimer->isActive()) {
+                maximumAutosaveTimer->start();
+            }
         }
     });
     connect(autosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
+    connect(maximumAutosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
     connect(progressionTreeView, &QTreeView::clicked, this,
             [this](const QModelIndex &index) {
                 currentProgressionId = index.data(Qt::UserRole).toInt();
@@ -1887,6 +1907,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 void DomainView::saveBeforeClose(std::function<void()> continuation) {
     closeContinuation = std::move(continuation);
     autosaveTimer->stop();
+    maximumAutosaveTimer->stop();
     finishPendingActions();
 }
 
@@ -1905,6 +1926,7 @@ void DomainView::requestDocumentChange(const int nodeId, const bool hasDocument)
     pendingNodeHasDocument = hasDocument;
     documentChangePending = true;
     autosaveTimer->stop();
+    maximumAutosaveTimer->stop();
     finishPendingActions();
 }
 
@@ -1958,6 +1980,8 @@ void DomainView::startSave() {
         return;
     }
 
+    autosaveTimer->stop();
+    maximumAutosaveTimer->stop();
     saveInProgress = true;
     savingDocumentNodeId = currentDocumentNodeId;
     savingContent = documentEditor->markdown();
@@ -2280,6 +2304,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     );
     QAction *createDocumentAction = nullptr;
     QAction *deleteDocumentAction = nullptr;
+    QAction *documentHistoryAction = nullptr;
     if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
         deleteDocumentAction = menu.addAction(
             QIcon(":/assets/icons/delete.png"),
@@ -2317,6 +2342,12 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         QIcon(":/assets/icons/version_history.png"),
         "Versionshistorie"
     );
+    if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
+        documentHistoryAction = menu.addAction(
+            QIcon(":/assets/icons/version_history.png"),
+            "Dokumentversionshistorie"
+        );
+    }
     menu.addSeparator();
     QAction *deleteAction = menu.addAction(
         QIcon(":/assets/icons/delete.png"),
@@ -2361,6 +2392,12 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
                    "Dokument dieses Domain Nodes löschen?"
                ) == QMessageBox::Yes) {
         saveBeforeClose([this, nodeId] { apiClient.deleteDocument(nodeId); });
+    } else if (documentHistoryAction && selectedAction == documentHistoryAction) {
+        const QString title = "Dokumentversionshistorie – "
+            + index.data(NODE_NAME_ROLE).toString();
+        saveBeforeClose([this, nodeId, title] {
+            showDocumentVersionHistoryDialog(treeView, apiClient, nodeId, title);
+        });
     } else if (selectedAction == createTaskAction) {
         createTask(nodeId);
     } else if (selectedAction == createPursuitAction) {

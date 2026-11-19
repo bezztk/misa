@@ -60,6 +60,14 @@ pub fn create_router(pool: PgPool) -> Router {
                 .delete(document_handler::delete_document),
         )
         .route(
+            "/domain-nodes/{node_id}/document/versions",
+            get(document_handler::get_document_versions),
+        )
+        .route(
+            "/domain-nodes/{node_id}/document/versions/{version}/restore",
+            axum::routing::post(document_handler::restore_document_version),
+        )
+        .route(
             "/flashcards/due",
             get(flashcard_handler::get_due_flashcards),
         )

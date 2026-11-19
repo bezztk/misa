@@ -1,5 +1,5 @@
 use crate::api::error::{ApiError, ApiResult};
-use crate::models::document::{Document, DocumentContentRequest};
+use crate::models::document::{Document, DocumentContentRequest, DocumentVersion};
 use crate::repositories::document_repository;
 use axum::Json;
 use axum::extract::{Path, State};
@@ -49,4 +49,24 @@ pub async fn delete_document(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn get_document_versions(
+    State(pool): State<PgPool>,
+    Path(node_id): Path<i32>,
+) -> ApiResult<Json<Vec<DocumentVersion>>> {
+    Ok(Json(
+        document_repository::get_document_versions(&pool, node_id).await?,
+    ))
+}
+
+pub async fn restore_document_version(
+    State(pool): State<PgPool>,
+    Path((node_id, version)): Path<(i32, i32)>,
+) -> ApiResult<Json<Document>> {
+    let document = document_repository::restore_document_version(&pool, node_id, version)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(document))
 }

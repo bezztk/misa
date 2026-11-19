@@ -73,6 +73,13 @@ signals:
     void documentLoadFailed(int nodeId);
     void documentUpdated(int nodeId, bool successful);
     void documentDeleted(int nodeId);
+    void documentVersionsReceived(
+        int nodeId,
+        const std::vector<DocumentVersion>& versions
+    );
+    void documentVersionsLoadFailed(int nodeId);
+    void documentVersionRestored(const Document& document);
+    void documentVersionRestoreFailed(int nodeId);
     void entityFieldVersionsReceived(
         int entityId,
         const std::vector<EntityFieldVersion>& versions
@@ -130,6 +137,8 @@ public:
     void getDocument(int nodeId);
     void updateDocument(int nodeId, const QString& content);
     void deleteDocument(int nodeId);
+    void getDocumentVersions(int nodeId);
+    void restoreDocumentVersion(int nodeId, int version);
     void getEntityFieldVersions(int entityId);
     void createComment(int entityId, const QString& content);
     void updateComment(int id, const QString& content);

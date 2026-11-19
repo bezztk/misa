@@ -13,4 +13,11 @@ void showVersionHistoryDialog(
     const QString &title
 );
 
+void showDocumentVersionHistoryDialog(
+    QWidget *parent,
+    ApiClient &apiClient,
+    int nodeId,
+    const QString &title
+);
+
 #endif // FRONTEND_VERSIONHISTORYDIALOG_H

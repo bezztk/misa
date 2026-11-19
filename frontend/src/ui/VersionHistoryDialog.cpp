@@ -6,6 +6,8 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QHeaderView>
+#include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QPushButton>
@@ -179,5 +181,149 @@ void showVersionHistoryDialog(
     prepareDialog(dialog, 820);
 
     apiClient.getEntityFieldVersions(entityId);
+    execDialog(dialog);
+}
+
+void showDocumentVersionHistoryDialog(
+    QWidget *parent,
+    ApiClient &apiClient,
+    const int nodeId,
+    const QString &title
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.resize(820, 600);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *tree = new QTreeWidget(&dialog);
+    tree->setColumnCount(2);
+    tree->setHeaderLabels({"Zeitpunkt", "Version"});
+    tree->setRootIsDecorated(false);
+    tree->setAlternatingRowColors(true);
+    tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    layout->addWidget(tree);
+
+    auto *preview = new QPlainTextEdit(&dialog);
+    preview->setReadOnly(true);
+    preview->setPlaceholderText("Version auswählen, um den Inhalt anzuzeigen.");
+    layout->addWidget(preview, 1);
+
+    auto *loadingItem = new QTreeWidgetItem(tree);
+    loadingItem->setText(0, "Dokumentversionshistorie wird geladen …");
+    loadingItem->setFirstColumnSpanned(true);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    auto *restoreButton = buttons->addButton(
+        "Wiederherstellen",
+        QDialogButtonBox::ActionRole
+    );
+    restoreButton->setEnabled(false);
+    buttons->button(QDialogButtonBox::Close)->setText("Schließen");
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    std::vector<DocumentVersion> versions;
+    QObject::connect(
+        &apiClient,
+        &ApiClient::documentVersionsReceived,
+        &dialog,
+        [nodeId, tree, preview, restoreButton, &versions](
+            const int receivedNodeId,
+            const std::vector<DocumentVersion> &receivedVersions
+        ) {
+            if (receivedNodeId != nodeId) {
+                return;
+            }
+            versions = receivedVersions;
+            tree->clear();
+            preview->clear();
+            restoreButton->setEnabled(false);
+            if (versions.empty()) {
+                auto *emptyItem = new QTreeWidgetItem(tree);
+                emptyItem->setText(0, "Noch keine Dokumentversionen vorhanden.");
+                emptyItem->setFirstColumnSpanned(true);
+                return;
+            }
+            for (int index = 0; index < static_cast<int>(versions.size()); ++index) {
+                const DocumentVersion &version = versions[index];
+                auto *item = new QTreeWidgetItem(tree);
+                item->setText(
+                    0,
+                    version.capturedAt.toLocalTime().toString("dd.MM.yyyy HH:mm:ss")
+                );
+                item->setText(1, QString::number(version.version));
+                item->setData(0, Qt::UserRole, index);
+            }
+        }
+    );
+    QObject::connect(
+        &apiClient,
+        &ApiClient::documentVersionsLoadFailed,
+        &dialog,
+        [nodeId, tree](const int failedNodeId) {
+            if (failedNodeId != nodeId) {
+                return;
+            }
+            tree->clear();
+            auto *errorItem = new QTreeWidgetItem(tree);
+            errorItem->setText(0, "Dokumentversionshistorie konnte nicht geladen werden.");
+            errorItem->setFirstColumnSpanned(true);
+        }
+    );
+    QObject::connect(
+        tree,
+        &QTreeWidget::currentItemChanged,
+        &dialog,
+        [preview, restoreButton, &versions](QTreeWidgetItem *item) {
+            if (!item || !item->data(0, Qt::UserRole).isValid()) {
+                preview->clear();
+                restoreButton->setEnabled(false);
+                return;
+            }
+            preview->setPlainText(versions[item->data(0, Qt::UserRole).toInt()].content);
+            restoreButton->setEnabled(true);
+        }
+    );
+    QObject::connect(
+        restoreButton,
+        &QPushButton::clicked,
+        &dialog,
+        [&dialog, &apiClient, nodeId, tree, restoreButton] {
+            QTreeWidgetItem *item = tree->currentItem();
+            if (!item || QMessageBox::question(
+                    &dialog,
+                    "Dokumentversion wiederherstellen",
+                    "Die ausgewählte Version als aktuellen Dokumentinhalt wiederherstellen?"
+                ) != QMessageBox::Yes) {
+                return;
+            }
+            restoreButton->setEnabled(false);
+            apiClient.restoreDocumentVersion(nodeId, item->text(1).toInt());
+        }
+    );
+    QObject::connect(
+        &apiClient,
+        &ApiClient::documentVersionRestored,
+        &dialog,
+        [nodeId, &dialog](const Document &document) {
+            if (document.domainNodeId == nodeId) {
+                dialog.accept();
+            }
+        }
+    );
+    QObject::connect(
+        &apiClient,
+        &ApiClient::documentVersionRestoreFailed,
+        &dialog,
+        [nodeId, restoreButton](const int failedNodeId) {
+            if (failedNodeId == nodeId) {
+                restoreButton->setEnabled(true);
+            }
+        }
+    );
+
+    prepareDialog(dialog, 820);
+    apiClient.getDocumentVersions(nodeId);
     execDialog(dialog);
 }

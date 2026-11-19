@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
@@ -13,4 +14,11 @@ pub struct Document {
 #[derive(Debug, Deserialize)]
 pub struct DocumentContentRequest {
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]
+pub struct DocumentVersion {
+    pub version: i32,
+    pub content: String,
+    pub captured_at: DateTime<Utc>,
 }

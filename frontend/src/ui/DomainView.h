@@ -123,6 +123,7 @@ private:
     std::vector<Task> currentTasks;
     std::vector<Flashcard> currentFlashcards;
     QTimer *autosaveTimer;
+    QTimer *maximumAutosaveTimer;
     int currentNodeId = -1;
     int currentDocumentNodeId = -1;
     int pendingDocumentNodeId = -1;

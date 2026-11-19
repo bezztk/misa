@@ -637,6 +637,59 @@ void ApiClient::deleteDocument(const int nodeId) {
     });
 }
 
+void ApiClient::getDocumentVersions(const int nodeId) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId) + "/document/versions"
+    ));
+    QNetworkReply *reply = manager.get(request);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        QJsonDocument response;
+        if (!readJson(reply, "Dokumentversionshistorie laden", response)
+            || !response.isArray()) {
+            emit documentVersionsLoadFailed(nodeId);
+            reply->deleteLater();
+            return;
+        }
+
+        std::vector<DocumentVersion> versions;
+        for (const QJsonValue &value : response.array()) {
+            const QJsonObject object = value.toObject();
+            versions.push_back({
+                .version = object["version"].toInt(),
+                .content = object["content"].toString(),
+                .capturedAt = QDateTime::fromString(
+                    object["captured_at"].toString(),
+                    Qt::ISODate
+                )
+            });
+        }
+        emit documentVersionsReceived(nodeId, versions);
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::restoreDocumentVersion(const int nodeId, const int version) {
+    QNetworkRequest request(buildUrl(
+        "/domain-nodes/" + QString::number(nodeId)
+        + "/document/versions/" + QString::number(version) + "/restore"
+    ));
+    QNetworkReply *reply = manager.post(request, QByteArray());
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
+        QJsonDocument response;
+        if (!readJson(reply, "Dokumentversion wiederherstellen", response)
+            || !response.isObject()) {
+            emit documentVersionRestoreFailed(nodeId);
+            reply->deleteLater();
+            return;
+        }
+
+        emit documentVersionRestored(parseDocument(response.object()));
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::getDueFlashcards() {
     const QNetworkRequest networkRequest(buildUrl(PATH_FLASHCARDS));
 
