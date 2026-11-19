@@ -1054,6 +1054,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     documentEditor = new DocumentEditor(documentWidget);
     documentEditor->setObjectName("documentEditor");
+    documentEditor->setMinimumWidth(400);
     autosaveTimer = new QTimer(this);
     autosaveTimer->setInterval(1000);
     autosaveTimer->setSingleShot(true);

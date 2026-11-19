@@ -1,8 +1,8 @@
 #include "DocumentEditor.h"
 
 #include <QPainter>
+#include <QResizeEvent>
 #include <QUrl>
-#include <QVBoxLayout>
 #include <QWebChannel>
 #include <QWebEnginePage>
 #include <QWebEngineView>
@@ -83,16 +83,28 @@ DocumentEditor::DocumentEditor(QWidget *parent)
       webView(new QWebEngineView(this)),
       webChannel(new QWebChannel(this)),
       bridge(new DocumentEditorBridge(this)) {
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(webView);
+    webView->setGeometry(rect());
+    webViewResizeTimer.setSingleShot(true);
+    webViewResizeTimer.setInterval(250);
+    connect(&webViewResizeTimer, &QTimer::timeout, this, [this] {
+        webView->setGeometry(rect());
+    });
+    markdownUpdateTimer.setSingleShot(true);
+    markdownUpdateTimer.setInterval(300);
+    connect(&markdownUpdateTimer, &QTimer::timeout, this, [this] {
+        if (!markdownUpdatePending || !editorReady) {
+            return;
+        }
+        markdownUpdatePending = false;
+        emit bridge->setMarkdownRequested(currentMarkdown, currentRevision);
+    });
 
     webChannel->registerObject(QStringLiteral("documentBridge"), bridge);
     webView->page()->setWebChannel(webChannel);
 
     connect(bridge, &DocumentEditorBridge::ready, this, [this] {
         editorReady = true;
-        emit bridge->setMarkdownRequested(currentMarkdown, currentRevision);
+        scheduleMarkdownUpdate();
     });
     connect(
         bridge,
@@ -117,7 +129,20 @@ QString DocumentEditor::markdown() const {
 void DocumentEditor::setMarkdown(const QString &markdown) {
     currentMarkdown = markdown;
     ++currentRevision;
+    scheduleMarkdownUpdate();
+}
+
+void DocumentEditor::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    webViewResizeTimer.start();
+    if (markdownUpdatePending) {
+        markdownUpdateTimer.start();
+    }
+}
+
+void DocumentEditor::scheduleMarkdownUpdate() {
+    markdownUpdatePending = true;
     if (editorReady) {
-        emit bridge->setMarkdownRequested(markdown, currentRevision);
+        markdownUpdateTimer.start();
     }
 }

@@ -7,6 +7,7 @@
 #include <QWidget>
 
 class QPaintEvent;
+class QResizeEvent;
 class QWebChannel;
 class QWebEngineView;
 
@@ -54,13 +55,21 @@ public:
 signals:
     void markdownChanged();
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
+    void scheduleMarkdownUpdate();
+
     QWebEngineView *webView;
     QWebChannel *webChannel;
     DocumentEditorBridge *bridge;
+    QTimer webViewResizeTimer;
+    QTimer markdownUpdateTimer;
     QString currentMarkdown;
     int currentRevision = 0;
     bool editorReady = false;
+    bool markdownUpdatePending = false;
 };
 
 #endif // FRONTEND_DOCUMENTEDITOR_H

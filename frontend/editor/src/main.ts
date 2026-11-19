@@ -35,6 +35,8 @@ const connectToQt = () =>
 
 const bridge = await connectToQt()
 let activeRevision = 0
+let pendingDocumentChange: { markdown: string; revision: number } | undefined
+let documentChangeTimer: number | undefined
 
 const imageToDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -75,9 +77,15 @@ crepe.on((listener) => {
 await crepe.create()
 
 bridge.setMarkdownRequested.connect((markdown, revision) => {
-  setTimeout(() => {
-    activeRevision = revision
-    crepe.editor.action(replaceAll(markdown, true))
+  pendingDocumentChange = { markdown, revision }
+  window.clearTimeout(documentChangeTimer)
+  documentChangeTimer = window.setTimeout(() => {
+    const documentChange = pendingDocumentChange
+    pendingDocumentChange = undefined
+    if (!documentChange) return
+
+    activeRevision = documentChange.revision
+    crepe.editor.action(replaceAll(documentChange.markdown, true))
     crepe.setReadonly(false)
   }, 0)
 })
