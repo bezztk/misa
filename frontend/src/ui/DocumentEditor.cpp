@@ -101,7 +101,3 @@ void DocumentEditor::setMarkdown(const QString &markdown) {
         emit bridge->setMarkdownRequested(markdown, currentRevision);
     }
 }
-
-void DocumentEditor::clear() {
-    setMarkdown({});
-}

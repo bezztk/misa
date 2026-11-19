@@ -1806,7 +1806,6 @@ void DomainView::continueDocumentChange() {
     currentNodeId = nodeId;
     currentDocumentNodeId = -1;
     savedContent.clear();
-    documentEditor->clear();
     documentLoadPending = nodeId != -1 && hasDocument;
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     attachmentModel->removeRows(0, attachmentModel->rowCount());

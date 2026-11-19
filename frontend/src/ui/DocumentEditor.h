@@ -50,7 +50,6 @@ public:
 
     [[nodiscard]] QString markdown() const;
     void setMarkdown(const QString &markdown);
-    void clear();
 
 signals:
     void markdownChanged();

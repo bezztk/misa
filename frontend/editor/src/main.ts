@@ -34,9 +34,7 @@ const connectToQt = () =>
   })
 
 const bridge = await connectToQt()
-let applyingFromQt = false
 let activeRevision = 0
-let ignoredMarkdown: string | null = null
 
 const imageToDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -67,14 +65,9 @@ const crepe = new Crepe({
 crepe.setReadonly(true)
 crepe.on((listener) => {
   listener.markdownUpdated((_ctx, markdown, previousMarkdown) => {
-    if (applyingFromQt || markdown === previousMarkdown) {
+    if (markdown === previousMarkdown) {
       return
     }
-    if (markdown === ignoredMarkdown) {
-      ignoredMarkdown = null
-      return
-    }
-    ignoredMarkdown = null
     bridge.contentChanged(markdown, activeRevision)
   })
 })
@@ -82,12 +75,11 @@ crepe.on((listener) => {
 await crepe.create()
 
 bridge.setMarkdownRequested.connect((markdown, revision) => {
-  activeRevision = revision
-  applyingFromQt = true
-  crepe.editor.action(replaceAll(markdown, true))
-  ignoredMarkdown = crepe.getMarkdown()
-  applyingFromQt = false
-  crepe.setReadonly(false)
+  setTimeout(() => {
+    activeRevision = revision
+    crepe.editor.action(replaceAll(markdown, true))
+    crepe.setReadonly(false)
+  }, 0)
 })
 
 bridge.editorReady()
