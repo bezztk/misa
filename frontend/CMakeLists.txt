@@ -59,7 +59,7 @@ add_custom_command(
 add_custom_target(editor_web DEPENDS ${EDITOR_WEB_OUTPUTS})
 set_source_files_properties(${EDITOR_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
 
-add_executable(frontend WIN32
+add_executable(frontend
     main.cpp
         src/api/ApiClient.cpp
         src/api/ApiClientProgression.cpp
@@ -97,6 +97,9 @@ add_executable(frontend WIN32
         src/models/CalendarEntry.h
         src/models/EntityFieldVersion.h
 )
+set_target_properties(frontend PROPERTIES
+        WIN32_EXECUTABLE "$<CONFIG:Release>"
+)
 target_link_libraries(frontend
         Qt6::Core
         Qt6::Gui
@@ -112,8 +115,9 @@ add_dependencies(frontend editor_web)
 if (WIN32)
     get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    add_custom_target(deploy_frontend
             COMMAND "${QT_BIN_DIR}/windeployqt.exe" "$<TARGET_FILE:${PROJECT_NAME}>"
+            DEPENDS ${PROJECT_NAME}
             COMMENT "Deploying Qt and Qt WebEngine runtime files"
             VERBATIM
     )
@@ -129,6 +133,9 @@ qt_add_resources(frontend "icons"
         PREFIX "/"
         FILES
         assets/icons/task-white.png
+        assets/icons/attach-file.png
+        assets/icons/star.png
+        assets/icons/pursuit.png
         assets/icons/flashcards-white.png
         assets/icons/calendar.png
         assets/icons/folder.png

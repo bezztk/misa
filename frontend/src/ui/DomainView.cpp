@@ -19,6 +19,7 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -75,22 +76,54 @@ public:
         struct Indicator {
             QString text;
             QColor color;
+            QIcon icon;
             int width;
         };
         std::vector<Indicator> indicators;
         const QFontMetrics metrics(option.font);
-        auto addIndicator = [&](const int role, const QString &symbol, const QColor &color) {
+        constexpr int iconSize = 14;
+        constexpr int iconTextGap = 3;
+        auto addIconIndicator = [&](const int role, const QString &iconPath,
+                                    const QColor &color) {
+            const int count = index.data(role).toInt();
+            if (count > 0) {
+                const QString text = QString::number(count);
+                indicators.push_back({
+                    text,
+                    color,
+                    QIcon(iconPath),
+                    iconSize + iconTextGap + metrics.horizontalAdvance(text)
+                });
+            }
+        };
+        auto addTextIndicator = [&](const int role, const QString &symbol,
+                                    const QColor &color) {
             const int count = index.data(role).toInt();
             if (count > 0) {
                 const QString text = symbol + " " + QString::number(count);
-                indicators.push_back({text, color, metrics.horizontalAdvance(text)});
+                indicators.push_back({
+                    text,
+                    color,
+                    {},
+                    metrics.horizontalAdvance(text)
+                });
             }
         };
-        addIndicator(TASK_COUNT_ROLE, "☑", QColor("#E0E0E0"));
-        addIndicator(PURSUIT_COUNT_ROLE, "↑", QColor("#81C784"));
-        addIndicator(SKILL_COUNT_ROLE, "★", QColor("#FFD54F"));
-        addIndicator(FLASHCARD_COUNT_ROLE, "▣", QColor("#64B5F6"));
-        addIndicator(ATTACHMENT_COUNT_ROLE, "📎", QColor("#BDBDBD"));
+        addIconIndicator(
+            TASK_COUNT_ROLE, ":/assets/icons/task-white.png", QColor("#E0E0E0")
+        );
+        addIconIndicator(
+            PURSUIT_COUNT_ROLE, ":/assets/icons/pursuit.png", QColor("#81C784")
+        );
+        addIconIndicator(
+            SKILL_COUNT_ROLE, ":/assets/icons/star.png", QColor("#FFD54F")
+        );
+        addTextIndicator(FLASHCARD_COUNT_ROLE, "▣", QColor("#64B5F6"));
+        addIconIndicator(
+            ATTACHMENT_COUNT_ROLE,
+            ":/assets/icons/attach-file.png",
+            QColor("#BDBDBD")
+        );
         if (indicators.empty()) {
             QStyledItemDelegate::paint(painter, option, index);
             return;
@@ -131,9 +164,27 @@ public:
         painter->save();
         int x = indicatorLeft;
         for (const Indicator &indicator : indicators) {
+            int textX = x;
+            if (!indicator.icon.isNull()) {
+                indicator.icon.paint(
+                    painter,
+                    QRect(
+                        x,
+                        option.rect.top() + (option.rect.height() - iconSize) / 2,
+                        iconSize,
+                        iconSize
+                    )
+                );
+                textX += iconSize + iconTextGap;
+            }
             painter->setPen(indicator.color);
             painter->drawText(
-                QRect(x, option.rect.top(), indicator.width, option.rect.height()),
+                QRect(
+                    textX,
+                    option.rect.top(),
+                    indicator.width - (textX - x),
+                    option.rect.height()
+                ),
                 Qt::AlignLeft | Qt::AlignVCenter,
                 indicator.text
             );
