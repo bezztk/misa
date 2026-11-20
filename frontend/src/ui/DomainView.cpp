@@ -11,6 +11,7 @@
 #include <QFrame>
 #include <QApplication>
 #include <QColor>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -63,6 +64,8 @@ static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
 static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
 static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int ATTACHMENT_COUNT_ROLE = Qt::UserRole + 14;
+static constexpr int DOMAIN_COLOR_ROLE = Qt::UserRole + 15;
+static constexpr int DOMAIN_ICON_ROLE = Qt::UserRole + 16;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
 static constexpr int ATTACHMENT_STORAGE_NAME_ROLE = Qt::UserRole + 1;
 
@@ -1466,6 +1469,24 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                    const std::vector<DomainNode> &nodes) {
                 renderDomainTree(domains, nodes);
             });
+    connect(&apiClient, &ApiClient::domainUpdated, this,
+            [this](const MetadataItem &domain) {
+                QStandardItem *item = findDomainItem(domain.id);
+                if (!item) {
+                    return;
+                }
+                item->setForeground(domain.color ? QColor(*domain.color) : QBrush());
+                item->setData(domain.color ? QVariant(*domain.color) : QVariant(), DOMAIN_COLOR_ROLE);
+                if (domain.icon) {
+                    QPixmap pixmap;
+                    pixmap.loadFromData(*domain.icon, "PNG");
+                    item->setIcon(QIcon(pixmap));
+                    item->setData(*domain.icon, DOMAIN_ICON_ROLE);
+                } else {
+                    item->setIcon({});
+                    item->setData({}, DOMAIN_ICON_ROLE);
+                }
+            });
     connect(&apiClient, &ApiClient::domainNodeCreated, this,
             [this](const DomainNode &node) {
                 auto *item = new QStandardItem();
@@ -2064,6 +2085,16 @@ void DomainView::renderDomainTree(
         font.setBold(true);
         domainItem->setFont(font);
         domainItem->setData(domain.id, DOMAIN_ID_ROLE);
+        if (domain.color) {
+            domainItem->setForeground(QColor(*domain.color));
+            domainItem->setData(*domain.color, DOMAIN_COLOR_ROLE);
+        }
+        if (domain.icon) {
+            QPixmap pixmap;
+            pixmap.loadFromData(*domain.icon, "PNG");
+            domainItem->setIcon(QIcon(pixmap));
+            domainItem->setData(*domain.icon, DOMAIN_ICON_ROLE);
+        }
         model->appendRow(domainItem);
 
         std::function<void(std::optional<int>, QStandardItem *)> addNodes;
@@ -2141,8 +2172,22 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             QIcon(":/assets/icons/add.png"),
             "Root-Knoten hinzufügen"
         );
+        QAction *colorAction = menu.addAction("Schriftfarbe auswählen");
+        QAction *iconAction = menu.addAction("Icon auswählen");
+        QAction *removeIconAction = index.data(DOMAIN_ICON_ROLE).isValid()
+            ? menu.addAction("Icon entfernen")
+            : nullptr;
 
-        if (menu.exec(treeView->viewport()->mapToGlobal(position)) == createAction) {
+        QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
+        const int domainId = index.data(DOMAIN_ID_ROLE).toInt();
+        const std::optional<QString> color = index.data(DOMAIN_COLOR_ROLE).isValid()
+            ? std::optional(index.data(DOMAIN_COLOR_ROLE).toString())
+            : std::nullopt;
+        const std::optional<QByteArray> icon = index.data(DOMAIN_ICON_ROLE).isValid()
+            ? std::optional(index.data(DOMAIN_ICON_ROLE).toByteArray())
+            : std::nullopt;
+
+        if (selectedAction == createAction) {
             const auto input = showTextInputDialog(
                 treeView,
                 "Root-Knoten hinzufügen",
@@ -2151,8 +2196,32 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             const QString name = input ? input->trimmed() : QString();
 
             if (!name.isEmpty()) {
-                apiClient.createRootDomainNode(index.data(DOMAIN_ID_ROLE).toInt(), name);
+                apiClient.createRootDomainNode(domainId, name);
             }
+        } else if (selectedAction == colorAction) {
+            const QColor selectedColor = QColorDialog::getColor(
+                color ? QColor(*color) : treeView->palette().color(QPalette::Text),
+                treeView,
+                "Schriftfarbe auswählen"
+            );
+            if (selectedColor.isValid()) {
+                apiClient.updateDomain(domainId, selectedColor.name(), icon);
+            }
+        } else if (selectedAction == iconAction) {
+            const QString fileName = QFileDialog::getOpenFileName(
+                treeView,
+                "Icon auswählen",
+                {},
+                "PNG-Bilder (*.png)"
+            );
+            if (!fileName.isEmpty()) {
+                QFile file(fileName);
+                if (file.open(QIODevice::ReadOnly)) {
+                    apiClient.updateDomain(domainId, color, file.readAll());
+                }
+            }
+        } else if (removeIconAction && selectedAction == removeIconAction) {
+            apiClient.updateDomain(domainId, color, std::nullopt);
         }
 
         return;

@@ -112,6 +112,16 @@ static MetadataItem parseMetadataItem(const QJsonValue &value) {
     if (!object["display_name"].isNull()) {
         item.displayName = object["display_name"].toString();
     }
+    if (!object["color"].isNull()) {
+        item.color = object["color"].toString();
+    }
+    if (!object["icon"].isNull()) {
+        QByteArray icon;
+        for (const QJsonValue &byte : object["icon"].toArray()) {
+            icon.append(static_cast<char>(byte.toInt()));
+        }
+        item.icon = icon;
+    }
 
     return item;
 }
@@ -478,6 +488,40 @@ void ApiClient::getDomainTree() {
         }
 
         emit domainTreeReceived(domains, nodes);
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateDomain(
+    const int id,
+    const std::optional<QString> &color,
+    const std::optional<QByteArray> &icon
+) {
+    QNetworkRequest request(buildUrl("/domains/" + QString::number(id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["color"] = color ? QJsonValue(*color) : QJsonValue::Null;
+    if (icon) {
+        QJsonArray bytes;
+        for (const char byte : *icon) {
+            bytes.append(static_cast<unsigned char>(byte));
+        }
+        json["icon"] = bytes;
+    } else {
+        json["icon"] = QJsonValue::Null;
+    }
+
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request,
+        "PATCH",
+        QJsonDocument(json).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        QJsonDocument response;
+        if (readJson(reply, "Domäne aktualisieren", response) && response.isObject()) {
+            emit domainUpdated(parseMetadataItem(response.object()));
+        }
         reply->deleteLater();
     });
 }

@@ -2,6 +2,7 @@
 #define FRONTEND_METADATA_H
 
 #include <optional>
+#include <QByteArray>
 #include <QString>
 #include <vector>
 
@@ -9,6 +10,8 @@ struct MetadataItem {
     int id;
     QString name;
     std::optional<QString> displayName{};
+    std::optional<QString> color{};
+    std::optional<QByteArray> icon{};
 };
 
 struct KnowledgeLevel {

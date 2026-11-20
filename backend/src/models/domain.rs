@@ -8,6 +8,14 @@ use crate::models::comment::Comment;
 pub struct Domain {
     pub id: i32,
     pub name: String,
+    pub color: Option<String>,
+    pub icon: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DomainUpdateRequest {
+    pub color: Option<String>,
+    pub icon: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize)]

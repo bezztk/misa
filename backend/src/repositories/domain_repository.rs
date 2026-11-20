@@ -5,9 +5,28 @@ use serde_json::json;
 use sqlx::PgPool;
 
 pub async fn get_domains(pool: &PgPool) -> Result<Vec<Domain>, sqlx::Error> {
-    sqlx::query_as::<_, Domain>("SELECT id, name FROM domains ORDER BY id")
+    sqlx::query_as::<_, Domain>("SELECT id, name, color, icon FROM domains ORDER BY id")
         .fetch_all(pool)
         .await
+}
+
+pub async fn update_domain(
+    pool: &PgPool,
+    id: i32,
+    color: Option<&str>,
+    icon: Option<&[u8]>,
+) -> Result<Option<Domain>, sqlx::Error> {
+    sqlx::query_as::<_, Domain>(
+        "UPDATE domains
+         SET color = $2, icon = $3
+         WHERE id = $1
+         RETURNING id, name, color, icon",
+    )
+    .bind(id)
+    .bind(color)
+    .bind(icon)
+    .fetch_optional(pool)
+    .await
 }
 
 pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Error> {

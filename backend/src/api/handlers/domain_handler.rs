@@ -1,7 +1,7 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::domain::{
-    DomainNode, DomainNodeField, DomainNodeFieldUpdate, DomainNodeFieldUpdateRequest,
-    DomainNodeNameRequest, DomainTree,
+    Domain, DomainNode, DomainNodeField, DomainNodeFieldUpdate, DomainNodeFieldUpdateRequest,
+    DomainNodeNameRequest, DomainTree, DomainUpdateRequest,
 };
 use crate::repositories::domain_repository;
 use crate::validation::valid_name;
@@ -15,6 +15,23 @@ pub async fn get_domain_tree(State(pool): State<PgPool>) -> ApiResult<Json<Domai
         domains: domain_repository::get_domains(&pool).await?,
         nodes: domain_repository::get_domain_nodes(&pool).await?,
     }))
+}
+
+pub async fn update_domain(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<DomainUpdateRequest>,
+) -> ApiResult<Json<Domain>> {
+    let domain = domain_repository::update_domain(
+        &pool,
+        id,
+        payload.color.as_deref(),
+        payload.icon.as_deref(),
+    )
+    .await?
+    .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(domain))
 }
 
 pub async fn create_domain_node(

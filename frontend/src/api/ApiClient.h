@@ -69,6 +69,7 @@ signals:
         const std::vector<MetadataItem>& domains,
         const std::vector<DomainNode>& nodes
     );
+    void domainUpdated(const MetadataItem& domain);
     void domainNodeCreated(const DomainNode& node);
     void domainNodeFieldUpdated(int nodeId, DomainNodeField field, const QJsonValue& value);
     void domainNodeDeleted(int nodeId);
@@ -134,6 +135,8 @@ public:
     void createProgressionStage(int progressionId, const QString& name);
     void assignPursuitToStage(int stageId, int pursuitId);
     void getDomainTree();
+    void updateDomain(int id, const std::optional<QString>& color,
+                      const std::optional<QByteArray>& icon);
     void createDomainNode(int parentId, const QString& name);
     void createRootDomainNode(int domainId, const QString& name);
     void deleteDomainNode(int id);
