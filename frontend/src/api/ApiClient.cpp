@@ -691,23 +691,39 @@ void ApiClient::restoreDocumentVersion(const int nodeId, const int version) {
 }
 
 void ApiClient::getDueFlashcards() {
+    requestDueFlashcards(true);
+}
+
+void ApiClient::getDueFlashcardCount() {
+    requestDueFlashcards(false);
+}
+
+void ApiClient::requestDueFlashcards(const bool includeFlashcards) {
     const QNetworkRequest networkRequest(buildUrl(PATH_FLASHCARDS));
 
     QNetworkReply *reply = manager.get(networkRequest);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, includeFlashcards] {
         QJsonDocument response;
         if (!readJson(reply, "Lernkarten laden", response) || !response.isArray()) {
             if (!response.isNull() && !response.isArray()) {
                 emit requestFailed("Lernkarten laden: Unerwartetes Datenformat");
             }
+            emit dueFlashcardsLoadFailed();
+            reply->deleteLater();
+            return;
+        }
+
+        const QJsonArray jsonArray = response.array();
+        emit dueFlashcardCountReceived(jsonArray.size());
+
+        if (!includeFlashcards) {
             reply->deleteLater();
             return;
         }
 
         std::vector<FlashcardReviewQueueItem> flashcards;
-
-        const QJsonArray jsonArray = response.array();
 
         for (const QJsonValue &value: jsonArray) {
             FlashcardReviewQueueItem flashcard{};

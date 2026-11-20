@@ -30,6 +30,7 @@ private:
     WorkspaceManager *workspaceManager;
     QLabel *toastLabel;
     QTimer *toastTimer;
+    bool startupComplete = false;
     bool closeAfterSave = false;
 };
 

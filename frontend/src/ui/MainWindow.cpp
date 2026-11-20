@@ -23,6 +23,21 @@
 
 #include <memory>
 
+static constexpr auto SIDEBAR_TOGGLE_STYLE = R"(
+    QWidget#sidebarToggleRail {
+        background: #1C1C1C;
+        border: none;
+        border-right: 1px solid #383838;
+    }
+    QWidget#sidebarToggleRail QToolButton {
+        background: transparent;
+        border: none;
+    }
+    QWidget#sidebarToggleRail QToolButton:hover {
+        background: #303030;
+    }
+)";
+
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     setWindowTitle("Misa");
     resize(1600, 900);
@@ -45,7 +60,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     bodyLayout->setSpacing(0);
 
     auto *sidebarToggleRail = new QWidget(body);
+    sidebarToggleRail->setObjectName("sidebarToggleRail");
     sidebarToggleRail->setFixedWidth(28);
+    sidebarToggleRail->setStyleSheet(SIDEBAR_TOGGLE_STYLE);
     auto *sidebarToggleLayout = new QVBoxLayout(sidebarToggleRail);
     sidebarToggleLayout->setContentsMargins(2, 6, 2, 6);
     auto *sidebarToggle = new QToolButton(sidebarToggleRail);
@@ -133,6 +150,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
             [this](const int) { apiClient.getDueFlashcards(); });
+    connect(&apiClient, &ApiClient::flashcardRated, this,
+            [this] { apiClient.getDueFlashcardCount(); });
     connect(&apiClient, &ApiClient::requestFailed, this,
             [this](const QString &message) {
                 QMessageBox::warning(this, "Netzwerkfehler", message);
@@ -187,18 +206,25 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     openTasks();
     apiClient.getMetadata();
     apiClient.getTasks();
+    apiClient.getDomainTree();
+    apiClient.getDueFlashcardCount();
+    startupComplete = true;
 }
 
 void MainWindow::openTasks() {
-    apiClient.getTasks();
-    apiClient.getDomainTree();
-    workspaceManager->openView("tasks", "Aufgaben", [this] {
+    bool created = false;
+    workspaceManager->openView("tasks", "Aufgaben", [this, &created] {
+        created = true;
         auto *view = new TaskView(apiClient);
         connect(&apiClient, &ApiClient::metadataReceived,
                 view, &TaskView::refreshMetadata);
         view->refreshMetadata();
         return view;
     });
+    if (created && startupComplete) {
+        apiClient.getTasks();
+        apiClient.getDomainTree();
+    }
 }
 
 void MainWindow::openCalendar() {

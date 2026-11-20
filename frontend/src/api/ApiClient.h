@@ -25,6 +25,7 @@ signals:
     void metadataReceived();
     void requestFailed(const QString& message);
     void taskReceived(const std::vector<Task>& tasks);
+    void tasksLoadFailed();
     void taskCreated();
     void taskUpdated();
     void taskDeleted();
@@ -34,6 +35,8 @@ signals:
     void calendarEntryDeleted();
     void routineExecutionsGenerated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
+    void dueFlashcardCountReceived(int count);
+    void dueFlashcardsLoadFailed();
     void flashcardRated();
     void flashcardRatingFailed();
     void nodeFlashcardsReceived(int nodeId, const std::vector<Flashcard>& flashcards);
@@ -104,6 +107,7 @@ public:
     void generateRoutineExecutions();
 
     void getDueFlashcards();
+    void getDueFlashcardCount();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
     void getNodeFlashcards(int nodeId);
     void createFlashcard(int nodeId, const QString& front, const QString& back);
@@ -155,6 +159,7 @@ private:
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
 
     static QUrl buildUrl(const QString& path);
+    void requestDueFlashcards(bool includeFlashcards);
     bool requestSucceeded(const QNetworkReply *reply) const;
     bool readJson(QNetworkReply *reply, const QString& operation, QJsonDocument& document);
 

@@ -5,6 +5,7 @@
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
 
+#include <QAbstractItemModel>
 #include <QFrame>
 #include <QApplication>
 #include <QColor>
@@ -1743,8 +1744,24 @@ void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     treeView->style()->unpolish(treeView);
     treeView->style()->polish(treeView);
     treeView->setMaximumWidth(QWIDGETSIZE_MAX);
+    treeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    treeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    treeView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     editorWidget->hide();
     skillWidget->hide();
+
+    connect(treeView, &QTreeView::expanded, this,
+            [this] { updateNavigationTreeHeight(); });
+    connect(treeView, &QTreeView::collapsed, this,
+            [this] { updateNavigationTreeHeight(); });
+    connect(model, &QAbstractItemModel::rowsInserted, this,
+            [this] { updateNavigationTreeHeight(); });
+    connect(model, &QAbstractItemModel::rowsRemoved, this,
+            [this] { updateNavigationTreeHeight(); });
+    connect(model, &QAbstractItemModel::modelReset, this,
+            [this] { updateNavigationTreeHeight(); });
+    updateNavigationTreeHeight();
 }
 
 void DomainView::setBeforeNodeActionHandler(BeforeNodeActionHandler handler) {
@@ -1914,6 +1931,31 @@ void DomainView::renderDomainTree(
             item->data(HAS_DOCUMENT_ROLE).toBool()
         );
     }
+    updateNavigationTreeHeight();
+}
+
+void DomainView::updateNavigationTreeHeight() {
+    if (!property("navigationMode").toBool()) {
+        return;
+    }
+
+    std::function<int(const QModelIndex &)> visibleHeight;
+    visibleHeight = [this, &visibleHeight](const QModelIndex &parent) {
+        int height = 0;
+        for (int row = 0; row < model->rowCount(parent); ++row) {
+            const QModelIndex index = model->index(row, 0, parent);
+            const int rowHeight = treeView->sizeHintForIndex(index).height();
+            height += rowHeight > 0 ? rowHeight : treeView->fontMetrics().height() + 4;
+            if (treeView->isExpanded(index)) {
+                height += visibleHeight(index);
+            }
+        }
+        return height;
+    };
+
+    const int height = visibleHeight({});
+    treeView->setFixedHeight(height);
+    setFixedHeight(height);
 }
 
 void DomainView::showDomainNodeContextMenu(const QPoint &position) {

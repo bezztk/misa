@@ -79,6 +79,7 @@ private:
     void showPursuitComments(int pursuitId);
     void updatePursuitCount(int nodeId, int count);
     void updateCurrentTaskCount();
+    void updateNavigationTreeHeight();
     void prepareNodeAction(int nodeId, std::function<void()> continuation);
 
     ApiClient &apiClient;

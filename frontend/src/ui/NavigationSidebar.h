@@ -7,6 +7,7 @@
 
 class ApiClient;
 class DomainView;
+class QLabel;
 class QMouseEvent;
 class QToolButton;
 class QVBoxLayout;
@@ -25,6 +26,7 @@ public:
 
 protected:
     QVBoxLayout *contentLayout() const;
+    void setSubtext(const QString &text);
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
 
@@ -39,6 +41,7 @@ private:
     bool expanded = true;
     QWidget *header;
     QWidget *content;
+    QLabel *subtextLabel;
     QToolButton *expandButton = nullptr;
     QVBoxLayout *moduleContentLayout;
 };
@@ -47,7 +50,7 @@ class TasksNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:
-    explicit TasksNavigationSection(QWidget *parent = nullptr);
+    explicit TasksNavigationSection(ApiClient &apiClient, QWidget *parent = nullptr);
 
 signals:
     void openRequested();
@@ -67,7 +70,7 @@ class LearningNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:
-    explicit LearningNavigationSection(QWidget *parent = nullptr);
+    explicit LearningNavigationSection(ApiClient &apiClient, QWidget *parent = nullptr);
 
 signals:
     void openRequested();

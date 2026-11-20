@@ -158,4 +158,5 @@ qt_add_resources(frontend "icons"
         assets/icons/delete.png
         assets/icons/version_history.png
         assets/icons/speech-bubble.png
+        assets/icons/close-tab.svg
 )

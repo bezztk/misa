@@ -17,6 +17,7 @@ void ApiClient::getTasks() {
             if (!response.isNull() && !response.isArray()) {
                 emit requestFailed("Aufgaben laden: Unerwartetes Datenformat");
             }
+            emit tasksLoadFailed();
             reply->deleteLater();
             return;
         }
