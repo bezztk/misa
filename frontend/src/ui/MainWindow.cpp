@@ -1,21 +1,26 @@
 #include "MainWindow.h"
-#include "TaskView.h"
-#include "DomainView.h"
+
 #include "CalendarView.h"
+#include "DomainView.h"
 #include "LearningView.h"
+#include "TaskView.h"
+#include "WorkspaceManager.h"
 
 #include <QCloseEvent>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QJsonValue>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QResizeEvent>
-#include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include <memory>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     setWindowTitle("Misa");
@@ -28,7 +33,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
 
     auto *chromeSeparator = new QFrame(central);
     chromeSeparator->setFixedHeight(1);
-    chromeSeparator->setStyleSheet("background: rgba(255, 255, 255, 0.20); border: none;");
+    chromeSeparator->setStyleSheet(
+        "background: rgba(255, 255, 255, 0.20); border: none;"
+    );
     mainLayout->addWidget(chromeSeparator);
 
     auto *body = new QWidget(central);
@@ -91,80 +98,41 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     navLayout->addWidget(domainButton, 0, Qt::AlignCenter);
     navLayout->addStretch();
 
-    auto *taskView = new TaskView(apiClient);
-    auto *calendarView = new CalendarView(apiClient);
-    auto *workspace = new QWidget();
-    auto *workspaceLayout = new QVBoxLayout(workspace);
+    auto *navigationSeparator = new QFrame(body);
+    navigationSeparator->setFixedWidth(1);
+    navigationSeparator->setStyleSheet(
+        "background: rgba(255, 255, 255, 0.20); border: none;"
+    );
+
+    auto *workspaceContainer = new QWidget(body);
+    auto *workspaceLayout = new QVBoxLayout(workspaceContainer);
     workspaceLayout->setContentsMargins(0, 0, 0, 0);
     workspaceLayout->setSpacing(0);
 
-    auto *workspaceNavigation = new QWidget(workspace);
+    auto *workspaceNavigation = new QWidget(workspaceContainer);
     auto *workspaceNavigationLayout = new QHBoxLayout(workspaceNavigation);
     workspaceNavigationLayout->setContentsMargins(16, 8, 16, 8);
     auto *tasksButton = new QPushButton("Aufgaben", workspaceNavigation);
     auto *calendarButton = new QPushButton("Kalender", workspaceNavigation);
-    tasksButton->setCheckable(true);
-    tasksButton->setAutoExclusive(true);
-    tasksButton->setChecked(true);
-    calendarButton->setCheckable(true);
-    calendarButton->setAutoExclusive(true);
     workspaceNavigationLayout->addWidget(tasksButton);
     workspaceNavigationLayout->addWidget(calendarButton);
     workspaceNavigationLayout->addStretch();
     workspaceLayout->addWidget(workspaceNavigation);
 
-    auto *workspaceSeparator = new QFrame(workspace);
+    auto *workspaceSeparator = new QFrame(workspaceContainer);
     workspaceSeparator->setFixedHeight(1);
     workspaceSeparator->setStyleSheet(
         "background: rgba(255, 255, 255, 0.20); border: none;"
     );
     workspaceLayout->addWidget(workspaceSeparator);
 
-    auto *workspaceStack = new QStackedWidget(workspace);
-    workspaceStack->addWidget(taskView);
-    workspaceStack->addWidget(calendarView);
-    workspaceLayout->addWidget(workspaceStack, 1);
-
-    connect(tasksButton, &QPushButton::clicked, this, [workspaceStack, taskView] {
-        taskView->refreshTasks();
-        workspaceStack->setCurrentWidget(taskView);
-    });
-    connect(calendarButton, &QPushButton::clicked, this, [workspaceStack, calendarView] {
-        workspaceStack->setCurrentWidget(calendarView);
-    });
-
-    auto *learningView = new LearningView(apiClient);
-    domainView = new DomainView(apiClient);
-
-    connect(&apiClient, &ApiClient::metadataReceived, taskView, &TaskView::refreshMetadata);
-    connect(&apiClient, &ApiClient::metadataReceived, learningView, &LearningView::refreshMetadata);
-    const auto refreshSharedTasks = [this] { apiClient.getTasks(); };
-    connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
-    connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
-    connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
-    connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
-            [this](const int) { apiClient.getDueFlashcards(); });
-    connect(&apiClient, &ApiClient::requestFailed, this,
-            [this](const QString &message) {
-                QMessageBox::warning(this, "Netzwerkfehler", message);
-            });
-
-    auto *stack = new QStackedWidget(body);
-    stack->addWidget(workspace);
-    stack->addWidget(learningView);
-    stack->addWidget(domainView);
-    stack->setCurrentWidget(workspace);
+    workspaceManager = new WorkspaceManager(workspaceContainer);
+    workspaceLayout->addWidget(workspaceManager, 1);
 
     bodyLayout->addWidget(navbar);
-    auto *navigationSeparator = new QFrame(body);
-    navigationSeparator->setFixedWidth(1);
-    navigationSeparator->setStyleSheet(
-        "background: rgba(255, 255, 255, 0.20); border: none;"
-    );
     bodyLayout->addWidget(navigationSeparator);
-    bodyLayout->addWidget(stack, 1);
+    bodyLayout->addWidget(workspaceContainer, 1);
     mainLayout->addWidget(body, 1);
-
     setCentralWidget(central);
 
     toastLabel = new QLabel(this);
@@ -184,17 +152,39 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     toastTimer->setSingleShot(true);
     connect(toastTimer, &QTimer::timeout, toastLabel, &QLabel::hide);
 
-    connect(workButton, &QPushButton::clicked, this, [stack, workspace, taskView] {
-        taskView->refreshTasks();
-        stack->setCurrentWidget(workspace);
-    });
-    connect(learningButton, &QPushButton::clicked, this, [stack, learningView] {
-        stack->setCurrentWidget(learningView);
-    });
-    connect(domainButton, &QPushButton::clicked, this, [this, stack] {
-        domainView->refreshTasks();
-        stack->setCurrentWidget(domainView);
-    });
+    connect(tasksButton, &QPushButton::clicked, this, &MainWindow::openTasks);
+    connect(calendarButton, &QPushButton::clicked, this, &MainWindow::openCalendar);
+    connect(workButton, &QPushButton::clicked, this, &MainWindow::openTasks);
+    connect(learningButton, &QPushButton::clicked, this, &MainWindow::openLearning);
+    connect(domainButton, &QPushButton::clicked, this, &MainWindow::openActualization);
+
+    const auto refreshSharedTasks = [this] { apiClient.getTasks(); };
+    connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
+            [this](const int) { apiClient.getDueFlashcards(); });
+    connect(&apiClient, &ApiClient::requestFailed, this,
+            [this](const QString &message) {
+                QMessageBox::warning(this, "Netzwerkfehler", message);
+            });
+
+    connect(&apiClient, &ApiClient::domainNodeDeleted, this,
+            [this](const int nodeId) {
+                workspaceManager->closeView(
+                    "domain_node:" + QString::number(nodeId)
+                );
+            });
+    connect(&apiClient, &ApiClient::domainNodeFieldUpdated, this,
+            [this](const int nodeId, const DomainNodeField field,
+                   const QJsonValue &value) {
+                if (field == DomainNodeField::Name) {
+                    workspaceManager->setViewTitle(
+                        "domain_node:" + QString::number(nodeId),
+                        value.toString()
+                    );
+                }
+            });
 
     connect(&apiClient, &ApiClient::taskCreated, this,
             [this] { showToast("Aufgabe erstellt"); });
@@ -233,8 +223,73 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::documentCreated, this,
             [this](const Document &) { showToast("Dokument erstellt"); });
 
+    openTasks();
     apiClient.getMetadata();
     apiClient.getTasks();
+}
+
+void MainWindow::openTasks() {
+    apiClient.getTasks();
+    apiClient.getDomainTree();
+    workspaceManager->openView("tasks", "Aufgaben", [this] {
+        auto *view = new TaskView(apiClient);
+        connect(&apiClient, &ApiClient::metadataReceived,
+                view, &TaskView::refreshMetadata);
+        view->refreshMetadata();
+        return view;
+    });
+}
+
+void MainWindow::openCalendar() {
+    workspaceManager->openView("calendar", "Kalender", [this] {
+        return new CalendarView(apiClient);
+    });
+}
+
+void MainWindow::openLearning() {
+    workspaceManager->openView("learning", "Lernen", [this] {
+        auto *view = new LearningView(apiClient);
+        connect(&apiClient, &ApiClient::metadataReceived,
+                view, &LearningView::refreshMetadata);
+        view->refreshMetadata();
+        return view;
+    });
+}
+
+void MainWindow::openActualization() {
+    apiClient.getTasks();
+    apiClient.getDomainTree();
+    apiClient.getProgressions();
+    workspaceManager->openView("actualization", "Verwirklichung", [this] {
+        auto *view = new DomainView(apiClient);
+        view->setNodeOpenHandler(
+            [this](const int nodeId, const QString &title) {
+                openDomainNode(nodeId, title);
+            }
+        );
+        return view;
+    });
+}
+
+void MainWindow::openDomainNode(const int nodeId, const QString &title) {
+    const QString key = "domain_node:" + QString::number(nodeId);
+    auto view = std::make_shared<QPointer<DomainView>>();
+    workspaceManager->openView(
+        key,
+        title,
+        [this, nodeId, view] {
+            *view = new DomainView(apiClient);
+            (*view)->showNode(nodeId);
+            return view->data();
+        },
+        [view](std::function<void()> continuation) {
+            if (*view) {
+                (*view)->saveBeforeClose(std::move(continuation));
+            } else {
+                continuation();
+            }
+        }
+    );
 }
 
 void MainWindow::showToast(const QString &message) {
@@ -262,7 +317,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     }
 
     event->ignore();
-    domainView->saveBeforeClose([this] {
+    workspaceManager->prepareToClose([this] {
         closeAfterSave = true;
         close();
     });

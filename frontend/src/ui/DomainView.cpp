@@ -1629,6 +1629,14 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             return;
         }
 
+        if (nodeOpenHandler) {
+            nodeOpenHandler(
+                nodeIndex.data(Qt::UserRole).toInt(),
+                nodeIndex.data(NODE_NAME_ROLE).toString()
+            );
+            return;
+        }
+
         requestDocumentChange(
             nodeIndex.data(Qt::UserRole).toInt(),
             nodeIndex.data(HAS_DOCUMENT_ROLE).toBool()
@@ -1906,6 +1914,22 @@ void DomainView::saveBeforeClose(std::function<void()> continuation) {
 }
 
 void DomainView::refreshTasks() {
+    apiClient.getTasks();
+}
+
+void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
+    nodeOpenHandler = std::move(handler);
+    treeView->setMaximumWidth(QWIDGETSIZE_MAX);
+    editorWidget->hide();
+    skillWidget->hide();
+}
+
+void DomainView::showNode(const int nodeId) {
+    nodeOnly = true;
+    initialNodeId = nodeId;
+    progressionWidget->hide();
+    treeView->hide();
+    apiClient.getDomainTree();
     apiClient.getTasks();
 }
 
@@ -2249,6 +2273,14 @@ void DomainView::renderDomainTree(
 
     treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     treeView->collapseAll();
+
+    if (nodeOnly && initialNodeId != -1) {
+        QStandardItem *item = findDomainNodeItem(initialNodeId);
+        requestDocumentChange(
+            initialNodeId,
+            item->data(HAS_DOCUMENT_ROLE).toBool()
+        );
+    }
 }
 
 void DomainView::showDomainNodeContextMenu(const QPoint &position) {

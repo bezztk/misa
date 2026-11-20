@@ -24,9 +24,13 @@ class QVBoxLayout;
 
 class DomainView : public QWidget {
 public:
+    using NodeOpenHandler = std::function<void(int, const QString &)>;
+
     explicit DomainView(ApiClient &apiClient, QWidget *parent = nullptr);
     void saveBeforeClose(std::function<void()> continuation);
     void refreshTasks();
+    void setNodeOpenHandler(NodeOpenHandler handler);
+    void showNode(int nodeId);
 
 private:
     void renderDomainTree(
@@ -136,6 +140,9 @@ private:
     QString savedContent;
     QString savingContent;
     std::function<void()> closeContinuation;
+    NodeOpenHandler nodeOpenHandler;
+    int initialNodeId = -1;
+    bool nodeOnly = false;
 };
 
 #endif // FRONTEND_DOMAINVIEW_H

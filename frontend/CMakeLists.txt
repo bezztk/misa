@@ -67,6 +67,12 @@ add_executable(frontend
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
+        src/ui/WorkspaceManager.cpp
+        src/ui/WorkspaceManager.h
+        src/ui/WorkspaceSplitter.cpp
+        src/ui/WorkspaceSplitter.h
+        src/ui/TabGroup.cpp
+        src/ui/TabGroup.h
         src/ui/CalendarView.cpp
         src/ui/CalendarView.h
         src/ui/CalendarEntryDialog.cpp

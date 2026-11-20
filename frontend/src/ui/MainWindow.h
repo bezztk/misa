@@ -4,11 +4,11 @@
 #include <QMainWindow>
 #include "../api/ApiClient.h"
 
-class DomainView;
 class QCloseEvent;
 class QLabel;
 class QResizeEvent;
 class QTimer;
+class WorkspaceManager;
 
 class MainWindow : public QMainWindow {
 public:
@@ -21,9 +21,14 @@ protected:
 private:
     void showToast(const QString &message);
     void positionToast();
+    void openTasks();
+    void openCalendar();
+    void openLearning();
+    void openActualization();
+    void openDomainNode(int nodeId, const QString &title);
 
     ApiClient apiClient;
-    DomainView *domainView;
+    WorkspaceManager *workspaceManager;
     QLabel *toastLabel;
     QTimer *toastTimer;
     bool closeAfterSave = false;
