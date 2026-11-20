@@ -8,6 +8,7 @@
 #include <QEventLoop>
 #include <QFormLayout>
 #include <QInputDialog>
+#include <QLayout>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QWidget>
@@ -74,6 +75,11 @@ void prepareDialog(QDialog &dialog, const int minimumWidth) {
     const auto buttons = dialog.findChildren<QPushButton *>();
     for (QPushButton *button : buttons) {
         button->setMinimumSize(90, 30);
+    }
+
+    if (dialog.layout()) {
+        dialog.layout()->activate();
+        dialog.resize(dialog.size().expandedTo(dialog.minimumSizeHint()));
     }
 }
 
