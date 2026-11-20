@@ -1,34 +1,49 @@
 #ifndef FRONTEND_NAVIGATIONSIDEBAR_H
 #define FRONTEND_NAVIGATIONSIDEBAR_H
 
-#include <QWidget>
+#include <QFrame>
 
 #include <functional>
 
 class ApiClient;
 class DomainView;
+class QMouseEvent;
 class QToolButton;
 class QVBoxLayout;
+class QWidget;
 
-class NavigationModuleSection : public QWidget {
+class NavigationCard : public QFrame {
     Q_OBJECT
 
 public:
-    explicit NavigationModuleSection(
+    explicit NavigationCard(
         const QString &title,
+        const QString &iconPath,
+        bool collapsible = false,
         QWidget *parent = nullptr
     );
 
 protected:
     QVBoxLayout *contentLayout() const;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+signals:
+    void activated();
 
 private:
-    QToolButton *headerButton;
+    bool eventFilter(QObject *watched, QEvent *event) override;
+    void setExpanded(bool expanded);
+
+    bool collapsible;
+    bool expanded = true;
+    QWidget *header;
     QWidget *content;
+    QToolButton *expandButton = nullptr;
     QVBoxLayout *moduleContentLayout;
 };
 
-class TasksNavigationSection final : public NavigationModuleSection {
+class TasksNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:
@@ -38,7 +53,7 @@ signals:
     void openRequested();
 };
 
-class CalendarNavigationSection final : public NavigationModuleSection {
+class CalendarNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:
@@ -48,7 +63,7 @@ signals:
     void openRequested();
 };
 
-class LearningNavigationSection final : public NavigationModuleSection {
+class LearningNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:
@@ -58,7 +73,7 @@ signals:
     void openRequested();
 };
 
-class ActualizationNavigationSection final : public NavigationModuleSection {
+class ActualizationNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:

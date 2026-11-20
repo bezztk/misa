@@ -2,94 +2,197 @@
 
 #include "DomainView.h"
 
-#include <QFrame>
-#include <QPushButton>
+#include <QEvent>
+#include <QHBoxLayout>
+#include <QIcon>
+#include <QLabel>
+#include <QMouseEvent>
+#include <QScrollArea>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <utility>
 
-NavigationModuleSection::NavigationModuleSection(
+NavigationCard::NavigationCard(
     const QString &title,
+    const QString &iconPath,
+    const bool collapsible,
     QWidget *parent
-) : QWidget(parent) {
+) : QFrame(parent), collapsible(collapsible) {
+    setObjectName("navigationCard");
+    setAttribute(Qt::WA_Hover);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    setMinimumHeight(collapsible ? 0 : 64);
+    setStyleSheet(R"(
+        QFrame#navigationCard {
+            background: rgba(255, 255, 255, 0.035);
+            border: 1px solid rgba(255, 255, 255, 0.13);
+            border-radius: 7px;
+        }
+        QFrame#navigationCard:hover {
+            background: rgba(255, 255, 255, 0.055);
+            border-color: rgba(255, 255, 255, 0.21);
+        }
+        QWidget#navigationCardHeader, QLabel#navigationCardIcon,
+        QLabel#navigationCardTitle, QToolButton#navigationCardExpand {
+            background: transparent;
+            border: none;
+        }
+        QLabel#navigationCardTitle {
+            font-weight: bold;
+        }
+        QToolButton#navigationCardExpand {
+            padding: 0;
+        }
+        QToolButton#navigationCardExpand:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+        }
+    )");
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    headerButton = new QToolButton(this);
-    headerButton->setText(title);
-    headerButton->setCheckable(true);
-    headerButton->setChecked(true);
-    headerButton->setArrowType(Qt::DownArrow);
-    headerButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    headerButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    headerButton->setStyleSheet(R"(
-        QToolButton {
-            border: none;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-            padding: 8px 10px;
-            text-align: left;
-            font-weight: bold;
-        }
-        QToolButton:hover {
-            background: rgba(255, 255, 255, 0.06);
-        }
-    )");
-    layout->addWidget(headerButton);
+    header = new QWidget(this);
+    header->setObjectName("navigationCardHeader");
+    header->setCursor(Qt::PointingHandCursor);
+    header->installEventFilter(this);
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(11, 9, 9, 9);
+    headerLayout->setSpacing(8);
+
+    auto *icon = new QLabel(header);
+    icon->setObjectName("navigationCardIcon");
+    icon->setFixedSize(18, 18);
+    icon->setPixmap(QIcon(iconPath).pixmap(18, 18));
+    icon->setAttribute(Qt::WA_TransparentForMouseEvents);
+    headerLayout->addWidget(icon);
+
+    auto *titleLabel = new QLabel(title, header);
+    titleLabel->setObjectName("navigationCardTitle");
+    titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    headerLayout->addWidget(titleLabel, 1);
+
+    if (collapsible) {
+        expandButton = new QToolButton(header);
+        expandButton->setObjectName("navigationCardExpand");
+        expandButton->setArrowType(Qt::DownArrow);
+        expandButton->setAutoRaise(true);
+        expandButton->setCursor(Qt::PointingHandCursor);
+        expandButton->setToolTip("Einklappen");
+        headerLayout->addWidget(expandButton);
+        connect(expandButton, &QToolButton::clicked, this,
+                [this] { setExpanded(!expanded); });
+    }
+    layout->addWidget(header);
 
     content = new QWidget(this);
+    content->installEventFilter(this);
     moduleContentLayout = new QVBoxLayout(content);
-    moduleContentLayout->setContentsMargins(8, 8, 8, 8);
+    moduleContentLayout->setContentsMargins(11, 0, 11, 10);
     moduleContentLayout->setSpacing(6);
-    layout->addWidget(content, 1);
+    layout->addWidget(content);
 
-    connect(headerButton, &QToolButton::toggled, this, [this](const bool open) {
-        headerButton->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
-        content->setVisible(open);
-    });
+    if (!collapsible) {
+        setCursor(Qt::PointingHandCursor);
+    }
 }
 
-QVBoxLayout *NavigationModuleSection::contentLayout() const {
+QVBoxLayout *NavigationCard::contentLayout() const {
     return moduleContentLayout;
 }
 
+void NavigationCard::mousePressEvent(QMouseEvent *event) {
+    if (!collapsible && event->button() == Qt::LeftButton) {
+        event->accept();
+        return;
+    }
+    QFrame::mousePressEvent(event);
+}
+
+void NavigationCard::mouseReleaseEvent(QMouseEvent *event) {
+    if (!collapsible && event->button() == Qt::LeftButton) {
+        emit activated();
+        event->accept();
+        return;
+    }
+    QFrame::mouseReleaseEvent(event);
+}
+
+bool NavigationCard::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() != QEvent::MouseButtonPress
+        && event->type() != QEvent::MouseButtonRelease) {
+        return QFrame::eventFilter(watched, event);
+    }
+
+    const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+    if (mouseEvent->button() != Qt::LeftButton) {
+        return QFrame::eventFilter(watched, event);
+    }
+
+    if (watched == header) {
+        if (event->type() == QEvent::MouseButtonRelease) {
+            if (collapsible) {
+                setExpanded(!expanded);
+            } else {
+                emit activated();
+            }
+        }
+        return true;
+    }
+
+    if (watched == content && !collapsible) {
+        if (event->type() == QEvent::MouseButtonRelease) {
+            emit activated();
+        }
+        return true;
+    }
+
+    return QFrame::eventFilter(watched, event);
+}
+
+void NavigationCard::setExpanded(const bool open) {
+    expanded = open;
+    content->setVisible(open);
+    expandButton->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
+    expandButton->setToolTip(open ? "Einklappen" : "Ausklappen");
+}
+
 TasksNavigationSection::TasksNavigationSection(QWidget *parent)
-    : NavigationModuleSection("Aufgaben", parent) {
-    auto *openButton = new QPushButton("Aufgaben öffnen", this);
-    contentLayout()->addWidget(openButton);
-    connect(openButton, &QPushButton::clicked,
+    : NavigationCard("Aufgaben", ":/assets/icons/task-white.png", false, parent) {
+    connect(this, &NavigationCard::activated,
             this, &TasksNavigationSection::openRequested);
 }
 
 CalendarNavigationSection::CalendarNavigationSection(QWidget *parent)
-    : NavigationModuleSection("Kalender", parent) {
-    auto *openButton = new QPushButton("Kalender öffnen", this);
-    contentLayout()->addWidget(openButton);
-    connect(openButton, &QPushButton::clicked,
+    : NavigationCard("Kalender", ":/assets/icons/calendar.png", false, parent) {
+    connect(this, &NavigationCard::activated,
             this, &CalendarNavigationSection::openRequested);
 }
 
 LearningNavigationSection::LearningNavigationSection(QWidget *parent)
-    : NavigationModuleSection("Lernkarten", parent) {
-    auto *openButton = new QPushButton("Lernkarten öffnen", this);
-    contentLayout()->addWidget(openButton);
-    connect(openButton, &QPushButton::clicked,
+    : NavigationCard(
+        "Lernkarten", ":/assets/icons/flashcards-white.png", false, parent
+    ) {
+    connect(this, &NavigationCard::activated,
             this, &LearningNavigationSection::openRequested);
 }
 
 ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
-) : NavigationModuleSection("Verwirklichung", parent) {
+) : NavigationCard(
+        "Verwirklichung", ":/assets/icons/folder.png", true, parent
+    ) {
     domainNavigation = new DomainView(apiClient, this);
     domainNavigation->setNodeOpenHandler(
         [this](const int nodeId, const QString &title) {
             emit openDomainNodeRequested(nodeId, title);
         }
     );
-    contentLayout()->setContentsMargins(0, 0, 0, 0);
-    contentLayout()->addWidget(domainNavigation, 1);
+    contentLayout()->setContentsMargins(5, 0, 5, 6);
+    contentLayout()->addWidget(domainNavigation);
 }
 
 void ActualizationNavigationSection::setBeforeNodeActionHandler(
@@ -107,15 +210,28 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    auto *scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    auto *cardContainer = new QWidget(scrollArea);
+    auto *cardLayout = new QVBoxLayout(cardContainer);
+    cardLayout->setContentsMargins(9, 9, 9, 9);
+    cardLayout->setSpacing(8);
+
     auto *tasksSection = new TasksNavigationSection(this);
     auto *calendarSection = new CalendarNavigationSection(this);
     auto *learningSection = new LearningNavigationSection(this);
     actualizationSection = new ActualizationNavigationSection(apiClient, this);
 
-    layout->addWidget(tasksSection);
-    layout->addWidget(calendarSection);
-    layout->addWidget(learningSection);
-    layout->addWidget(actualizationSection, 1);
+    cardLayout->addWidget(tasksSection);
+    cardLayout->addWidget(calendarSection);
+    cardLayout->addWidget(learningSection);
+    cardLayout->addWidget(actualizationSection);
+    cardLayout->addStretch();
+    scrollArea->setWidget(cardContainer);
+    layout->addWidget(scrollArea);
 
     connect(tasksSection, &TasksNavigationSection::openRequested,
             this, &NavigationSidebar::openTasksRequested);

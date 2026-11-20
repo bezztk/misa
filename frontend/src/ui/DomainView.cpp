@@ -804,6 +804,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QWidget#domainView {
             background: palette(base);
         }
+        QWidget#domainView[navigationMode="true"],
+        QWidget#domainView[navigationMode="true"] QTreeView#domainTree {
+            background: transparent;
+        }
         QTreeView#domainTree, QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
             border: none;
@@ -1733,6 +1737,11 @@ void DomainView::refreshTasks() {
 
 void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     nodeOpenHandler = std::move(handler);
+    setProperty("navigationMode", true);
+    style()->unpolish(this);
+    style()->polish(this);
+    treeView->style()->unpolish(treeView);
+    treeView->style()->polish(treeView);
     treeView->setMaximumWidth(QWIDGETSIZE_MAX);
     editorWidget->hide();
     skillWidget->hide();
