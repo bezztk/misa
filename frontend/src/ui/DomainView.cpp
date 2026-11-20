@@ -6,6 +6,7 @@
 #include "VersionHistoryDialog.h"
 
 #include <QAbstractItemModel>
+#include <QAbstractScrollArea>
 #include <QButtonGroup>
 #include <QFrame>
 #include <QApplication>
@@ -47,6 +48,7 @@
 
 #include <functional>
 #include <algorithm>
+#include <array>
 
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
@@ -63,6 +65,21 @@ static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int ATTACHMENT_COUNT_ROLE = Qt::UserRole + 14;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
 static constexpr int ATTACHMENT_STORAGE_NAME_ROLE = Qt::UserRole + 1;
+
+static QColor knowledgeLevelColor(const int level) {
+    static const std::array colors{
+        QColor("#9E9E9E"),
+        QColor("#78909C"),
+        QColor("#5C6BC0"),
+        QColor("#42A5F5"),
+        QColor("#26A69A"),
+        QColor("#66BB6A"),
+        QColor("#C0B83F"),
+        QColor("#F59E42"),
+        QColor("#EF5350")
+    };
+    return colors[static_cast<std::size_t>(level)];
+}
 
 class DomainNodeDelegate final : public QStyledItemDelegate {
 public:
@@ -140,7 +157,8 @@ public:
             ":/assets/icons/speech-bubble.png",
             QColor("#E0E0E0")
         );
-        if (indicators.empty()) {
+        const bool hasKnowledgeLevel = index.data(KNOWLEDGE_LEVEL_ROLE).isValid();
+        if (indicators.empty() && !hasKnowledgeLevel) {
             QStyledItemDelegate::paint(painter, option, index);
             return;
         }
@@ -171,13 +189,59 @@ public:
         const int indicatorLeft = indicators.empty()
             ? option.rect.right() + 1
             : option.rect.right() - indicatorWidth - 5;
-        QStyleOptionViewItem nameOption(option);
-        nameOption.rect.setRight(
-            indicators.empty() ? option.rect.right() : indicatorLeft - 7
-        );
-        QStyledItemDelegate::paint(painter, nameOption, index);
-
         painter->save();
+        painter->setFont(option.font);
+        int contentX = option.rect.left() + 4;
+        const QIcon nodeIcon = index.data(Qt::DecorationRole).value<QIcon>();
+        if (!nodeIcon.isNull()) {
+            nodeIcon.paint(
+                painter,
+                QRect(
+                    contentX,
+                    option.rect.top() + (option.rect.height() - iconSize) / 2,
+                    iconSize,
+                    iconSize
+                )
+            );
+            contentX += iconSize + 5;
+        }
+        if (hasKnowledgeLevel) {
+            const int level = index.data(KNOWLEDGE_LEVEL_ROLE).toInt();
+            const QString levelText = "Lv. " + QString::number(level);
+            const int levelWidth = metrics.horizontalAdvance(levelText);
+            painter->setPen(knowledgeLevelColor(level));
+            painter->drawText(
+                QRect(contentX, option.rect.top(), levelWidth, option.rect.height()),
+                Qt::AlignLeft | Qt::AlignVCenter,
+                levelText
+            );
+            contentX += levelWidth + 9;
+        }
+
+        const int contentRight = indicators.empty()
+            ? option.rect.right() - 4
+            : indicatorLeft - 7;
+        const QString name = metrics.elidedText(
+            index.data(Qt::DisplayRole).toString(),
+            Qt::ElideRight,
+            qMax(0, contentRight - contentX)
+        );
+        painter->setPen(
+            option.state.testFlag(QStyle::State_Selected)
+                ? option.palette.color(QPalette::HighlightedText)
+                : option.palette.color(QPalette::Text)
+        );
+        painter->drawText(
+            QRect(
+                contentX,
+                option.rect.top(),
+                qMax(0, contentRight - contentX),
+                option.rect.height()
+            ),
+            Qt::AlignLeft | Qt::AlignVCenter,
+            name
+        );
+
         int x = indicatorLeft;
         for (const Indicator &indicator : indicators) {
             int textX = x;
@@ -350,6 +414,57 @@ static QJsonValue jsonValue(const std::optional<int> value) {
         : QJsonValue(QJsonValue::Null);
 }
 
+static void showKnowledgeLevelDialog(
+    QWidget *parent,
+    ApiClient &apiClient,
+    const int nodeId,
+    const Metadata &metadata,
+    const std::optional<int> knowledgeLevelId
+) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle("Kenntnisstufe bearbeiten");
+    dialog.setMinimumSize(520, 420);
+    dialog.resize(620, 640);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *scrollArea = new QScrollArea(&dialog);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    const KnowledgeLevelSelection selection = createKnowledgeLevelSelection(
+        scrollArea,
+        metadata.knowledgeLevels,
+        knowledgeLevelId
+    );
+    scrollArea->setWidget(selection.widget);
+    layout->addWidget(scrollArea, 1);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    buttons->button(QDialogButtonBox::Save)->setText("Speichern");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    prepareDialog(dialog, 520);
+
+    if (execDialog(dialog) != QDialog::Accepted) {
+        return;
+    }
+
+    const std::optional<int> updatedLevelId = selectedKnowledgeLevel(selection.buttons);
+    if (updatedLevelId != knowledgeLevelId) {
+        apiClient.updateDomainNodeField(
+            nodeId,
+            DomainNodeField::KnowledgeLevelId,
+            jsonValue(updatedLevelId)
+        );
+    }
+}
+
 static int itemCount(const QStandardItem *parent) {
     int count = parent->rowCount();
     for (int row = 0; row < parent->rowCount(); ++row) {
@@ -448,7 +563,6 @@ static void showDomainNodeDialog(
     const int nodeId,
     const Metadata &metadata,
     const QString &name,
-    const std::optional<int> knowledgeLevelId,
     const bool hasDocument,
     const std::optional<int> completenessLevelId,
     const std::optional<int> flashcardStatusId,
@@ -460,14 +574,7 @@ static void showDomainNodeDialog(
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
     auto *nameEdit = new QLineEdit(name, &dialog);
-    const KnowledgeLevelSelection knowledgeLevelSelection =
-        createKnowledgeLevelSelection(
-            &dialog,
-            metadata.knowledgeLevels,
-            knowledgeLevelId
-        );
     form->addRow("Name", nameEdit);
-    form->addRow("Kenntnisstufe", knowledgeLevelSelection.widget);
     QComboBox *completenessCombo = nullptr;
     QComboBox *flashcardStatusCombo = nullptr;
     QComboBox *verificationStatusCombo = nullptr;
@@ -515,16 +622,6 @@ static void showDomainNodeDialog(
     if (!updatedName.isEmpty() && updatedName != name) {
         apiClient.updateDomainNodeField(
             nodeId, DomainNodeField::Name, updatedName
-        );
-    }
-
-    const std::optional<int> updatedKnowledgeLevelId =
-        selectedKnowledgeLevel(knowledgeLevelSelection.buttons);
-    if (updatedKnowledgeLevelId != knowledgeLevelId) {
-        apiClient.updateDomainNodeField(
-            nodeId,
-            DomainNodeField::KnowledgeLevelId,
-            jsonValue(updatedKnowledgeLevelId)
         );
     }
 
@@ -762,7 +859,7 @@ static bool showPursuitDialog(
     dialog.resize(520, 600);
     auto *layout = new QVBoxLayout(&dialog);
 
-    auto *nodeTitle = new QLabel("Domain- und Dokumentanforderungen", &dialog);
+    auto *nodeTitle = new QLabel("Domain- und Aufschriebanforderungen", &dialog);
     QFont sectionFont = nodeTitle->font();
     sectionFont.setBold(true);
     nodeTitle->setFont(sectionFont);
@@ -1391,6 +1488,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     case DomainNodeField::KnowledgeLevelId:
                         item->setData(value.isNull() ? QVariant() : value.toInt(),
                                       KNOWLEDGE_LEVEL_ROLE);
+                        treeView->update(item->index());
                         break;
                     case DomainNodeField::CompletenessLevelId:
                         item->setData(value.isNull() ? QVariant() : value.toInt(),
@@ -2059,14 +2157,36 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     }
 
     QMenu menu(treeView);
-    QAction *createAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Unterknoten hinzufügen"
+    QMenu *addMenu = menu.addMenu("Hinzufügen");
+    QAction *createAction = addMenu->addAction(
+        QIcon(":/assets/icons/node.png"),
+        "Unterknoten"
+    );
+    QAction *createTaskAction = addMenu->addAction(
+        QIcon(":/assets/icons/task-white.png"),
+        "Aufgabe"
+    );
+    QAction *createPursuitAction = addMenu->addAction(
+        QIcon(":/assets/icons/pursuit.png"),
+        "Bestrebung"
+    );
+    QAction *createSkillAction = addMenu->addAction(
+        QIcon(":/assets/icons/star.png"),
+        "Skill"
+    );
+    QAction *createFlashcardAction = addMenu->addAction(
+        QIcon(":/assets/icons/flashcards-white.png"),
+        "Lernkarte"
+    );
+    QAction *createAttachmentAction = addMenu->addAction(
+        QIcon(":/assets/icons/attach-file.png"),
+        "Anhang"
     );
     QAction *editAction = menu.addAction(
         QIcon(":/assets/icons/edit.png"),
         "Bearbeiten"
     );
+    QAction *knowledgeLevelAction = menu.addAction(QIcon(":/assets/icons/knowledge.png"),"Kenntnisstufe bearbeiten");
     QAction *commentsAction = menu.addAction(
         QIcon(":/assets/icons/speech-bubble.png"),
         "Kommentare anzeigen"
@@ -2077,35 +2197,14 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
         deleteDocumentAction = menu.addAction(
             QIcon(":/assets/icons/delete.png"),
-            "Dokument löschen"
+            "Aufschrieb löschen"
         );
     } else {
         createDocumentAction = menu.addAction(
             QIcon(":/assets/icons/add.png"),
-            "Dokument erstellen"
+            "Aufschrieb erstellen"
         );
     }
-    menu.addSeparator();
-    QAction *createTaskAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Aufgabe hinzufügen"
-    );
-    QAction *createPursuitAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Bestrebung hinzufügen"
-    );
-    QAction *createSkillAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Skill hinzufügen"
-    );
-    QAction *createFlashcardAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Lernkarte hinzufügen"
-    );
-    QAction *createAttachmentAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Anhang hinzufügen"
-    );
     menu.addSeparator();
     QAction *historyAction = menu.addAction(
         QIcon(":/assets/icons/version_history.png"),
@@ -2114,7 +2213,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
         documentHistoryAction = menu.addAction(
             QIcon(":/assets/icons/version_history.png"),
-            "Dokumentversionshistorie"
+            "Aufschrieb-Versionshistorie"
         );
     }
     menu.addSeparator();
@@ -2143,12 +2242,19 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             nodeId,
             apiClient.metadata(),
             index.data(NODE_NAME_ROLE).toString(),
-            optionalRole(index, KNOWLEDGE_LEVEL_ROLE),
             index.data(HAS_DOCUMENT_ROLE).toBool(),
             optionalRole(index, COMPLETENESS_LEVEL_ROLE),
             optionalRole(index, FLASHCARD_STATUS_ROLE),
             optionalRole(index, VERIFICATION_STATUS_ROLE),
             optionalRole(index, VERIFICATION_LEVEL_ROLE)
+        );
+    } else if (selectedAction == knowledgeLevelAction) {
+        showKnowledgeLevelDialog(
+            treeView,
+            apiClient,
+            nodeId,
+            apiClient.metadata(),
+            optionalRole(index, KNOWLEDGE_LEVEL_ROLE)
         );
     } else if (selectedAction == commentsAction) {
         showDomainNodeComments(nodeId);
@@ -2157,15 +2263,15 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     } else if (deleteDocumentAction && selectedAction == deleteDocumentAction
                && QMessageBox::question(
                    treeView,
-                   "Dokument löschen",
-                   "Dokument dieses Domain Nodes löschen?"
+                   "Aufschrieb löschen",
+                   "Aufschrieb dieses Domain Nodes löschen?"
                ) == QMessageBox::Yes) {
         prepareNodeAction(
             nodeId,
             [this, nodeId] { apiClient.deleteDocument(nodeId); }
         );
     } else if (documentHistoryAction && selectedAction == documentHistoryAction) {
-        const QString title = "Dokumentversionshistorie – "
+        const QString title = "Aufschrieb-Versionshistorie – "
             + index.data(NODE_NAME_ROLE).toString();
         prepareNodeAction(nodeId, [this, nodeId, title] {
             showDocumentVersionHistoryDialog(treeView, apiClient, nodeId, title);
@@ -2811,9 +2917,9 @@ void DomainView::updateDocumentStatus(
             phrase = "vollständig";
             color = "#66BB6A";
         }
-        completenessText = "Das Dokument ist " + highlighted(phrase, color) + ".";
+        completenessText = "Der Aufschrieb ist " + highlighted(phrase, color) + ".";
     } else {
-        completenessText = "Die Vollständigkeit des Dokuments wurde "
+        completenessText = "Die Vollständigkeit des Aufschriebs wurde "
             + highlighted("noch nicht bewertet", "#9E9E9E") + ".";
     }
 
@@ -2836,7 +2942,7 @@ void DomainView::updateDocumentStatus(
             statusColor = "#66BB6A";
         }
 
-        verificationText = "Das Dokument ist "
+        verificationText = "Der Aufschrieb ist "
             + highlighted(statusPhrase, statusColor);
         const MetadataItem *verificationLevel = findMetadataItem(
             apiClient.metadata().documentVerificationLevels,
@@ -2859,7 +2965,7 @@ void DomainView::updateDocumentStatus(
         }
         verificationText += ".";
     } else {
-        verificationText = "Die Verifizierung des Dokuments wurde "
+        verificationText = "Die Verifizierung des Aufschriebs wurde "
             + highlighted("noch nicht bewertet", "#9E9E9E") + ".";
     }
 

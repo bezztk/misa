@@ -226,7 +226,7 @@ void showDocumentVersionHistoryDialog(
     layout->addWidget(preview, 1);
 
     auto *loadingItem = new QTreeWidgetItem(tree);
-    loadingItem->setText(0, "Dokumentversionshistorie wird geladen …");
+    loadingItem->setText(0, "Aufschrieb-Versionshistorie wird geladen …");
     loadingItem->setFirstColumnSpanned(true);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
@@ -257,7 +257,7 @@ void showDocumentVersionHistoryDialog(
             restoreButton->setEnabled(false);
             if (versions.empty()) {
                 auto *emptyItem = new QTreeWidgetItem(tree);
-                emptyItem->setText(0, "Noch keine Dokumentversionen vorhanden.");
+                emptyItem->setText(0, "Noch keine Aufschrieb-Versionen vorhanden.");
                 emptyItem->setFirstColumnSpanned(true);
                 return;
             }
@@ -283,7 +283,7 @@ void showDocumentVersionHistoryDialog(
             }
             tree->clear();
             auto *errorItem = new QTreeWidgetItem(tree);
-            errorItem->setText(0, "Dokumentversionshistorie konnte nicht geladen werden.");
+            errorItem->setText(0, "Aufschrieb-Versionshistorie konnte nicht geladen werden.");
             errorItem->setFirstColumnSpanned(true);
         }
     );
@@ -309,8 +309,8 @@ void showDocumentVersionHistoryDialog(
             QTreeWidgetItem *item = tree->currentItem();
             if (!item || QMessageBox::question(
                     &dialog,
-                    "Dokumentversion wiederherstellen",
-                    "Die ausgewählte Version als aktuellen Dokumentinhalt wiederherstellen?"
+                    "Aufschrieb-Version wiederherstellen",
+                    "Die ausgewählte Version als aktuellen Inhalt des Aufschriebs wiederherstellen?"
                 ) != QMessageBox::Yes) {
                 return;
             }

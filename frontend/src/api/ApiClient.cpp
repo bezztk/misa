@@ -577,9 +577,9 @@ void ApiClient::createDocument(const int nodeId) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         QJsonDocument response;
-        if (!readJson(reply, "Dokument erstellen", response) || !response.isObject()) {
+        if (!readJson(reply, "Aufschrieb erstellen", response) || !response.isObject()) {
             if (!response.isNull() && !response.isObject()) {
-                emit requestFailed("Dokument erstellen: Unerwartetes Datenformat");
+                emit requestFailed("Aufschrieb erstellen: Unerwartetes Datenformat");
             }
             reply->deleteLater();
             return;
@@ -598,9 +598,9 @@ void ApiClient::getDocument(const int nodeId) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         QJsonDocument response;
-        if (!readJson(reply, "Dokument laden", response) || !response.isObject()) {
+        if (!readJson(reply, "Aufschrieb laden", response) || !response.isObject()) {
             if (!response.isNull() && !response.isObject()) {
-                emit requestFailed("Dokument laden: Unerwartetes Datenformat");
+                emit requestFailed("Aufschrieb laden: Unerwartetes Datenformat");
             }
             emit documentLoadFailed(nodeId);
             reply->deleteLater();
@@ -653,7 +653,7 @@ void ApiClient::getDocumentVersions(const int nodeId) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         QJsonDocument response;
-        if (!readJson(reply, "Dokumentversionshistorie laden", response)
+        if (!readJson(reply, "Aufschrieb-Versionshistorie laden", response)
             || !response.isArray()) {
             emit documentVersionsLoadFailed(nodeId);
             reply->deleteLater();
@@ -686,7 +686,7 @@ void ApiClient::restoreDocumentVersion(const int nodeId, const int version) {
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
         QJsonDocument response;
-        if (!readJson(reply, "Dokumentversion wiederherstellen", response)
+        if (!readJson(reply, "Aufschrieb-Version wiederherstellen", response)
             || !response.isObject()) {
             emit documentVersionRestoreFailed(nodeId);
             reply->deleteLater();

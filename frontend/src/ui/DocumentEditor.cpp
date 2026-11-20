@@ -38,7 +38,7 @@ protected:
         painter.drawText(
             QRect(0, center.y() + 20, width(), 24),
             Qt::AlignHCenter | Qt::AlignTop,
-            "Dokument wird geladen …"
+            "Aufschrieb wird geladen …"
         );
     }
 

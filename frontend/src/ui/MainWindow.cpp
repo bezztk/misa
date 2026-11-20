@@ -201,7 +201,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
                 showToast("Knoten aktualisiert");
             });
     connect(&apiClient, &ApiClient::documentCreated, this,
-            [this](const Document &) { showToast("Dokument erstellt"); });
+            [this](const Document &) { showToast("Aufschrieb erstellt"); });
 
     openTasks();
     apiClient.getMetadata();
