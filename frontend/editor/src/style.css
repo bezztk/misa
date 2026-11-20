@@ -1,7 +1,7 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
   font-family: "Segoe UI", sans-serif;
-  background: transparent;
+  background: #1c1c1c;
 }
 
 html,
@@ -15,14 +15,34 @@ body,
 }
 
 body {
-  background: #ffffff;
-  color: #202124;
+  background: #1c1c1c;
+  color: #e5e5e5;
 }
 
 .milkdown {
+  --crepe-color-background: #1c1c1c;
+  --crepe-color-on-background: #e5e5e5;
+  --crepe-color-surface: #222222;
+  --crepe-color-surface-low: #292929;
+  --crepe-color-on-surface: #e5e5e5;
+  --crepe-color-on-surface-variant: #a0a0a0;
+  --crepe-color-outline: #7c7c7c;
+  --crepe-color-primary: #91adc2;
+  --crepe-color-secondary: #303030;
+  --crepe-color-on-secondary: #d6d6d6;
+  --crepe-color-inverse: #e5e5e5;
+  --crepe-color-on-inverse: #222222;
+  --crepe-color-inline-code: #e3a0a0;
+  --crepe-color-error: #dc503c;
+  --crepe-color-hover: #303030;
+  --crepe-color-selected: #394650;
+  --crepe-color-inline-area: #303030;
   --crepe-font-default: "Segoe UI", sans-serif;
   --crepe-font-title: "Segoe UI", sans-serif;
-  --crepe-base-font-size: 15px;
+  --crepe-font-code: "Cascadia Mono", "Consolas", monospace;
+  --crepe-base-font-size: 14px;
+  --crepe-shadow-1: 0 3px 10px rgb(0 0 0 / 35%);
+  --crepe-shadow-2: 0 5px 16px rgb(0 0 0 / 45%);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -32,21 +52,241 @@ body {
   box-sizing: border-box;
 }
 
+/* Toolbar: same compact rhythm and surface steps as the native tab/tool bars. */
 .milkdown .milkdown-top-bar {
   flex: 0 0 auto;
+  min-height: 35px;
+  padding: 0 6px;
+  background: #222222;
+  border-bottom: 1px solid #383838;
 }
 
+.milkdown .milkdown-top-bar .top-bar-heading-selector {
+  padding: 3px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-button {
+  height: 28px;
+  padding: 2px 3px 2px 8px;
+  border-radius: 2px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-button .top-bar-heading-label {
+  min-width: 72px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-button .top-bar-chevron {
+  width: 20px;
+  height: 20px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-item {
+  width: 28px;
+  height: 28px;
+  margin: 3px;
+  padding: 5px;
+  border-radius: 2px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-divider {
+  height: 20px;
+  margin: 7px 5px;
+  background: #383838;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-button:hover,
+.milkdown .milkdown-top-bar .top-bar-item:hover {
+  background: #303030;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-button:focus-visible,
+.milkdown .milkdown-top-bar .top-bar-item:focus-visible {
+  outline: 1px solid #708fa6;
+  outline-offset: -1px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-item.active,
+.milkdown .milkdown-top-bar .top-bar-item:active {
+  background: #394650;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-dropdown,
+.milkdown .milkdown-toolbar,
+.milkdown .milkdown-slash-menu {
+  background: #262626;
+  border: 1px solid #383838;
+  border-radius: 2px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-dropdown {
+  padding: 4px;
+}
+
+.milkdown .milkdown-top-bar .top-bar-heading-option {
+  padding: 5px 8px;
+  border-radius: 2px;
+  font-size: 12px;
+}
+
+.milkdown .milkdown-toolbar .toolbar-item {
+  width: 28px;
+  height: 28px;
+  margin: 3px;
+  padding: 5px;
+  border-radius: 2px;
+}
+
+.milkdown .milkdown-toolbar .toolbar-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.milkdown .milkdown-toolbar .divider {
+  height: 20px;
+  margin: 7px 4px;
+  background: #383838;
+}
+
+/* Document surface and compact Markdown typography. */
 .milkdown .ProseMirror {
   flex: 1 1 auto;
   width: 100%;
-  max-width: 900px;
+  max-width: 960px;
   min-height: 0;
   margin: 0 auto;
-  padding: 24px 48px 64px;
+  padding: 20px 24px 48px 88px;
   box-sizing: border-box;
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
+  caret-color: #e5e5e5;
+}
+
+.milkdown .ProseMirror h1,
+.milkdown .ProseMirror h2,
+.milkdown .ProseMirror h3,
+.milkdown .ProseMirror h4,
+.milkdown .ProseMirror h5,
+.milkdown .ProseMirror h6 {
+  color: #eeeeee;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.milkdown .ProseMirror h1 {
+  margin-top: 22px;
+  font-size: 1.75em;
+  line-height: 1.25;
+}
+
+.milkdown .ProseMirror h2 {
+  margin-top: 20px;
+  font-size: 1.5em;
+  line-height: 1.3;
+}
+
+.milkdown .ProseMirror h3 {
+  margin-top: 18px;
+  font-size: 1.3em;
+  line-height: 1.35;
+}
+
+.milkdown .ProseMirror h4,
+.milkdown .ProseMirror h5,
+.milkdown .ProseMirror h6 {
+  margin-top: 14px;
+  font-size: 1.1em;
+  line-height: 1.4;
+}
+
+.milkdown .ProseMirror p {
+  padding: 3px 0;
+  line-height: 1.5;
+}
+
+.milkdown .milkdown-list-item-block li {
+  gap: 6px;
+}
+
+.milkdown .milkdown-list-item-block li .label-wrapper,
+.milkdown .milkdown-list-item-block li .label-wrapper .label {
+  height: 27px;
+}
+
+.milkdown .ProseMirror blockquote {
+  margin: 6px 0;
+  padding-left: 14px;
+  color: #b8b8b8;
+}
+
+.milkdown .ProseMirror blockquote::before {
+  width: 2px;
+  background: #708fa6;
+  border-radius: 0;
+}
+
+.milkdown .ProseMirror hr {
+  height: 13px;
+  padding: 6px 0;
+  background-color: #383838;
+}
+
+.milkdown .ProseMirror code {
+  padding: 1px 4px;
+  color: #d9b1b1;
+  background: #292929;
+  border: 1px solid #383838;
+  border-radius: 2px;
+}
+
+.milkdown .ProseMirror pre,
+.milkdown .milkdown-code-block {
+  background: #222222;
+  border: 1px solid #383838;
+  border-radius: 2px;
+}
+
+.milkdown .ProseMirror pre {
+  max-width: 100%;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+.milkdown .ProseMirror pre code {
+  border: none;
+}
+
+.milkdown .milkdown-code-block {
+  margin: 6px 0;
+  padding: 6px 14px 14px;
+}
+
+.milkdown .milkdown-code-block .cm-editor,
+.milkdown .milkdown-code-block .cm-gutters {
+  background: #222222;
+}
+
+.milkdown .milkdown-table-block {
+  margin: 8px 0;
+}
+
+.milkdown .milkdown-table-block th,
+.milkdown .milkdown-table-block td {
+  padding: 5px 9px;
+  border: 1px solid #383838;
+}
+
+.milkdown .milkdown-table-block th {
+  background: #262626;
+  color: #eeeeee;
+  font-weight: 600;
 }
 
 .milkdown .ProseMirror img {
@@ -54,34 +294,30 @@ body {
   height: auto;
 }
 
-.milkdown .ProseMirror pre {
-  max-width: 100%;
-  overflow-x: auto;
+/* Chromium scrollbars mirror the narrow native scroll areas. */
+.milkdown *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #1e1f22;
-    color: #f2f2f2;
-  }
+.milkdown *::-webkit-scrollbar-track {
+  background: #1c1c1c;
+}
 
-  .milkdown {
-    --crepe-color-background: #1e1f22;
-    --crepe-color-on-background: #e6e6e6;
-    --crepe-color-surface: #191a1d;
-    --crepe-color-surface-low: #242529;
-    --crepe-color-on-surface: #d1d1d1;
-    --crepe-color-on-surface-variant: #a9a9a9;
-    --crepe-color-outline: #757575;
-    --crepe-color-primary: #b5b5b5;
-    --crepe-color-secondary: #4d4d4d;
-    --crepe-color-on-secondary: #d6d6d6;
-    --crepe-color-inverse: #e5e5e5;
-    --crepe-color-on-inverse: #2a2a2a;
-    --crepe-color-inline-code: #ff6666;
-    --crepe-color-error: #ff6666;
-    --crepe-color-hover: #2a2b2f;
-    --crepe-color-selected: #34363b;
-    --crepe-color-inline-area: #2b2b2b;
+.milkdown *::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  background: #484848;
+  border: 2px solid #1c1c1c;
+  border-radius: 5px;
+}
+
+.milkdown *::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
+
+@media (max-width: 720px) {
+  .milkdown .ProseMirror {
+    padding-right: 24px;
+    padding-left: 88px;
   }
 }

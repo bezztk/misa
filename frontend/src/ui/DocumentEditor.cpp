@@ -1,5 +1,6 @@
 #include "DocumentEditor.h"
 
+#include <QFont>
 #include <QPainter>
 #include <QResizeEvent>
 #include <QShowEvent>
@@ -21,11 +22,11 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
-        painter.fillRect(rect(), palette().color(QPalette::Base));
+        painter.fillRect(rect(), QColor("#1C1C1C"));
         painter.setRenderHint(QPainter::Antialiasing);
 
         const QPoint center(width() / 2, height() / 2 - 12);
-        QPen pen(QColor(70, 145, 230), 3);
+        QPen pen(QColor("#91ADC2"), 3);
         pen.setCapStyle(Qt::RoundCap);
         painter.setPen(pen);
         painter.drawArc(
@@ -34,7 +35,7 @@ protected:
             270 * 16
         );
 
-        painter.setPen(palette().color(QPalette::Text));
+        painter.setPen(QColor("#E5E5E5"));
         painter.drawText(
             QRect(0, center.y() + 20, width(), 24),
             Qt::AlignHCenter | Qt::AlignTop,
@@ -58,8 +59,11 @@ private:
 };
 
 SaveStatus::SaveStatus(QWidget *parent) : QWidget(parent) {
-    setFixedHeight(24);
-    setMinimumWidth(210);
+    setFixedHeight(22);
+    setMinimumWidth(188);
+    QFont statusFont = font();
+    statusFont.setPixelSize(11);
+    setFont(statusFont);
     connect(&animationTimer, &QTimer::timeout, this, [this] {
         angle = (angle + 30) % 360;
         update();
@@ -84,21 +88,22 @@ void SaveStatus::setState(const State newState) {
 void SaveStatus::paintEvent(QPaintEvent *) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
+    painter.setFont(font());
 
     if (state == Hidden) {
         return;
     }
 
     if (state == Saving) {
-        const QColor color(70, 145, 230);
+        const QColor color("#91ADC2");
         QPen pen(color, 2);
         pen.setCapStyle(Qt::RoundCap);
         painter.setPen(pen);
         const QString text = "Wird synchronisiert …";
         const int textWidth = painter.fontMetrics().horizontalAdvance(text);
-        const int spinnerLeft = width() - textWidth - 24;
+        const int spinnerLeft = width() - textWidth - 22;
         painter.drawArc(
-            QRect(spinnerLeft, 4, 16, 16),
+            QRect(spinnerLeft, 4, 14, 14),
             (90 - angle) * 16,
             270 * 16
         );
@@ -108,10 +113,10 @@ void SaveStatus::paintEvent(QPaintEvent *) {
             text
         );
     } else if (state == Saved) {
-        painter.setPen(QColor(102, 187, 106));
+        painter.setPen(QColor("#66BB6A"));
         painter.drawText(rect(), Qt::AlignRight | Qt::AlignVCenter, "Synchronisiert");
     } else if (state == Error) {
-        painter.setPen(QColor(220, 80, 60));
+        painter.setPen(QColor("#DC503C"));
         painter.drawText(
             rect(),
             Qt::AlignRight | Qt::AlignVCenter,

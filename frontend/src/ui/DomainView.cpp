@@ -997,8 +997,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: rgba(255, 255, 255, 0.025);
         }
         QWidget#documentMetadataBar {
-            background: rgba(255, 255, 255, 0.025);
-            border-top: 1px solid rgba(255, 255, 255, 0.10);
+            background: #222222;
+            border-top: 1px solid #383838;
         }
         QPushButton#compactButton {
             padding: 4px 10px;
@@ -1077,12 +1077,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     documentMetadataWidget = new QWidget(editorWidget);
     documentMetadataWidget->setObjectName("documentMetadataBar");
     auto *documentMetadataLayout = new QHBoxLayout(documentMetadataWidget);
-    documentMetadataLayout->setContentsMargins(12, 6, 12, 6);
-    documentMetadataLayout->setSpacing(18);
+    documentMetadataLayout->setContentsMargins(10, 2, 10, 2);
+    documentMetadataLayout->setSpacing(12);
     completenessLabel = new QLabel(documentMetadataWidget);
     completenessLabel->setTextFormat(Qt::RichText);
     completenessLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    completenessLabel->setStyleSheet("color: #B8B8B8; font-size: 11px;");
+    completenessLabel->setStyleSheet("color: #A0A0A0; font-size: 11px;");
     saveStatus = new SaveStatus(documentMetadataWidget);
     documentMetadataLayout->addWidget(completenessLabel, 1);
     documentMetadataLayout->addWidget(saveStatus, 0, Qt::AlignRight | Qt::AlignVCenter);
@@ -1099,97 +1099,105 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QWidget#taskPanel, QWidget#pursuitPanel, QWidget#skillsPanel, QWidget#flashcardsPanel,
         QWidget#attachmentsPanel,
         QScrollArea#sidebarScrollArea {
-            background: palette(base);
+            background: #1C1C1C;
             border: none;
         }
         QWidget#sidebarList {
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 0;
+            background: #1C1C1C;
+            border-left: 1px solid #383838;
         }
         QPushButton#taskSectionButton,
         QPushButton#pursuitSectionButton,
         QPushButton#skillSectionButton,
+        QPushButton#flashcardSectionButton,
         QPushButton#attachmentSectionButton {
-            padding: 7px 8px;
+            min-height: 31px;
+            padding: 0 10px;
+            color: #E5E5E5;
+            background: #262626;
             border: none;
+            border-bottom: 1px solid #383838;
             border-radius: 0;
             text-align: left;
-            font-weight: bold;
-        }
-        QPushButton#taskSectionButton {
-            background: rgba(224, 224, 224, 0.12);
-        }
-        QPushButton#pursuitSectionButton {
-            background: rgba(76, 175, 80, 0.16);
-        }
-        QPushButton#skillSectionButton {
-            background: rgba(255, 193, 7, 0.16);
-        }
-        QPushButton#attachmentSectionButton {
-            background: rgba(189, 189, 189, 0.16);
+            font-size: 12px;
+            font-weight: 600;
         }
         QWidget#flashcardSectionHeader {
-            background: rgba(33, 150, 243, 0.16);
-            border: none;
+            min-height: 31px;
+            background: #262626;
+            border-bottom: 1px solid #383838;
         }
         QPushButton#flashcardSectionButton {
-            padding: 7px 8px;
-            border: none;
-            border-radius: 0;
             background: transparent;
-            text-align: left;
-            font-weight: bold;
+            border-bottom: none;
         }
         QLabel#flashcardSectionStatus {
             background: transparent;
-            padding-right: 8px;
+            padding-right: 10px;
             font-size: 10px;
         }
-        QPushButton#taskSectionButton:hover {
-            background: rgba(224, 224, 224, 0.18);
-        }
-        QPushButton#pursuitSectionButton:hover {
-            background: rgba(76, 175, 80, 0.24);
-        }
-        QPushButton#skillSectionButton:hover {
-            background: rgba(255, 193, 7, 0.24);
-        }
-        QPushButton#attachmentSectionButton:hover {
-            background: rgba(189, 189, 189, 0.24);
-        }
+        QPushButton#taskSectionButton:hover,
+        QPushButton#pursuitSectionButton:hover,
+        QPushButton#skillSectionButton:hover,
+        QPushButton#attachmentSectionButton:hover,
         QPushButton#flashcardSectionButton:hover {
-            background: rgba(33, 150, 243, 0.08);
+            background: #303030;
+        }
+        QPushButton#taskSectionButton:focus,
+        QPushButton#pursuitSectionButton:focus,
+        QPushButton#skillSectionButton:focus,
+        QPushButton#attachmentSectionButton:focus,
+        QPushButton#flashcardSectionButton:focus {
+            border-left: 2px solid #708FA6;
         }
         QTreeView#pursuitTree, QTreeView#skillTree {
-            background: palette(base);
+            background: #1C1C1C;
             border: none;
             outline: none;
         }
         QTreeView#pursuitTree::item, QTreeView#skillTree::item {
             border: none;
-            padding: 2px 4px;
+            padding: 2px 3px;
         }
         QListView#taskList, QListView#flashcardList, QListView#attachmentList {
-            background: palette(base);
+            background: #1C1C1C;
             border: none;
             outline: none;
         }
         QListView#taskList::item, QListView#flashcardList::item,
         QListView#attachmentList::item {
             border: none;
-            padding: 2px 4px;
+            padding: 2px 3px;
         }
-        QListView#flashcardList::item:hover {
-            background: rgba(33, 150, 243, 0.10);
-        }
-        QListView#flashcardList::item:selected {
-            background: rgba(33, 150, 243, 0.18);
-        }
+        QTreeView#pursuitTree::item:hover, QTreeView#skillTree::item:hover,
+        QListView#taskList::item:hover, QListView#flashcardList::item:hover,
         QListView#attachmentList::item:hover {
-            background: rgba(255, 255, 255, 0.08);
+            background: #303030;
         }
+        QTreeView#pursuitTree::item:selected, QTreeView#skillTree::item:selected,
+        QListView#taskList::item:selected, QListView#flashcardList::item:selected,
         QListView#attachmentList::item:selected {
-            background: rgba(255, 255, 255, 0.14);
+            background: #394650;
+            color: #E5E5E5;
+        }
+        QScrollBar:vertical {
+            width: 10px;
+            background: #1C1C1C;
+            margin: 0;
+        }
+        QScrollBar::handle:vertical {
+            min-height: 28px;
+            margin: 2px;
+            background: #484848;
+            border-radius: 3px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #5A5A5A;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            height: 0;
+            background: transparent;
         }
     )");
     auto *skillLayout = new QVBoxLayout(skillWidget);
@@ -1202,7 +1210,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarScrollArea->setFrameShape(QFrame::NoFrame);
     sidebarScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     sidebarScrollArea->viewport()->setStyleSheet(
-        "QWidget#qt_scrollarea_viewport { background: palette(base); }"
+        "QWidget#qt_scrollarea_viewport { background: #1C1C1C; }"
     );
     auto *sidebarContent = new QWidget(sidebarScrollArea);
     sidebarContent->setObjectName("sidebarContent");
@@ -1214,7 +1222,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarList->setObjectName("sidebarList");
     sidebarList->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *sidebarListLayout = new QVBoxLayout(sidebarList);
-    sidebarListLayout->setContentsMargins(1, 1, 1, 1);
+    sidebarListLayout->setContentsMargins(0, 0, 0, 0);
     sidebarListLayout->setSpacing(0);
 
     auto *taskSectionButton = new QPushButton("▾  Aufgaben", sidebarList);
@@ -1226,8 +1234,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     taskPanel->setObjectName("taskPanel");
     taskPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *taskPanelLayout = new QVBoxLayout(taskPanel);
-    taskPanelLayout->setContentsMargins(8, 6, 8, 6);
-    taskPanelLayout->setSpacing(4);
+    taskPanelLayout->setContentsMargins(8, 4, 8, 5);
+    taskPanelLayout->setSpacing(2);
 
     noTasksLabel = new QLabel("Noch keine Aufgaben angelegt.", taskPanel);
     noTasksLabel->setWordWrap(true);
@@ -1255,8 +1263,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     pursuitPanel->setObjectName("pursuitPanel");
     pursuitPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *pursuitLayout = new QVBoxLayout(pursuitPanel);
-    pursuitLayout->setContentsMargins(8, 6, 8, 6);
-    pursuitLayout->setSpacing(4);
+    pursuitLayout->setContentsMargins(8, 4, 8, 5);
+    pursuitLayout->setSpacing(2);
 
     auto *pursuitSectionButton = new QPushButton("▾  Bestrebungen", sidebarList);
     pursuitSectionButton->setObjectName("pursuitSectionButton");
@@ -1290,8 +1298,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     skillPanel->setObjectName("skillsPanel");
     skillPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *skillPanelLayout = new QVBoxLayout(skillPanel);
-    skillPanelLayout->setContentsMargins(8, 6, 8, 6);
-    skillPanelLayout->setSpacing(4);
+    skillPanelLayout->setContentsMargins(8, 4, 8, 5);
+    skillPanelLayout->setSpacing(2);
 
     auto *skillSectionButton = new QPushButton("▾  Skillansicht", sidebarList);
     skillSectionButton->setObjectName("skillSectionButton");
@@ -1325,8 +1333,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     flashcardPanel->setObjectName("flashcardsPanel");
     flashcardPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *flashcardPanelLayout = new QVBoxLayout(flashcardPanel);
-    flashcardPanelLayout->setContentsMargins(8, 6, 8, 6);
-    flashcardPanelLayout->setSpacing(4);
+    flashcardPanelLayout->setContentsMargins(8, 4, 8, 5);
+    flashcardPanelLayout->setSpacing(2);
 
     auto *flashcardSectionHeader = new QWidget(sidebarList);
     flashcardSectionHeader->setObjectName("flashcardSectionHeader");
@@ -1378,8 +1386,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     attachmentPanel->setObjectName("attachmentsPanel");
     attachmentPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *attachmentPanelLayout = new QVBoxLayout(attachmentPanel);
-    attachmentPanelLayout->setContentsMargins(8, 6, 8, 6);
-    attachmentPanelLayout->setSpacing(4);
+    attachmentPanelLayout->setContentsMargins(8, 4, 8, 5);
+    attachmentPanelLayout->setSpacing(2);
 
     noAttachmentsLabel = new QLabel("Noch keine Anhänge angelegt.", attachmentPanel);
     noAttachmentsLabel->setWordWrap(true);
