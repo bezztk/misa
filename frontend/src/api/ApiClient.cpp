@@ -143,8 +143,8 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
     if (!object["parent_id"].isNull()) {
         node.parentId = object["parent_id"].toInt();
     }
-    if (!object["cognitive_level_id"].isNull()) {
-        node.cognitiveLevelId = object["cognitive_level_id"].toInt();
+    if (!object["knowledge_level_id"].isNull()) {
+        node.knowledgeLevelId = object["knowledge_level_id"].toInt();
     }
     if (!object["completeness_level_id"].isNull()) {
         node.completenessLevelId = object["completeness_level_id"].toInt();
@@ -382,7 +382,15 @@ void ApiClient::getMetadata() {
 
         metadata.personalRelevanceLevels = parseMetadataItems(object["personal_relevance_levels"].toArray());
         metadata.lastingImpacts = parseMetadataItems(object["lasting_impacts"].toArray());
-        metadata.cognitiveLevels = parseMetadataItems(object["cognitive_levels"].toArray());
+        for (const QJsonValue &value : object["knowledge_levels"].toArray()) {
+            const QJsonObject level = value.toObject();
+            metadata.knowledgeLevels.push_back({
+                .id = level["id"].toInt(),
+                .name = level["name"].toString(),
+                .displayName = level["display_name"].toString(),
+                .description = level["description"].toString()
+            });
+        }
         metadata.psychomotorLevels = parseMetadataItems(object["psychomotor_levels"].toArray());
         metadata.documentCompletenessLevels = parseMetadataItems(object["document_completeness_levels"].toArray());
         metadata.documentFlashcardStatuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());

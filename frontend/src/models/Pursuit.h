@@ -12,7 +12,7 @@ struct PursuitRequirement {
     int id;
     int requirementTypeId;
     std::optional<int> skillId;
-    std::optional<int> cognitiveLevelId;
+    std::optional<int> knowledgeLevelId;
     std::optional<int> psychomotorLevelId;
     std::optional<int> completenessLevelId;
     std::optional<int> flashcardStatusId;
@@ -34,7 +34,7 @@ struct PursuitSkillRequirement {
 };
 
 struct UpdatePursuitRequirements {
-    std::optional<int> cognitiveLevelId;
+    std::optional<int> knowledgeLevelId;
     std::optional<int> completenessLevelId;
     std::optional<int> flashcardStatusId;
     std::optional<int> verificationStatusId;

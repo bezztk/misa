@@ -10,7 +10,7 @@
 
 enum class DomainNodeField {
     Name = 1,
-    CognitiveLevelId = 2,
+    KnowledgeLevelId = 2,
     CompletenessLevelId = 3,
     FlashcardStatusId = 4,
     VerificationStatusId = 5,
@@ -21,7 +21,7 @@ struct DomainNode {
     int id;
     int domainId;
     std::optional<int> parentId{};
-    std::optional<int> cognitiveLevelId{};
+    std::optional<int> knowledgeLevelId{};
     QString name;
     bool hasDocument;
     int flashcardCount;

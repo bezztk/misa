@@ -11,6 +11,13 @@ struct MetadataItem {
     std::optional<QString> displayName{};
 };
 
+struct KnowledgeLevel {
+    int id;
+    QString name;
+    QString displayName;
+    QString description;
+};
+
 struct FlashcardRetentionClass {
     int id;
     QString name;
@@ -21,7 +28,7 @@ struct FlashcardRetentionClass {
 struct Metadata {
     std::vector<MetadataItem> personalRelevanceLevels;
     std::vector<MetadataItem> lastingImpacts;
-    std::vector<MetadataItem> cognitiveLevels;
+    std::vector<KnowledgeLevel> knowledgeLevels;
     std::vector<MetadataItem> psychomotorLevels;
     std::vector<MetadataItem> documentCompletenessLevels;
     std::vector<MetadataItem> documentFlashcardStatuses;

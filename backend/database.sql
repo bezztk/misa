@@ -35,7 +35,7 @@ CREATE TABLE entity_fields
 );
 INSERT INTO entity_fields (id, entity_type_id, field_type_id, name)
 VALUES (1, 1, 1, 'name'),
-       (2, 1, 2, 'cognitive_level_id'),
+       (2, 1, 2, 'knowledge_level_id'),
        (3, 1, 3, 'completeness_level_id'),
        (4, 1, 4, 'flashcard_status_id'),
        (5, 1, 5, 'verification_status_id'),
@@ -104,20 +104,24 @@ VALUES (1, 'negligible', 'Vernachlässigbar'),
 
 --region Verwirklichung
 
---region Cognitive and Psychomotor Level
-CREATE TABLE cognitive_levels
+--region Knowledge and Psychomotor Level
+CREATE TABLE knowledge_levels
 (
     id           integer PRIMARY KEY,
     name         varchar(50) NOT NULL UNIQUE,
-    display_name varchar(50) NOT NULL UNIQUE
+    display_name varchar(50) NOT NULL UNIQUE,
+    description  text        NOT NULL
 );
-INSERT INTO cognitive_levels (id, name, display_name)
-VALUES (1, 'remember', 'Erinnern'),
-       (2, 'understand', 'Verstehen'),
-       (3, 'apply', 'Anwenden'),
-       (4, 'analyze', 'Analysieren'),
-       (5, 'evaluate', 'Bewerten'),
-       (6, 'create', 'Erschaffen');
+INSERT INTO knowledge_levels (id, name, display_name, description)
+VALUES (0, 'none', 'Keine Kenntnisse', 'Kein relevantes Wissen vorhanden.'),
+       (1, 'elementary', 'Elementar', 'Grundlegendes Allgemeinwissen.'),
+       (2, 'basic', 'Grundlegend', 'Grundlegendes fachbezogenes Wissen.'),
+       (3, 'sound', 'Fundiert', 'Kenntnisse von Fakten, Prinzipien, Verfahren und allgemeinen Begriffen.'),
+       (4, 'advanced', 'Fortgeschritten', 'Breites theoretisches und praktisches Wissen.'),
+       (5, 'comprehensive', 'Umfassend', 'Umfassendes, spezialisiertes Fachwissen und Bewusstsein für dessen Grenzen.'),
+       (6, 'in_depth', 'Vertieft', 'Fortgeschrittenes Wissen und kritisches Verständnis von Theorien und Prinzipien.'),
+       (7, 'highly_specialized', 'Hoch spezialisiert', 'Hoch spezialisiertes Wissen und kritisches Bewusstsein für Wissensgrenzen und fachübergreifende Zusammenhänge.'),
+       (8, 'research_frontier', 'Wissenschaftlich führend', 'Wissen an den äußersten Grenzen eines Fachgebietes und an Schnittstellen zwischen Fachgebieten.');
 CREATE TABLE psychomotor_levels
 (
     id           integer PRIMARY KEY,
@@ -213,7 +217,7 @@ CREATE TABLE domain_nodes
     entity_id          integer PRIMARY KEY REFERENCES entities (id) ON DELETE CASCADE,
     domain_id          integer      NOT NULL REFERENCES domains (id) ON DELETE CASCADE,
     parent_id          integer REFERENCES domain_nodes (entity_id) ON DELETE CASCADE,
-    cognitive_level_id integer REFERENCES cognitive_levels (id),
+    knowledge_level_id integer REFERENCES knowledge_levels (id),
 
     name               varchar(150) NOT NULL,
     is_system_value    boolean      NOT NULL,
@@ -386,7 +390,7 @@ CREATE TABLE pursuit_requirement_types
     name varchar(50) NOT NULL UNIQUE
 );
 INSERT INTO pursuit_requirement_types (id, name)
-VALUES (1, 'cognitive_level'),
+VALUES (1, 'knowledge_level'),
        (2, 'psychomotor_level'),
        (3, 'completeness_level'),
        (4, 'flashcard_status'),
@@ -410,7 +414,7 @@ CREATE TABLE pursuit_requirements
     requirement_type_id    integer NOT NULL REFERENCES pursuit_requirement_types (id),
     skill_id               integer REFERENCES skills (entity_id),
 
-    cognitive_level_id     integer,
+    knowledge_level_id     integer REFERENCES knowledge_levels (id),
     psychomotor_level_id   integer,
     completeness_level_id  integer,
     flashcard_status_id    integer,
@@ -421,14 +425,14 @@ CREATE TABLE pursuit_requirements
 
     CHECK (
         num_nonnulls(
-                cognitive_level_id,
+                knowledge_level_id,
                 psychomotor_level_id,
                 completeness_level_id,
                 flashcard_status_id,
                 verification_status_id,
                 verification_level_id
         ) = 1
-            AND ((requirement_type_id = 1 AND cognitive_level_id IS NOT NULL)
+            AND ((requirement_type_id = 1 AND knowledge_level_id IS NOT NULL)
             OR (requirement_type_id = 2 AND psychomotor_level_id IS NOT NULL)
             OR (requirement_type_id = 3 AND completeness_level_id IS NOT NULL)
             OR (requirement_type_id = 4 AND flashcard_status_id IS NOT NULL)

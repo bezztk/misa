@@ -28,9 +28,25 @@ static QString metadataName(
     return QString::number(id);
 }
 
+static QString knowledgeLevelName(
+    const std::vector<KnowledgeLevel> &levels,
+    const QJsonValue &value
+) {
+    if (value.isNull()) {
+        return "—";
+    }
+    const int id = value.toInt();
+    for (const KnowledgeLevel &level : levels) {
+        if (level.id == id) {
+            return QString::number(level.id) + " – " + level.displayName;
+        }
+    }
+    return QString::number(id);
+}
+
 static QString fieldName(const QString &name) {
     if (name == "name") return "Name";
-    if (name == "cognitive_level_id") return "Kognitives Niveau";
+    if (name == "knowledge_level_id") return "Kenntnisstufe";
     if (name == "completeness_level_id") return "Vollständigkeit";
     if (name == "flashcard_status_id") return "Lernkartenstatus";
     if (name == "verification_status_id") return "Verifizierungsstatus";
@@ -50,8 +66,8 @@ static QString fieldValue(
     const QString &field,
     const QJsonValue &value
 ) {
-    if (field == "cognitive_level_id") {
-        return metadataName(metadata.cognitiveLevels, value);
+    if (field == "knowledge_level_id") {
+        return knowledgeLevelName(metadata.knowledgeLevels, value);
     }
     if (field == "completeness_level_id") {
         return metadataName(metadata.documentCompletenessLevels, value);

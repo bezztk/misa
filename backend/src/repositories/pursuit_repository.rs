@@ -22,7 +22,7 @@ pub async fn get_pursuits(
 
     let requirements = sqlx::query_as::<_, PursuitRequirement>(
         "SELECT pr.id, pr.pursuit_id, pr.requirement_type_id, pr.skill_id,
-                pr.cognitive_level_id, pr.psychomotor_level_id,
+                pr.knowledge_level_id, pr.psychomotor_level_id,
                 pr.completeness_level_id, pr.flashcard_status_id,
                 pr.verification_status_id, pr.verification_level_id
          FROM pursuit_requirements pr
@@ -119,10 +119,10 @@ pub async fn update_requirements(
         .execute(&mut *transaction)
         .await?;
 
-    for (requirement_type_id, cognitive, completeness, flashcard, verification, level) in [
+    for (requirement_type_id, knowledge, completeness, flashcard, verification, level) in [
         (
-            PursuitRequirementTypeId::CognitiveLevel as i32,
-            requirements.cognitive_level_id,
+            PursuitRequirementTypeId::KnowledgeLevel as i32,
+            requirements.knowledge_level_id,
             None,
             None,
             None,
@@ -161,7 +161,7 @@ pub async fn update_requirements(
             requirements.verification_level_id,
         ),
     ] {
-        if cognitive.is_some()
+        if knowledge.is_some()
             || completeness.is_some()
             || flashcard.is_some()
             || verification.is_some()
@@ -169,14 +169,14 @@ pub async fn update_requirements(
         {
             sqlx::query(
                 "INSERT INTO pursuit_requirements
-                    (pursuit_id, requirement_type_id, cognitive_level_id,
+                    (pursuit_id, requirement_type_id, knowledge_level_id,
                      completeness_level_id, flashcard_status_id,
                      verification_status_id, verification_level_id)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
             )
             .bind(pursuit_id)
             .bind(requirement_type_id)
-            .bind(cognitive)
+            .bind(knowledge)
             .bind(completeness)
             .bind(flashcard)
             .bind(verification)

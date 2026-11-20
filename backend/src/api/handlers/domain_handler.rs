@@ -64,7 +64,7 @@ pub async fn update_domain_node_field(
             }
             DomainNodeFieldUpdate::Name(name.trim().to_string())
         }
-        DomainNodeField::CognitiveLevelId => DomainNodeFieldUpdate::CognitiveLevelId(
+        DomainNodeField::KnowledgeLevelId => DomainNodeFieldUpdate::KnowledgeLevelId(
             serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
         ),
         DomainNodeField::CompletenessLevelId => DomainNodeFieldUpdate::CompletenessLevelId(

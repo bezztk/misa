@@ -126,7 +126,7 @@ static Pursuit parsePursuit(const QJsonObject &object) {
             .id = requirement["id"].toInt(),
             .requirementTypeId = requirement["requirement_type_id"].toInt(),
             .skillId = optionalJsonInt(requirement, "skill_id"),
-            .cognitiveLevelId = optionalJsonInt(requirement, "cognitive_level_id"),
+            .knowledgeLevelId = optionalJsonInt(requirement, "knowledge_level_id"),
             .psychomotorLevelId = optionalJsonInt(requirement, "psychomotor_level_id"),
             .completenessLevelId = optionalJsonInt(requirement, "completeness_level_id"),
             .flashcardStatusId = optionalJsonInt(requirement, "flashcard_status_id"),
@@ -190,8 +190,8 @@ void ApiClient::updatePursuitRequirements(
     ));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QJsonObject json;
-    json["cognitive_level_id"] = requirements.cognitiveLevelId.has_value()
-        ? QJsonValue(*requirements.cognitiveLevelId) : QJsonValue(QJsonValue::Null);
+    json["knowledge_level_id"] = requirements.knowledgeLevelId.has_value()
+        ? QJsonValue(*requirements.knowledgeLevelId) : QJsonValue(QJsonValue::Null);
     json["completeness_level_id"] = requirements.completenessLevelId.has_value()
         ? QJsonValue(*requirements.completenessLevelId) : QJsonValue(QJsonValue::Null);
     json["flashcard_status_id"] = requirements.flashcardStatusId.has_value()

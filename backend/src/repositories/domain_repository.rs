@@ -38,7 +38,7 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
              WHERE domain_node_id IS NOT NULL
              GROUP BY domain_node_id
          )
-         SELECT dn.entity_id AS id, dn.domain_id, dn.parent_id, dn.cognitive_level_id, dn.name,
+         SELECT dn.entity_id AS id, dn.domain_id, dn.parent_id, dn.knowledge_level_id, dn.name,
                 dn.is_system_value, dn.last_reviewed_at,
                 d.domain_node_id IS NOT NULL AS has_document,
                 COALESCE(fc.count, 0) AS flashcard_count,
@@ -90,7 +90,7 @@ pub async fn create_domain_node(
     let node = sqlx::query_as::<_, DomainNode>(
         "INSERT INTO domain_nodes (entity_id, domain_id, parent_id, name, is_system_value)
          VALUES ($1, $2, $3, $4, FALSE)
-         RETURNING entity_id AS id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
+         RETURNING entity_id AS id, domain_id, parent_id, knowledge_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
                    0::BIGINT AS attachment_count,
                    0::BIGINT AS skill_count,
@@ -130,7 +130,7 @@ pub async fn create_root_domain_node(
     let node = sqlx::query_as::<_, DomainNode>(
         "INSERT INTO domain_nodes (entity_id, domain_id, parent_id, name, is_system_value)
          VALUES ($1, $2, NULL, $3, FALSE)
-         RETURNING entity_id AS id, domain_id, parent_id, cognitive_level_id, name, is_system_value,
+         RETURNING entity_id AS id, domain_id, parent_id, knowledge_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
                    0::BIGINT AS attachment_count,
                    0::BIGINT AS skill_count,
@@ -262,9 +262,9 @@ pub async fn update_domain_node_field(
                 .await?;
             (DomainNodeField::Name, json!(old_value), json!(value))
         }
-        DomainNodeFieldUpdate::CognitiveLevelId(value) => {
+        DomainNodeFieldUpdate::KnowledgeLevelId(value) => {
             let Some(old_value) = sqlx::query_scalar::<_, Option<i32>>(
-                "SELECT cognitive_level_id FROM domain_nodes WHERE entity_id = $1 FOR UPDATE",
+                "SELECT knowledge_level_id FROM domain_nodes WHERE entity_id = $1 FOR UPDATE",
             )
             .bind(id)
             .fetch_optional(&mut *transaction)
@@ -275,13 +275,13 @@ pub async fn update_domain_node_field(
             if old_value == value {
                 return Ok(true);
             }
-            sqlx::query("UPDATE domain_nodes SET cognitive_level_id = $2 WHERE entity_id = $1")
+            sqlx::query("UPDATE domain_nodes SET knowledge_level_id = $2 WHERE entity_id = $1")
                 .bind(id)
                 .bind(value)
                 .execute(&mut *transaction)
                 .await?;
             (
-                DomainNodeField::CognitiveLevelId,
+                DomainNodeField::KnowledgeLevelId,
                 json!(old_value),
                 json!(value),
             )

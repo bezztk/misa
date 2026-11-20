@@ -6,6 +6,7 @@
 #include "VersionHistoryDialog.h"
 
 #include <QAbstractItemModel>
+#include <QButtonGroup>
 #include <QFrame>
 #include <QApplication>
 #include <QColor>
@@ -31,6 +32,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QScrollArea>
 #include <QSplitter>
 #include <QStandardItemModel>
@@ -49,7 +51,7 @@
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
 static constexpr int FLASHCARD_COUNT_ROLE = Qt::UserRole + 3;
-static constexpr int COGNITIVE_LEVEL_ROLE = Qt::UserRole + 4;
+static constexpr int KNOWLEDGE_LEVEL_ROLE = Qt::UserRole + 4;
 static constexpr int COMPLETENESS_LEVEL_ROLE = Qt::UserRole + 5;
 static constexpr int FLASHCARD_STATUS_ROLE = Qt::UserRole + 6;
 static constexpr int VERIFICATION_STATUS_ROLE = Qt::UserRole + 7;
@@ -265,6 +267,65 @@ static QString metadataText(const std::vector<MetadataItem> &items, const int id
     return "#" + QString::number(id);
 }
 
+static QString knowledgeLevelText(
+    const std::vector<KnowledgeLevel> &levels,
+    const int id
+) {
+    for (const KnowledgeLevel &level : levels) {
+        if (level.id == id) {
+            return QString::number(level.id) + " – " + level.displayName;
+        }
+    }
+    return "#" + QString::number(id);
+}
+
+struct KnowledgeLevelSelection {
+    QWidget *widget;
+    QButtonGroup *buttons;
+};
+
+static KnowledgeLevelSelection createKnowledgeLevelSelection(
+    QWidget *parent,
+    const std::vector<KnowledgeLevel> &levels,
+    const std::optional<int> selectedId
+) {
+    auto *widget = new QWidget(parent);
+    auto *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(10);
+    auto *buttons = new QButtonGroup(widget);
+    buttons->setExclusive(true);
+
+    for (const KnowledgeLevel &level : levels) {
+        auto *entry = new QWidget(widget);
+        auto *entryLayout = new QVBoxLayout(entry);
+        entryLayout->setContentsMargins(0, 0, 0, 0);
+        entryLayout->setSpacing(2);
+
+        auto *radio = new QRadioButton(
+            QString::number(level.id) + " – " + level.displayName,
+            entry
+        );
+        radio->setChecked(selectedId == std::optional<int>(level.id));
+        buttons->addButton(radio, level.id);
+        entryLayout->addWidget(radio);
+
+        auto *description = new QLabel(level.description, entry);
+        description->setWordWrap(true);
+        description->setContentsMargins(26, 0, 0, 0);
+        entryLayout->addWidget(description);
+        layout->addWidget(entry);
+    }
+
+    return {widget, buttons};
+}
+
+static std::optional<int> selectedKnowledgeLevel(const QButtonGroup *buttons) {
+    return buttons->checkedId() >= 0
+        ? std::optional<int>(buttons->checkedId())
+        : std::nullopt;
+}
+
 static void fillMetadataCombo(QComboBox *combo, const std::vector<MetadataItem> &items) {
     combo->clear();
     combo->addItem("—", QVariant());
@@ -344,7 +405,7 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
     item->setData(node.taskCount, TASK_COUNT_ROLE);
     item->setData(static_cast<int>(node.comments.size()), COMMENT_COUNT_ROLE);
-    setOptionalRole(item, COGNITIVE_LEVEL_ROLE, node.cognitiveLevelId);
+    setOptionalRole(item, KNOWLEDGE_LEVEL_ROLE, node.knowledgeLevelId);
     setOptionalRole(item, COMPLETENESS_LEVEL_ROLE, node.completenessLevelId);
     setOptionalRole(item, FLASHCARD_STATUS_ROLE, node.flashcardStatusId);
     setOptionalRole(item, VERIFICATION_STATUS_ROLE, node.verificationStatusId);
@@ -387,7 +448,7 @@ static void showDomainNodeDialog(
     const int nodeId,
     const Metadata &metadata,
     const QString &name,
-    const std::optional<int> cognitiveLevelId,
+    const std::optional<int> knowledgeLevelId,
     const bool hasDocument,
     const std::optional<int> completenessLevelId,
     const std::optional<int> flashcardStatusId,
@@ -399,11 +460,14 @@ static void showDomainNodeDialog(
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
     auto *nameEdit = new QLineEdit(name, &dialog);
-    auto *cognitiveCombo = new QComboBox(&dialog);
-    fillMetadataCombo(cognitiveCombo, metadata.cognitiveLevels);
-    selectMetadata(cognitiveCombo, cognitiveLevelId);
+    const KnowledgeLevelSelection knowledgeLevelSelection =
+        createKnowledgeLevelSelection(
+            &dialog,
+            metadata.knowledgeLevels,
+            knowledgeLevelId
+        );
     form->addRow("Name", nameEdit);
-    form->addRow("Kognitives Niveau", cognitiveCombo);
+    form->addRow("Kenntnisstufe", knowledgeLevelSelection.widget);
     QComboBox *completenessCombo = nullptr;
     QComboBox *flashcardStatusCombo = nullptr;
     QComboBox *verificationStatusCombo = nullptr;
@@ -454,12 +518,13 @@ static void showDomainNodeDialog(
         );
     }
 
-    const std::optional<int> updatedCognitiveLevelId = selectedMetadata(cognitiveCombo);
-    if (updatedCognitiveLevelId != cognitiveLevelId) {
+    const std::optional<int> updatedKnowledgeLevelId =
+        selectedKnowledgeLevel(knowledgeLevelSelection.buttons);
+    if (updatedKnowledgeLevelId != knowledgeLevelId) {
         apiClient.updateDomainNodeField(
             nodeId,
-            DomainNodeField::CognitiveLevelId,
-            jsonValue(updatedCognitiveLevelId)
+            DomainNodeField::KnowledgeLevelId,
+            jsonValue(updatedKnowledgeLevelId)
         );
     }
 
@@ -683,7 +748,7 @@ static bool showPursuitDialog(
 ) {
     for (const PursuitRequirement &requirement : pursuit.requirements) {
         switch (requirement.requirementTypeId) {
-            case 1: result.cognitiveLevelId = requirement.cognitiveLevelId; break;
+            case 1: result.knowledgeLevelId = requirement.knowledgeLevelId; break;
             case 3: result.completenessLevelId = requirement.completenessLevelId; break;
             case 4: result.flashcardStatusId = requirement.flashcardStatusId; break;
             case 5: result.verificationStatusId = requirement.verificationStatusId; break;
@@ -703,22 +768,25 @@ static bool showPursuitDialog(
     nodeTitle->setFont(sectionFont);
     layout->addWidget(nodeTitle);
     auto *nodeForm = new QFormLayout();
-    auto *cognitiveCombo = new QComboBox(&dialog);
+    const KnowledgeLevelSelection knowledgeLevelSelection =
+        createKnowledgeLevelSelection(
+            &dialog,
+            metadata.knowledgeLevels,
+            result.knowledgeLevelId
+        );
     auto *completenessCombo = new QComboBox(&dialog);
     auto *flashcardStatusCombo = new QComboBox(&dialog);
     auto *verificationStatusCombo = new QComboBox(&dialog);
     auto *verificationLevelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(cognitiveCombo, metadata.cognitiveLevels);
     fillMetadataCombo(completenessCombo, metadata.documentCompletenessLevels);
     fillMetadataCombo(flashcardStatusCombo, metadata.documentFlashcardStatuses);
     fillMetadataCombo(verificationStatusCombo, metadata.documentVerificationStatuses);
     fillMetadataCombo(verificationLevelCombo, metadata.documentVerificationLevels);
-    selectMetadata(cognitiveCombo, result.cognitiveLevelId);
     selectMetadata(completenessCombo, result.completenessLevelId);
     selectMetadata(flashcardStatusCombo, result.flashcardStatusId);
     selectMetadata(verificationStatusCombo, result.verificationStatusId);
     selectMetadata(verificationLevelCombo, result.verificationLevelId);
-    nodeForm->addRow("Kognitives Niveau", cognitiveCombo);
+    nodeForm->addRow("Kenntnisstufe", knowledgeLevelSelection.widget);
     nodeForm->addRow("Vollständigkeit", completenessCombo);
     nodeForm->addRow("Lernkartenstatus", flashcardStatusCombo);
     nodeForm->addRow("Verifizierungsstatus", verificationStatusCombo);
@@ -781,7 +849,7 @@ static bool showPursuitDialog(
         return false;
     }
 
-    result.cognitiveLevelId = selectedMetadata(cognitiveCombo);
+    result.knowledgeLevelId = selectedKnowledgeLevel(knowledgeLevelSelection.buttons);
     result.completenessLevelId = selectedMetadata(completenessCombo);
     result.flashcardStatusId = selectedMetadata(flashcardStatusCombo);
     result.verificationStatusId = selectedMetadata(verificationStatusCombo);
@@ -1320,9 +1388,9 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                         item->setData(value.toString(), NODE_NAME_ROLE);
                         refreshDomainNodeText(item);
                         break;
-                    case DomainNodeField::CognitiveLevelId:
+                    case DomainNodeField::KnowledgeLevelId:
                         item->setData(value.isNull() ? QVariant() : value.toInt(),
-                                      COGNITIVE_LEVEL_ROLE);
+                                      KNOWLEDGE_LEVEL_ROLE);
                         break;
                     case DomainNodeField::CompletenessLevelId:
                         item->setData(value.isNull() ? QVariant() : value.toInt(),
@@ -2075,7 +2143,7 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             nodeId,
             apiClient.metadata(),
             index.data(NODE_NAME_ROLE).toString(),
-            optionalRole(index, COGNITIVE_LEVEL_ROLE),
+            optionalRole(index, KNOWLEDGE_LEVEL_ROLE),
             index.data(HAS_DOCUMENT_ROLE).toBool(),
             optionalRole(index, COMPLETENESS_LEVEL_ROLE),
             optionalRole(index, FLASHCARD_STATUS_ROLE),
@@ -2473,9 +2541,9 @@ void DomainView::renderPursuits() {
             QString text;
             switch (requirement.requirementTypeId) {
                 case 1:
-                    text = "Kognition: " + metadataText(
-                        apiClient.metadata().cognitiveLevels,
-                        *requirement.cognitiveLevelId
+                    text = "Kenntnisstufe: " + knowledgeLevelText(
+                        apiClient.metadata().knowledgeLevels,
+                        *requirement.knowledgeLevelId
                     );
                     break;
                 case 2: break;

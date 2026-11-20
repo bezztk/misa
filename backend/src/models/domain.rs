@@ -15,7 +15,7 @@ pub struct DomainNode {
     pub id: i32,
     pub domain_id: i32,
     pub parent_id: Option<i32>,
-    pub cognitive_level_id: Option<i32>,
+    pub knowledge_level_id: Option<i32>,
     pub name: String,
     pub is_system_value: bool,
     pub last_reviewed_at: DateTime<Utc>,
@@ -47,7 +47,7 @@ pub struct DomainNodeFieldUpdateRequest {
 #[derive(Clone, Copy)]
 pub enum DomainNodeField {
     Name = 1,
-    CognitiveLevelId = 2,
+    KnowledgeLevelId = 2,
     CompletenessLevelId = 3,
     FlashcardStatusId = 4,
     VerificationStatusId = 5,
@@ -60,7 +60,7 @@ impl TryFrom<i32> for DomainNodeField {
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(Self::Name),
-            2 => Ok(Self::CognitiveLevelId),
+            2 => Ok(Self::KnowledgeLevelId),
             3 => Ok(Self::CompletenessLevelId),
             4 => Ok(Self::FlashcardStatusId),
             5 => Ok(Self::VerificationStatusId),
@@ -72,7 +72,7 @@ impl TryFrom<i32> for DomainNodeField {
 
 pub enum DomainNodeFieldUpdate {
     Name(String),
-    CognitiveLevelId(Option<i32>),
+    KnowledgeLevelId(Option<i32>),
     CompletenessLevelId(Option<i32>),
     FlashcardStatusId(Option<i32>),
     VerificationStatusId(Option<i32>),
