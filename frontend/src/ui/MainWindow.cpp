@@ -3,20 +3,21 @@
 #include "CalendarView.h"
 #include "DomainView.h"
 #include "LearningView.h"
+#include "NavigationSidebar.h"
 #include "TaskView.h"
 #include "WorkspaceManager.h"
 
 #include <QCloseEvent>
 #include <QFrame>
 #include <QHBoxLayout>
-#include <QIcon>
 #include <QJsonValue>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPointer>
-#include <QPushButton>
 #include <QResizeEvent>
+#include <QSplitter>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -43,97 +44,71 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     bodyLayout->setContentsMargins(0, 0, 0, 0);
     bodyLayout->setSpacing(0);
 
-    auto *navbar = new QWidget(body);
-    navbar->setFixedWidth(48);
-    auto *navLayout = new QVBoxLayout(navbar);
-    navLayout->setContentsMargins(6, 6, 6, 6);
-    navLayout->setSpacing(4);
+    auto *sidebarToggleRail = new QWidget(body);
+    sidebarToggleRail->setFixedWidth(28);
+    auto *sidebarToggleLayout = new QVBoxLayout(sidebarToggleRail);
+    sidebarToggleLayout->setContentsMargins(2, 6, 2, 6);
+    auto *sidebarToggle = new QToolButton(sidebarToggleRail);
+    sidebarToggle->setArrowType(Qt::LeftArrow);
+    sidebarToggle->setToolTip("Hauptnavigation ausblenden");
+    sidebarToggle->setAutoRaise(true);
+    sidebarToggleLayout->addWidget(sidebarToggle, 0, Qt::AlignTop);
+    sidebarToggleLayout->addStretch();
+    bodyLayout->addWidget(sidebarToggleRail);
 
-    constexpr auto navButtonStyle = R"(
-        QPushButton {
-            background: transparent;
-            border: none;
-            border-radius: 6px;
-        }
-        QPushButton:hover {
-            background: rgba(255, 255, 255, 0.10);
-        }
-        QPushButton:checked {
-            background: rgba(255, 255, 255, 0.18);
-        }
-        QPushButton:pressed {
-            background: rgba(255, 255, 255, 0.25);
-        }
-    )";
-
-    auto *workButton = new QPushButton(navbar);
-    workButton->setToolTip("Arbeitsbereich");
-    workButton->setFixedSize(36, 36);
-    workButton->setIcon(QIcon(":/assets/icons/calendar.png"));
-    workButton->setIconSize(QSize(24, 24));
-    workButton->setCheckable(true);
-    workButton->setAutoExclusive(true);
-    workButton->setChecked(true);
-    workButton->setStyleSheet(navButtonStyle);
-    navLayout->addWidget(workButton, 0, Qt::AlignCenter);
-
-    auto *learningButton = new QPushButton(navbar);
-    learningButton->setToolTip("Lernen");
-    learningButton->setFixedSize(36, 36);
-    learningButton->setIcon(QIcon(":/assets/icons/flashcards-white.png"));
-    learningButton->setIconSize(QSize(24, 24));
-    learningButton->setCheckable(true);
-    learningButton->setAutoExclusive(true);
-    learningButton->setStyleSheet(navButtonStyle);
-    navLayout->addWidget(learningButton, 0, Qt::AlignCenter);
-
-    auto *domainButton = new QPushButton(navbar);
-    domainButton->setToolTip("Verwirklichung");
-    domainButton->setFixedSize(36, 36);
-    domainButton->setIcon(QIcon(":/assets/icons/folder.png"));
-    domainButton->setIconSize(QSize(24, 24));
-    domainButton->setCheckable(true);
-    domainButton->setAutoExclusive(true);
-    domainButton->setStyleSheet(navButtonStyle);
-    navLayout->addWidget(domainButton, 0, Qt::AlignCenter);
-    navLayout->addStretch();
-
-    auto *navigationSeparator = new QFrame(body);
-    navigationSeparator->setFixedWidth(1);
-    navigationSeparator->setStyleSheet(
-        "background: rgba(255, 255, 255, 0.20); border: none;"
+    auto *contentSplitter = new QSplitter(Qt::Horizontal, body);
+    contentSplitter->setChildrenCollapsible(false);
+    contentSplitter->setHandleWidth(1);
+    contentSplitter->setStyleSheet(
+        "QSplitter::handle { background: rgba(255, 255, 255, 0.25); }"
     );
 
-    auto *workspaceContainer = new QWidget(body);
-    auto *workspaceLayout = new QVBoxLayout(workspaceContainer);
-    workspaceLayout->setContentsMargins(0, 0, 0, 0);
-    workspaceLayout->setSpacing(0);
-
-    auto *workspaceNavigation = new QWidget(workspaceContainer);
-    auto *workspaceNavigationLayout = new QHBoxLayout(workspaceNavigation);
-    workspaceNavigationLayout->setContentsMargins(16, 8, 16, 8);
-    auto *tasksButton = new QPushButton("Aufgaben", workspaceNavigation);
-    auto *calendarButton = new QPushButton("Kalender", workspaceNavigation);
-    workspaceNavigationLayout->addWidget(tasksButton);
-    workspaceNavigationLayout->addWidget(calendarButton);
-    workspaceNavigationLayout->addStretch();
-    workspaceLayout->addWidget(workspaceNavigation);
-
-    auto *workspaceSeparator = new QFrame(workspaceContainer);
-    workspaceSeparator->setFixedHeight(1);
-    workspaceSeparator->setStyleSheet(
-        "background: rgba(255, 255, 255, 0.20); border: none;"
-    );
-    workspaceLayout->addWidget(workspaceSeparator);
-
-    workspaceManager = new WorkspaceManager(workspaceContainer);
-    workspaceLayout->addWidget(workspaceManager, 1);
-
-    bodyLayout->addWidget(navbar);
-    bodyLayout->addWidget(navigationSeparator);
-    bodyLayout->addWidget(workspaceContainer, 1);
+    auto *navigation = new NavigationSidebar(apiClient, contentSplitter);
+    workspaceManager = new WorkspaceManager(contentSplitter);
+    contentSplitter->addWidget(navigation);
+    contentSplitter->addWidget(workspaceManager);
+    contentSplitter->setStretchFactor(0, 0);
+    contentSplitter->setStretchFactor(1, 1);
+    contentSplitter->setSizes({320, 1280});
+    bodyLayout->addWidget(contentSplitter, 1);
     mainLayout->addWidget(body, 1);
     setCentralWidget(central);
+
+    connect(sidebarToggle, &QToolButton::clicked, this,
+            [navigation, contentSplitter, sidebarToggle, sidebarWidth = 320]() mutable {
+                if (navigation->isVisible()) {
+                    sidebarWidth = contentSplitter->sizes().first();
+                    navigation->hide();
+                    sidebarToggle->setArrowType(Qt::RightArrow);
+                    sidebarToggle->setToolTip("Hauptnavigation einblenden");
+                } else {
+                    navigation->show();
+                    const int totalWidth = contentSplitter->width();
+                    contentSplitter->setSizes({
+                        sidebarWidth,
+                        qMax(0, totalWidth - sidebarWidth)
+                    });
+                    sidebarToggle->setArrowType(Qt::LeftArrow);
+                    sidebarToggle->setToolTip("Hauptnavigation ausblenden");
+                }
+            });
+
+    connect(navigation, &NavigationSidebar::openTasksRequested,
+            this, &MainWindow::openTasks);
+    connect(navigation, &NavigationSidebar::openCalendarRequested,
+            this, &MainWindow::openCalendar);
+    connect(navigation, &NavigationSidebar::openLearningRequested,
+            this, &MainWindow::openLearning);
+    connect(navigation, &NavigationSidebar::openDomainNodeRequested,
+            this, &MainWindow::openDomainNode);
+    navigation->setBeforeNodeActionHandler(
+        [this](const int nodeId, std::function<void()> continuation) {
+            workspaceManager->prepareView(
+                "domain_node:" + QString::number(nodeId),
+                std::move(continuation)
+            );
+        }
+    );
 
     toastLabel = new QLabel(this);
     toastLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -151,12 +126,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     toastTimer = new QTimer(this);
     toastTimer->setSingleShot(true);
     connect(toastTimer, &QTimer::timeout, toastLabel, &QLabel::hide);
-
-    connect(tasksButton, &QPushButton::clicked, this, &MainWindow::openTasks);
-    connect(calendarButton, &QPushButton::clicked, this, &MainWindow::openCalendar);
-    connect(workButton, &QPushButton::clicked, this, &MainWindow::openTasks);
-    connect(learningButton, &QPushButton::clicked, this, &MainWindow::openLearning);
-    connect(domainButton, &QPushButton::clicked, this, &MainWindow::openActualization);
 
     const auto refreshSharedTasks = [this] { apiClient.getTasks(); };
     connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
@@ -206,14 +175,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             [this] { showToast("Bestrebung erstellt"); });
     connect(&apiClient, &ApiClient::pursuitUpdated, this,
             [this] { showToast("Bestrebung aktualisiert"); });
-    connect(&apiClient, &ApiClient::progressionCreated, this,
-            [this] { showToast("Progression erstellt"); });
-    connect(&apiClient, &ApiClient::progressionUpdated, this,
-            [this] { showToast("Progression aktualisiert"); });
-    connect(&apiClient, &ApiClient::progressionStageCreated, this,
-            [this] { showToast("Progressionsstufe erstellt"); });
-    connect(&apiClient, &ApiClient::pursuitAssigned, this,
-            [this] { showToast("Bestrebung hinzugefügt"); });
     connect(&apiClient, &ApiClient::domainNodeCreated, this,
             [this](const DomainNode &) { showToast("Knoten erstellt"); });
     connect(&apiClient, &ApiClient::domainNodeFieldUpdated, this,
@@ -247,26 +208,11 @@ void MainWindow::openCalendar() {
 }
 
 void MainWindow::openLearning() {
-    workspaceManager->openView("learning", "Lernen", [this] {
+    workspaceManager->openView("learning", "Lernkarten", [this] {
         auto *view = new LearningView(apiClient);
         connect(&apiClient, &ApiClient::metadataReceived,
                 view, &LearningView::refreshMetadata);
         view->refreshMetadata();
-        return view;
-    });
-}
-
-void MainWindow::openActualization() {
-    apiClient.getTasks();
-    apiClient.getDomainTree();
-    apiClient.getProgressions();
-    workspaceManager->openView("actualization", "Verwirklichung", [this] {
-        auto *view = new DomainView(apiClient);
-        view->setNodeOpenHandler(
-            [this](const int nodeId, const QString &title) {
-                openDomainNode(nodeId, title);
-            }
-        );
         return view;
     });
 }

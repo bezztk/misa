@@ -73,6 +73,17 @@ void WorkspaceManager::setViewTitle(const QString &key, const QString &title) {
     }
 }
 
+void WorkspaceManager::prepareView(
+    const QString &key,
+    std::function<void()> continuation
+) {
+    if (views.contains(key) && views[key].closeHandler) {
+        views[key].closeHandler(std::move(continuation));
+    } else {
+        continuation();
+    }
+}
+
 void WorkspaceManager::prepareToClose(std::function<void()> continuation) {
     auto keys = std::make_shared<QStringList>(views.keys());
     auto next = std::make_shared<std::function<void(int)>>();

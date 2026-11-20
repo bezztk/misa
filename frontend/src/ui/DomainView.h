@@ -25,11 +25,15 @@ class QVBoxLayout;
 class DomainView : public QWidget {
 public:
     using NodeOpenHandler = std::function<void(int, const QString &)>;
+    using BeforeNodeActionHandler = std::function<
+        void(int, std::function<void()>)
+    >;
 
     explicit DomainView(ApiClient &apiClient, QWidget *parent = nullptr);
     void saveBeforeClose(std::function<void()> continuation);
     void refreshTasks();
     void setNodeOpenHandler(NodeOpenHandler handler);
+    void setBeforeNodeActionHandler(BeforeNodeActionHandler handler);
     void showNode(int nodeId);
 
 private:
@@ -75,29 +79,12 @@ private:
     void showPursuitComments(int pursuitId);
     void updatePursuitCount(int nodeId, int count);
     void updateCurrentTaskCount();
-    void renderProgressions();
-    void renderProgressionStages();
-    void showProgressionContextMenu(const QPoint &position);
-    void editProgression(int progressionId);
-    void addProgressionStage(int progressionId);
-    void assignPursuit(int stageId);
-    void showAvailablePursuits(
-        int stageId,
-        const std::vector<ProgressionPursuit> &pursuits
-    );
+    void prepareNodeAction(int nodeId, std::function<void()> continuation);
 
     ApiClient &apiClient;
     QTreeView *treeView;
     QStandardItemModel *model;
-    QWidget *progressionWidget;
-    QWidget *progressionContent;
-    QTreeView *progressionTreeView;
-    QStandardItemModel *progressionModel;
-    QHBoxLayout *progressionStagesLayout;
-    std::vector<Progression> progressions;
-    std::vector<ProgressionPursuit> progressionPursuits;
     std::vector<DomainNode> domainNodes;
-    int currentProgressionId = -1;
     QWidget *editorWidget;
     QVBoxLayout *editorLayout;
     QWidget *documentWidget;
@@ -141,6 +128,7 @@ private:
     QString savingContent;
     std::function<void()> closeContinuation;
     NodeOpenHandler nodeOpenHandler;
+    BeforeNodeActionHandler beforeNodeActionHandler;
     int initialNodeId = -1;
     bool nodeOnly = false;
 };

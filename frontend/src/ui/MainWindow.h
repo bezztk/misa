@@ -24,7 +24,6 @@ private:
     void openTasks();
     void openCalendar();
     void openLearning();
-    void openActualization();
     void openDomainNode(int nodeId, const QString &title);
 
     ApiClient apiClient;

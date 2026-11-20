@@ -28,6 +28,7 @@ public:
     );
     void closeView(const QString &key);
     void setViewTitle(const QString &key, const QString &title);
+    void prepareView(const QString &key, std::function<void()> continuation);
     void prepareToClose(std::function<void()> continuation);
 
 private:

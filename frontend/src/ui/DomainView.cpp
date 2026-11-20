@@ -797,82 +797,12 @@ static bool showPursuitDialog(
     return true;
 }
 
-static void showProgressionDialog(
-    QWidget *parent,
-    ApiClient &apiClient,
-    const Progression &progression
-) {
-    QDialog dialog(parent);
-    dialog.setWindowTitle("Progression bearbeiten");
-    auto *layout = new QFormLayout(&dialog);
-    auto *nameEdit = new QLineEdit(progression.name, &dialog);
-    auto *relevanceCombo = new QComboBox(&dialog);
-    auto *impactCombo = new QComboBox(&dialog);
-    fillMetadataCombo(relevanceCombo, apiClient.metadata().personalRelevanceLevels);
-    fillMetadataCombo(impactCombo, apiClient.metadata().lastingImpacts);
-    selectMetadata(relevanceCombo, progression.personalRelevanceId);
-    selectMetadata(impactCombo, progression.lastingImpactId);
-    layout->addRow("Name", nameEdit);
-    layout->addRow("Persönliche Relevanz", relevanceCombo);
-    layout->addRow("Lasting Impact", impactCombo);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
-    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addRow(buttons);
-    prepareDialog(dialog);
-    execDialog(dialog, true);
-
-    const QString name = nameEdit->text().trimmed();
-    if (!name.isEmpty() && name != progression.name) {
-        apiClient.updateProgressionField(
-            progression.id,
-            ProgressionField::Name,
-            name
-        );
-    }
-
-    const std::optional<int> personalRelevanceId = selectedMetadata(relevanceCombo);
-    if (personalRelevanceId != progression.personalRelevanceId) {
-        apiClient.updateProgressionField(
-            progression.id,
-            ProgressionField::PersonalRelevanceId,
-            jsonValue(personalRelevanceId)
-        );
-    }
-
-    const std::optional<int> lastingImpactId = selectedMetadata(impactCombo);
-    if (lastingImpactId != progression.lastingImpactId) {
-        apiClient.updateProgressionField(
-            progression.id,
-            ProgressionField::LastingImpactId,
-            jsonValue(lastingImpactId)
-        );
-    }
-}
-
 DomainView::DomainView(ApiClient &client, QWidget *parent)
     : QWidget(parent), apiClient(client) {
     setObjectName("domainView");
     setStyleSheet(R"(
         QWidget#domainView {
             background: palette(base);
-        }
-        QWidget#progressionPanel {
-            background: palette(base);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.25);
-        }
-        QWidget#progressionHeader {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-        }
-        QFrame#stageCard {
-            background: rgba(255, 255, 255, 0.025);
-            border: none;
-            border-right: 1px solid rgba(255, 255, 255, 0.14);
-        }
-        QLabel#stageTitle {
-            padding-bottom: 5px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
         QTreeView#domainTree, QTreeView#pursuitTree, QTreeView#skillTree {
             background: palette(base);
@@ -911,100 +841,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-
-    progressionWidget = new QWidget(this);
-    progressionWidget->setObjectName("progressionPanel");
-    progressionWidget->setFixedHeight(40);
-    auto *progressionLayout = new QVBoxLayout(progressionWidget);
-    progressionLayout->setContentsMargins(0, 0, 0, 0);
-    progressionLayout->setSpacing(0);
-
-    auto *progressionHeader = new QWidget(progressionWidget);
-    progressionHeader->setObjectName("progressionHeader");
-    auto *progressionHeaderLayout = new QHBoxLayout(progressionHeader);
-    progressionHeaderLayout->setContentsMargins(10, 4, 10, 4);
-    auto *progressionTitle = new QLabel("Progressionen", progressionHeader);
-    QFont progressionTitleFont = progressionTitle->font();
-    progressionTitleFont.setBold(true);
-    progressionTitle->setFont(progressionTitleFont);
-    auto *addProgressionButton = new QPushButton("Progression erstellen", progressionHeader);
-    addProgressionButton->setObjectName("compactButton");
-    auto *toggleProgressionButton = new QPushButton("Öffnen", progressionHeader);
-    toggleProgressionButton->setObjectName("compactButton");
-    progressionHeaderLayout->addWidget(progressionTitle);
-    progressionHeaderLayout->addStretch();
-    progressionHeaderLayout->addWidget(addProgressionButton);
-    progressionHeaderLayout->addWidget(toggleProgressionButton);
-    progressionLayout->addWidget(progressionHeader);
-
-    progressionContent = new QWidget(progressionWidget);
-    auto *progressionContentLayout = new QHBoxLayout(progressionContent);
-    progressionContentLayout->setContentsMargins(0, 0, 0, 0);
-    progressionContentLayout->setSpacing(0);
-
-    auto *progressionListPanel = new QWidget(progressionContent);
-    progressionListPanel->setFixedWidth(400);
-    auto *progressionListLayout = new QVBoxLayout(progressionListPanel);
-    progressionListLayout->setContentsMargins(8, 4, 8, 8);
-    progressionListLayout->setSpacing(0);
-    progressionTreeView = new QTreeView(progressionListPanel);
-    progressionTreeView->setHeaderHidden(true);
-    progressionTreeView->setFrameShape(QFrame::NoFrame);
-    progressionTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
-    progressionTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    progressionModel = new QStandardItemModel(progressionTreeView);
-    progressionTreeView->setModel(progressionModel);
-    progressionListLayout->addWidget(progressionTreeView);
-    progressionContentLayout->addWidget(progressionListPanel);
-
-    auto *progressionSeparator = new QFrame(progressionContent);
-    progressionSeparator->setFixedWidth(1);
-    progressionSeparator->setStyleSheet(
-        "background: rgba(255, 255, 255, 0.20); border: none;"
-    );
-    progressionContentLayout->addWidget(progressionSeparator);
-
-    auto *stageScrollArea = new QScrollArea(progressionContent);
-    stageScrollArea->setObjectName("progressionStages");
-    stageScrollArea->setWidgetResizable(true);
-    stageScrollArea->setFrameShape(QFrame::NoFrame);
-    stageScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    auto *stageContent = new QWidget(stageScrollArea);
-    stageContent->setObjectName("progressionStageContent");
-    stageScrollArea->viewport()->setStyleSheet(
-        "QWidget#qt_scrollarea_viewport { background: rgba(255, 255, 255, 0.012); }"
-    );
-    stageContent->setStyleSheet(
-        "QWidget#progressionStageContent { background: rgba(255, 255, 255, 0.012); }"
-    );
-    progressionStagesLayout = new QHBoxLayout(stageContent);
-    progressionStagesLayout->setContentsMargins(8, 4, 8, 8);
-    progressionStagesLayout->setSpacing(6);
-    stageScrollArea->setWidget(stageContent);
-    progressionContentLayout->addWidget(stageScrollArea, 1);
-    progressionLayout->addWidget(progressionContent, 1);
-    progressionContent->hide();
-    layout->addWidget(progressionWidget);
-    progressionWidget->hide();
-
-    connect(addProgressionButton, &QPushButton::clicked, this, [this] {
-        const auto input = showTextInputDialog(
-            this,
-            "Progression hinzufügen",
-            "Name"
-        );
-        const QString name = input ? input->trimmed() : QString();
-        if (!name.isEmpty()) {
-            apiClient.createProgression(name);
-        }
-    });
-    connect(toggleProgressionButton, &QPushButton::clicked, this,
-            [this, toggleProgressionButton, expanded = false]() mutable {
-                expanded = !expanded;
-                progressionContent->setVisible(expanded);
-                progressionWidget->setFixedHeight(expanded ? 200 : 40);
-                toggleProgressionButton->setText(expanded ? "Minimieren" : "Öffnen");
-            });
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setHandleWidth(1);
@@ -1878,30 +1714,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     });
     connect(autosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
     connect(maximumAutosaveTimer, &QTimer::timeout, this, &DomainView::startSave);
-    connect(progressionTreeView, &QTreeView::clicked, this,
-            [this](const QModelIndex &index) {
-                currentProgressionId = index.data(Qt::UserRole).toInt();
-                renderProgressionStages();
-            });
-    connect(progressionTreeView, &QTreeView::customContextMenuRequested, this,
-            [this](const QPoint &position) { showProgressionContextMenu(position); });
-    connect(&apiClient, &ApiClient::progressionsReceived, this,
-            [this](const std::vector<Progression> &receivedProgressions,
-                   const std::vector<ProgressionPursuit> &receivedPursuits) {
-                progressions = receivedProgressions;
-                progressionPursuits = receivedPursuits;
-                renderProgressions();
-            });
-    connect(&apiClient, &ApiClient::progressionsChanged, this,
-            [this] { apiClient.getProgressions(); });
-    connect(&apiClient, &ApiClient::availableProgressionPursuitsReceived, this,
-            [this](const int stageId,
-                   const std::vector<ProgressionPursuit> &pursuits) {
-                showAvailablePursuits(stageId, pursuits);
-            });
     connect(&apiClient, &ApiClient::metadataReceived, this, [this] {
         apiClient.getDomainTree();
-        apiClient.getProgressions();
     });
 
 }
@@ -1924,13 +1738,27 @@ void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     skillWidget->hide();
 }
 
+void DomainView::setBeforeNodeActionHandler(BeforeNodeActionHandler handler) {
+    beforeNodeActionHandler = std::move(handler);
+}
+
 void DomainView::showNode(const int nodeId) {
     nodeOnly = true;
     initialNodeId = nodeId;
-    progressionWidget->hide();
     treeView->hide();
     apiClient.getDomainTree();
     apiClient.getTasks();
+}
+
+void DomainView::prepareNodeAction(
+    const int nodeId,
+    std::function<void()> continuation
+) {
+    if (beforeNodeActionHandler) {
+        beforeNodeActionHandler(nodeId, std::move(continuation));
+    } else {
+        saveBeforeClose(std::move(continuation));
+    }
 }
 
 void DomainView::requestDocumentChange(const int nodeId, const bool hasDocument) {
@@ -2025,210 +1853,6 @@ void DomainView::finishPendingActions() {
         auto continuation = std::move(closeContinuation);
         closeContinuation = {};
         continuation();
-    }
-}
-
-void DomainView::renderProgressions() {
-    progressionModel->clear();
-    progressionModel->setColumnCount(1);
-
-    bool selectionExists = false;
-    for (const Progression &progression : progressions) {
-        QString text = progression.name;
-        if (progression.personalRelevanceId.has_value()) {
-            text += "  · R" + QString::number(*progression.personalRelevanceId);
-        }
-        if (progression.lastingImpactId.has_value()) {
-            text += "  · I" + QString::number(*progression.lastingImpactId);
-        }
-        auto *item = new QStandardItem(text);
-        item->setData(progression.id, Qt::UserRole);
-        progressionModel->appendRow(item);
-        if (progression.id == currentProgressionId) {
-            progressionTreeView->setCurrentIndex(item->index());
-            selectionExists = true;
-        }
-    }
-
-    if (!selectionExists) {
-        currentProgressionId = progressions.empty() ? -1 : progressions.front().id;
-        if (!progressions.empty()) {
-            progressionTreeView->setCurrentIndex(progressionModel->index(0, 0));
-        }
-    }
-    renderProgressionStages();
-}
-
-void DomainView::renderProgressionStages() {
-    while (QLayoutItem *item = progressionStagesLayout->takeAt(0)) {
-        delete item->widget();
-        delete item;
-    }
-
-    const Progression *selectedProgression = nullptr;
-    for (const Progression &progression : progressions) {
-        if (progression.id == currentProgressionId) {
-            selectedProgression = &progression;
-            break;
-        }
-    }
-
-    if (!selectedProgression) {
-        auto *label = new QLabel("Noch keine Progression ausgewählt.");
-        label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("color: palette(mid);");
-        progressionStagesLayout->addWidget(label, 1);
-        return;
-    }
-    if (selectedProgression->stages.empty()) {
-        auto *label = new QLabel("Noch keine Progressionsstufen angelegt.");
-        label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("color: palette(mid);");
-        progressionStagesLayout->addWidget(label, 1);
-        return;
-    }
-
-    for (const ProgressionStage &stage : selectedProgression->stages) {
-        auto *card = new QFrame();
-        card->setObjectName("stageCard");
-        card->setMinimumWidth(180);
-        card->setContextMenuPolicy(Qt::CustomContextMenu);
-        auto *cardLayout = new QVBoxLayout(card);
-        cardLayout->setContentsMargins(10, 8, 10, 8);
-        cardLayout->setSpacing(5);
-        auto *title = new QLabel(
-            QString::number(stage.stage) + ". " + stage.name,
-            card
-        );
-        title->setObjectName("stageTitle");
-        QFont titleFont = title->font();
-        titleFont.setBold(true);
-        title->setFont(titleFont);
-        title->setWordWrap(true);
-        cardLayout->addWidget(title);
-
-        for (const ProgressionPursuit &pursuit : stage.pursuits) {
-            auto *label = new QLabel("↑ " + pursuit.name, card);
-            label->setWordWrap(true);
-            label->setStyleSheet("color: #B8B8B8;");
-            cardLayout->addWidget(label);
-        }
-        cardLayout->addStretch();
-        connect(card, &QWidget::customContextMenuRequested, this,
-                [this, card, stageId = stage.id](const QPoint &position) {
-                    QMenu menu(card);
-                    QAction *assignAction = menu.addAction(
-                        QIcon(":/assets/icons/add.png"),
-                        "Bestrebung hinzufügen"
-                    );
-                    if (menu.exec(card->mapToGlobal(position)) == assignAction) {
-                        assignPursuit(stageId);
-                    }
-                });
-        progressionStagesLayout->addWidget(card, 1);
-    }
-}
-
-void DomainView::showProgressionContextMenu(const QPoint &position) {
-    const QModelIndex index = progressionTreeView->indexAt(position);
-    if (!index.isValid()) {
-        return;
-    }
-    const int progressionId = index.data(Qt::UserRole).toInt();
-    QMenu menu(progressionTreeView);
-    QAction *editAction = menu.addAction(
-        QIcon(":/assets/icons/edit.png"),
-        "Bearbeiten"
-    );
-    QAction *stageAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Progressionsstufe hinzufügen"
-    );
-    menu.addSeparator();
-    QAction *historyAction = menu.addAction(
-        QIcon(":/assets/icons/version_history.png"),
-        "Versionshistorie"
-    );
-    QAction *selectedAction = menu.exec(
-        progressionTreeView->viewport()->mapToGlobal(position)
-    );
-    if (selectedAction == editAction) {
-        editProgression(progressionId);
-    } else if (selectedAction == stageAction) {
-        addProgressionStage(progressionId);
-    } else if (selectedAction == historyAction) {
-        const auto progression = std::find_if(
-            progressions.begin(),
-            progressions.end(),
-            [progressionId](const Progression &item) {
-                return item.id == progressionId;
-            }
-        );
-        showVersionHistoryDialog(
-            progressionTreeView,
-            apiClient,
-            progressionId,
-            progression == progressions.end()
-                ? "Versionshistorie"
-                : "Versionshistorie – " + progression->name
-        );
-    }
-}
-
-void DomainView::editProgression(const int progressionId) {
-    for (const Progression &progression : progressions) {
-        if (progression.id != progressionId) {
-            continue;
-        }
-        showProgressionDialog(this, apiClient, progression);
-        return;
-    }
-}
-
-void DomainView::addProgressionStage(const int progressionId) {
-    const auto input = showTextInputDialog(
-        this,
-        "Progressionsstufe hinzufügen",
-        "Name"
-    );
-    const QString name = input ? input->trimmed() : QString();
-    if (!name.isEmpty()) {
-        apiClient.createProgressionStage(progressionId, name);
-    }
-}
-
-void DomainView::assignPursuit(const int stageId) {
-    apiClient.getAvailableProgressionPursuits(stageId);
-}
-
-void DomainView::showAvailablePursuits(
-    const int stageId,
-    const std::vector<ProgressionPursuit> &pursuits
-) {
-    QStringList names;
-    std::vector<int> ids;
-    for (const ProgressionPursuit &pursuit : pursuits) {
-        names.push_back(pursuit.name);
-        ids.push_back(pursuit.id);
-    }
-    if (names.empty()) {
-        QMessageBox::information(
-            this,
-            "Bestrebung hinzufügen",
-            "Es gibt keine unzugeordneten Bestrebungen."
-        );
-        return;
-    }
-
-    const auto selection = showItemInputDialog(
-        this,
-        "Bestrebung hinzufügen",
-        "Bestrebung",
-        names,
-        "Hinzufügen"
-    );
-    if (selection) {
-        apiClient.assignPursuitToStage(stageId, ids[names.indexOf(*selection)]);
     }
 }
 
@@ -2417,11 +2041,14 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
                    "Dokument löschen",
                    "Dokument dieses Domain Nodes löschen?"
                ) == QMessageBox::Yes) {
-        saveBeforeClose([this, nodeId] { apiClient.deleteDocument(nodeId); });
+        prepareNodeAction(
+            nodeId,
+            [this, nodeId] { apiClient.deleteDocument(nodeId); }
+        );
     } else if (documentHistoryAction && selectedAction == documentHistoryAction) {
         const QString title = "Dokumentversionshistorie – "
             + index.data(NODE_NAME_ROLE).toString();
-        saveBeforeClose([this, nodeId, title] {
+        prepareNodeAction(nodeId, [this, nodeId, title] {
             showDocumentVersionHistoryDialog(treeView, apiClient, nodeId, title);
         });
     } else if (selectedAction == createTaskAction) {
@@ -2447,7 +2074,10 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
                    "Bereich löschen",
                    "Bereich einschließlich aller Unterbereiche löschen?"
                ) == QMessageBox::Yes) {
-        saveBeforeClose([this, nodeId] { apiClient.deleteDomainNode(nodeId); });
+        prepareNodeAction(
+            nodeId,
+            [this, nodeId] { apiClient.deleteDomainNode(nodeId); }
+        );
     }
 }
 

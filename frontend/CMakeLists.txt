@@ -67,6 +67,8 @@ add_executable(frontend
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
+        src/ui/NavigationSidebar.cpp
+        src/ui/NavigationSidebar.h
         src/ui/WorkspaceManager.cpp
         src/ui/WorkspaceManager.h
         src/ui/WorkspaceSplitter.cpp
