@@ -3,31 +3,57 @@
 
 #include "../api/ApiClient.h"
 #include "../models/CalendarEntry.h"
-#include "../models/Task.h"
 
+#include <QObject>
+#include <QString>
 #include <QWidget>
 
 #include <vector>
 
-class QTreeWidget;
-class QDateEdit;
+class QResizeEvent;
+class QWebChannel;
+class QWebEngineView;
 
-class CalendarView : public QWidget {
+class CalendarBridge final : public QObject {
+    Q_OBJECT
+
+public:
+    using QObject::QObject;
+
+public slots:
+    void calendarReady();
+    void rangeChanged(const QString &start, const QString &end);
+    void createEntryRequested();
+    void refreshRequested();
+
+signals:
+    void ready();
+    void visibleRangeChanged(const QString &start, const QString &end);
+    void createEntry();
+    void refresh();
+    void entriesChanged(const QString &entriesJson);
+    void resizeRequested();
+};
+
+class CalendarView final : public QWidget {
+    Q_OBJECT
+
 public:
     explicit CalendarView(ApiClient &apiClient, QWidget *parent = nullptr);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
-    void renderEntries();
+    void pushEntries();
     void openCreateDialog();
-    void openEditDialog(const CalendarEntry& entry);
-    void openTaskEditDialog(const Task& task);
 
     ApiClient &apiClient;
-    QTreeWidget *tree;
-    QDateEdit *fromDateEdit;
-    QDateEdit *toDateEdit;
+    QWebEngineView *webView;
+    QWebChannel *webChannel;
+    CalendarBridge *bridge;
     std::vector<CalendarEntry> entries;
-    std::vector<Task> tasks;
+    bool calendarReady = false;
 };
 
 #endif // FRONTEND_CALENDARVIEW_H

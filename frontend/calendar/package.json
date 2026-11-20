@@ -1,0 +1,17 @@
+{
+  "name": "misa-calendar",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@fullcalendar/core": "6.1.20",
+    "@fullcalendar/daygrid": "6.1.20",
+    "@fullcalendar/timegrid": "6.1.20"
+  },
+  "devDependencies": {
+    "vite": "8.3.8"
+  }
+}

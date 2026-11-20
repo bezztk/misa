@@ -59,6 +59,43 @@ add_custom_command(
 add_custom_target(editor_web DEPENDS ${EDITOR_WEB_OUTPUTS})
 set_source_files_properties(${EDITOR_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
 
+set(CALENDAR_WEB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/calendar")
+set(CALENDAR_DIST_DIR "${CALENDAR_WEB_DIR}/dist")
+set(CALENDAR_NODE_MODULES_MARKER "${CALENDAR_WEB_DIR}/node_modules/.package-lock.json")
+set(CALENDAR_WEB_OUTPUTS
+        "${CALENDAR_DIST_DIR}/index.html"
+        "${CALENDAR_DIST_DIR}/calendar.js"
+        "${CALENDAR_DIST_DIR}/calendar.css"
+)
+
+add_custom_command(
+        OUTPUT "${CALENDAR_NODE_MODULES_MARKER}"
+        COMMAND "${NPM_EXECUTABLE}" ci
+        WORKING_DIRECTORY "${CALENDAR_WEB_DIR}"
+        DEPENDS
+        "${CALENDAR_WEB_DIR}/package.json"
+        "${CALENDAR_WEB_DIR}/package-lock.json"
+        COMMENT "Installing FullCalendar dependencies"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT ${CALENDAR_WEB_OUTPUTS}
+        COMMAND "${NPM_EXECUTABLE}" run build
+        WORKING_DIRECTORY "${CALENDAR_WEB_DIR}"
+        DEPENDS
+        "${CALENDAR_NODE_MODULES_MARKER}"
+        "${CALENDAR_WEB_DIR}/index.html"
+        "${CALENDAR_WEB_DIR}/vite.config.js"
+        "${CALENDAR_WEB_DIR}/src/main.js"
+        "${CALENDAR_WEB_DIR}/src/style.css"
+        COMMENT "Building FullCalendar view"
+        VERBATIM
+)
+
+add_custom_target(calendar_web DEPENDS ${CALENDAR_WEB_OUTPUTS})
+set_source_files_properties(${CALENDAR_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
+
 add_executable(frontend
     main.cpp
         src/api/ApiClient.cpp
@@ -122,7 +159,7 @@ target_link_libraries(frontend
 )
 
 target_compile_options(frontend PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
-add_dependencies(frontend editor_web)
+add_dependencies(frontend editor_web calendar_web)
 
 if (WIN32)
     get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
@@ -139,6 +176,12 @@ qt_add_resources(frontend "document_editor"
         PREFIX "/editor"
         BASE "${EDITOR_DIST_DIR}"
         FILES ${EDITOR_WEB_OUTPUTS}
+)
+
+qt_add_resources(frontend "calendar"
+        PREFIX "/calendar"
+        BASE "${CALENDAR_DIST_DIR}"
+        FILES ${CALENDAR_WEB_OUTPUTS}
 )
 
 qt_add_resources(frontend "icons"
