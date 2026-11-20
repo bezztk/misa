@@ -152,6 +152,7 @@ void ApiClient::getCalendarEntries() {
             if (!object["routine_execution_id"].isNull()) {
                 entry.routineExecutionId = object["routine_execution_id"].toInt();
             }
+            entry.isLocked = object["is_locked"].toBool();
             entries.push_back(entry);
         }
 
@@ -174,6 +175,7 @@ void ApiClient::createCalendarEntry(const CreateCalendarEntry &entry) {
     json["systemtask_id"] = entry.systemTaskId.has_value()
         ? QJsonValue(*entry.systemTaskId)
         : QJsonValue(QJsonValue::Null);
+    json["is_locked"] = entry.isLocked;
 
     QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
@@ -200,16 +202,19 @@ void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &ent
     json["systemtask_id"] = entry.systemTaskId.has_value()
         ? QJsonValue(*entry.systemTaskId)
         : QJsonValue(QJsonValue::Null);
+    json["is_locked"] = entry.isLocked;
 
     QNetworkReply *reply = manager.sendCustomRequest(
         request,
         "PATCH",
         QJsonDocument(json).toJson()
     );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, id] {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
             emit calendarEntryUpdated();
+        } else {
+            emit calendarEntryUpdateFailed(id);
         }
 
         reply->deleteLater();

@@ -45,13 +45,14 @@ pub async fn update_calendar_entry(
     let mut transaction = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE calendar_entries
-         SET systemtask_id = $1, name = $2, start_at = $3, end_at = $4
-         WHERE entity_id = $5",
+         SET systemtask_id = $1, name = $2, start_at = $3, end_at = $4, is_locked = $5
+         WHERE entity_id = $6",
     )
     .bind(entry.systemtask_id)
     .bind(&entry.name)
     .bind(entry.start_at)
     .bind(entry.end_at)
+    .bind(entry.is_locked)
     .bind(id)
     .execute(&mut *transaction)
     .await?;

@@ -32,6 +32,7 @@ signals:
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
     void calendarEntryUpdated();
+    void calendarEntryUpdateFailed(int id);
     void calendarEntryDeleted();
     void routineExecutionsGenerated();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);

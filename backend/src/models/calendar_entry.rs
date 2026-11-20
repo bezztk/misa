@@ -20,4 +20,5 @@ pub struct SaveCalendarEntryRequest {
     pub start_at: DateTime<Utc>,
     pub end_at: Option<DateTime<Utc>>,
     pub is_reminder: bool,
+    pub is_locked: bool,
 }

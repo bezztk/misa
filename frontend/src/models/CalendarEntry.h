@@ -13,6 +13,7 @@ struct CalendarEntry {
     std::optional<QDateTime> endAt{};
     std::optional<int> systemTaskId{};
     std::optional<int> routineExecutionId{};
+    bool isLocked = false;
 
     bool isReminder() const {
         return !endAt.has_value();
@@ -25,6 +26,7 @@ struct CreateCalendarEntry {
     std::optional<QDateTime> endAt{};
     bool isReminder;
     std::optional<int> systemTaskId{};
+    bool isLocked = false;
 };
 
 #endif // FRONTEND_CALENDARENTRY_H
