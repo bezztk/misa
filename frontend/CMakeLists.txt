@@ -96,8 +96,13 @@ add_custom_command(
 add_custom_target(calendar_web DEPENDS ${CALENDAR_WEB_OUTPUTS})
 set_source_files_properties(${CALENDAR_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
 
+if (WIN32)
+    set(APP_ICON_RESOURCE frontend.rc)
+endif()
+
 add_executable(frontend
-    main.cpp
+        main.cpp
+        ${APP_ICON_RESOURCE}
         src/api/ApiClient.cpp
         src/api/ApiClientProgression.cpp
         src/api/ApiClientWork.cpp
@@ -158,6 +163,10 @@ target_link_libraries(frontend
         Qt6::WebChannel
 )
 
+if (WIN32)
+    target_link_libraries(frontend Shell32)
+endif()
+
 target_compile_options(frontend PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 add_dependencies(frontend editor_web calendar_web)
 
@@ -199,6 +208,7 @@ qt_add_resources(frontend "icons"
         assets/icons/add.png
         assets/icons/edit.png
         assets/icons/delete.png
+        assets/icons/misa.png
         assets/icons/node.png
         assets/icons/knowledge.png
         assets/icons/version_history.png

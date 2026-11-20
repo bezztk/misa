@@ -146,7 +146,9 @@ public:
         addIconIndicator(
             SKILL_COUNT_ROLE, ":/assets/icons/star.png", QColor("#FFD54F")
         );
-        addTextIndicator(FLASHCARD_COUNT_ROLE, "▣", QColor("#64B5F6"));
+        addIconIndicator(
+            FLASHCARD_COUNT_ROLE, ":/assets/icons/flashcards-white.png", QColor("#64B5F6")
+        );
         addIconIndicator(
             ATTACHMENT_COUNT_ROLE,
             ":/assets/icons/attach-file.png",
