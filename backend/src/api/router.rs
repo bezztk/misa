@@ -1,7 +1,7 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
-    entity_handler, flashcard_handler, metadata_handler, progression_handler, pursuit_handler,
-    routine_handler, skill_handler, task_handler,
+    entity_handler, flashcard_handler, idea_handler, metadata_handler, progression_handler,
+    pursuit_handler, routine_handler, skill_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -21,6 +21,18 @@ pub fn create_router(pool: PgPool) -> Router {
             "/calendar-entries/{id}",
             axum::routing::patch(calendar_entry_handler::update_calendar_entry)
                 .delete(calendar_entry_handler::delete_calendar_entry),
+        )
+        .route(
+            "/ideas",
+            get(idea_handler::get_ideas).post(idea_handler::create_idea),
+        )
+        .route(
+            "/ideas/{id}",
+            axum::routing::delete(idea_handler::delete_idea),
+        )
+        .route(
+            "/ideas/{id}/fields/{field_id}",
+            axum::routing::patch(idea_handler::update_idea_field),
         )
         .route(
             "/entities/{entity_id}/comments",

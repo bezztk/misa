@@ -105,6 +105,7 @@ add_executable(frontend
         ${APP_ICON_RESOURCE}
         src/api/ApiClient.cpp
         src/api/ApiClientProgression.cpp
+        src/api/ApiClientIdeas.cpp
         src/api/ApiClientWork.cpp
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
@@ -131,7 +132,10 @@ add_executable(frontend
         src/ui/CommentUi.h
         src/ui/TaskView.cpp
         src/ui/TaskView.h
+        src/ui/IdeaView.cpp
+        src/ui/IdeaView.h
         src/models/Task.h
+        src/models/Idea.h
         src/models/DomainNode.h
         src/models/Document.h
         src/ui/LearningView.cpp
@@ -199,6 +203,7 @@ qt_add_resources(frontend "icons"
         assets/icons/task-white.png
         assets/icons/attach-file.png
         assets/icons/star.png
+        assets/icons/incubator.png
         assets/icons/pursuit.png
         assets/icons/flashcards-white.png
         assets/icons/calendar.png

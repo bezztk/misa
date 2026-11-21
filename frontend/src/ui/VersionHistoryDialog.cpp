@@ -44,14 +44,17 @@ static QString knowledgeLevelName(
     return QString::number(id);
 }
 
-static QString fieldName(const QString &name) {
+static QString fieldName(const QString &name, const bool idea) {
     if (name == "name") return "Name";
+    if (name == "title") return "Titel";
+    if (name == "content") return "Beschreibung";
+    if (name == "phase_id") return "Phase";
     if (name == "knowledge_level_id") return "Kenntnisstufe";
     if (name == "completeness_level_id") return "Vollständigkeit";
     if (name == "flashcard_status_id") return "Lernkartenstatus";
     if (name == "verification_status_id") return "Verifizierungsstatus";
     if (name == "verification_level_id") return "Verifizierungsniveau";
-    if (name == "state_id") return "Status";
+    if (name == "state_id") return idea ? "Ideenstatus" : "Status";
     if (name == "priority_id") return "Priorität";
     if (name == "psychomotor_level_id") return "Psychomotorisches Niveau";
     if (name == "front") return "Vorderseite";
@@ -64,7 +67,8 @@ static QString fieldName(const QString &name) {
 static QString fieldValue(
     const Metadata &metadata,
     const QString &field,
-    const QJsonValue &value
+    const QJsonValue &value,
+    const bool idea
 ) {
     if (field == "knowledge_level_id") {
         return knowledgeLevelName(metadata.knowledgeLevels, value);
@@ -82,7 +86,13 @@ static QString fieldValue(
         return metadataName(metadata.documentVerificationLevels, value);
     }
     if (field == "state_id") {
-        return metadataName(metadata.systemTaskStates, value);
+        return metadataName(
+            idea ? metadata.ideaStates : metadata.systemTaskStates,
+            value
+        );
+    }
+    if (field == "phase_id") {
+        return metadataName(metadata.ideaPhases, value);
     }
     if (field == "priority_id") {
         return metadataName(metadata.systemTaskPriorities, value);
@@ -115,7 +125,8 @@ void showVersionHistoryDialog(
     QWidget *parent,
     ApiClient &apiClient,
     const int entityId,
-    const QString &title
+    const QString &title,
+    const bool idea
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle(title);
@@ -142,7 +153,7 @@ void showVersionHistoryDialog(
         &apiClient,
         &ApiClient::entityFieldVersionsReceived,
         &dialog,
-        [&apiClient, entityId, tree](
+        [&apiClient, entityId, tree, idea](
             const int receivedEntityId,
             const std::vector<EntityFieldVersion> &versions
         ) {
@@ -163,14 +174,18 @@ void showVersionHistoryDialog(
                     version.changedAt.toLocalTime().toString("dd.MM.yyyy HH:mm:ss")
                 );
                 item->setText(1, QString::number(version.version));
-                item->setText(2, fieldName(version.fieldName));
+                item->setText(2, fieldName(version.fieldName, idea));
                 item->setText(
                     3,
-                    fieldValue(apiClient.metadata(), version.fieldName, version.oldValue)
+                    fieldValue(
+                        apiClient.metadata(), version.fieldName, version.oldValue, idea
+                    )
                 );
                 item->setText(
                     4,
-                    fieldValue(apiClient.metadata(), version.fieldName, version.newValue)
+                    fieldValue(
+                        apiClient.metadata(), version.fieldName, version.newValue, idea
+                    )
                 );
             }
         }

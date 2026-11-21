@@ -10,6 +10,7 @@ struct MetadataItem {
     int id;
     QString name;
     std::optional<QString> displayName{};
+    std::optional<QString> description{};
     std::optional<QString> color{};
     std::optional<QByteArray> icon{};
 };
@@ -38,6 +39,8 @@ struct Metadata {
     std::vector<MetadataItem> documentVerificationStatuses;
     std::vector<MetadataItem> documentVerificationLevels;
     std::vector<FlashcardRetentionClass> flashcardRetentionClasses;
+    std::vector<MetadataItem> ideaPhases;
+    std::vector<MetadataItem> ideaStates;
     std::vector<MetadataItem> systemTaskGroups;
     std::vector<MetadataItem> systemTaskStates;
     std::vector<MetadataItem> systemTaskPriorities;

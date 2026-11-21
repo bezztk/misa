@@ -13,6 +13,7 @@ pub enum EntityType {
     Flashcard = 6,
     CalendarEntry = 7,
     Attachment = 8,
+    Idea = 9,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]

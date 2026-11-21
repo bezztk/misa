@@ -23,6 +23,7 @@ private:
     void positionToast();
     void openTasks();
     void openCalendar();
+    void openIdeas();
     void openLearning();
     void openDomainNode(int nodeId, const QString &title);
 

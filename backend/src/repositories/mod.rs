@@ -5,6 +5,7 @@ pub mod document_repository;
 pub mod domain_repository;
 pub mod entity_repository;
 pub mod flashcard_repository;
+pub mod idea_repository;
 pub mod metadata_repository;
 pub mod progression_repository;
 pub mod pursuit_repository;

@@ -10,7 +10,8 @@ void showVersionHistoryDialog(
     QWidget *parent,
     ApiClient &apiClient,
     int entityId,
-    const QString &title
+    const QString &title,
+    bool idea = false
 );
 
 void showDocumentVersionHistoryDialog(

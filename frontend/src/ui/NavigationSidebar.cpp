@@ -242,6 +242,25 @@ CalendarNavigationSection::CalendarNavigationSection(QWidget *parent)
             this, &CalendarNavigationSection::openRequested);
 }
 
+IdeasNavigationSection::IdeasNavigationSection(
+    ApiClient &apiClient,
+    QWidget *parent
+) : NavigationCard(
+        "Ideeninkubator", ":/assets/icons/incubator.png", false, parent
+    ) {
+    setSubtext("Ideen werden geladen …");
+    connect(&apiClient, &ApiClient::ideasReceived, this,
+            [this](const std::vector<Idea> &ideas) {
+                const int count = static_cast<int>(std::count_if(
+                    ideas.begin(), ideas.end(),
+                    [](const Idea &idea) { return idea.stateId == 1; }
+                ));
+                setSubtext(QString::number(count) + " aktive Ideen");
+            });
+    connect(this, &NavigationCard::activated,
+            this, &IdeasNavigationSection::openRequested);
+}
+
 LearningNavigationSection::LearningNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
@@ -310,6 +329,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
 
     auto *tasksSection = new TasksNavigationSection(apiClient, cardContainer);
     auto *calendarSection = new CalendarNavigationSection(cardContainer);
+    auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
@@ -317,6 +337,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
 
     cardLayout->addWidget(tasksSection);
     cardLayout->addWidget(calendarSection);
+    cardLayout->addWidget(ideasSection);
     cardLayout->addWidget(learningSection);
     cardLayout->addWidget(actualizationSection);
     cardLayout->addStretch();
@@ -327,6 +348,8 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openTasksRequested);
     connect(calendarSection, &CalendarNavigationSection::openRequested,
             this, &NavigationSidebar::openCalendarRequested);
+    connect(ideasSection, &IdeasNavigationSection::openRequested,
+            this, &NavigationSidebar::openIdeasRequested);
     connect(learningSection, &LearningNavigationSection::openRequested,
             this, &NavigationSidebar::openLearningRequested);
     connect(actualizationSection,

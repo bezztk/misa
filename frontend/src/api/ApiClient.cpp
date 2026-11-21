@@ -112,6 +112,9 @@ static MetadataItem parseMetadataItem(const QJsonValue &value) {
     if (!object["display_name"].isNull()) {
         item.displayName = object["display_name"].toString();
     }
+    if (!object["description"].isNull()) {
+        item.description = object["description"].toString();
+    }
     if (!object["color"].isNull()) {
         item.color = object["color"].toString();
     }
@@ -406,6 +409,8 @@ void ApiClient::getMetadata() {
         metadata.documentFlashcardStatuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());
         metadata.documentVerificationStatuses = parseMetadataItems(object["document_verification_statuses"].toArray());
         metadata.documentVerificationLevels = parseMetadataItems(object["document_verification_levels"].toArray());
+        metadata.ideaPhases = parseMetadataItems(object["idea_phases"].toArray());
+        metadata.ideaStates = parseMetadataItems(object["idea_states"].toArray());
         metadata.systemTaskGroups = parseMetadataItems(object["systemtask_groups"].toArray());
         metadata.systemTaskStates = parseMetadataItems(object["systemtask_states"].toArray());
         metadata.systemTaskPriorities = parseMetadataItems(object["systemtask_priorities"].toArray());

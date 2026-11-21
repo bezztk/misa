@@ -2,6 +2,7 @@
 
 #include "CalendarView.h"
 #include "DomainView.h"
+#include "IdeaView.h"
 #include "LearningView.h"
 #include "NavigationSidebar.h"
 #include "TaskView.h"
@@ -114,6 +115,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openTasks);
     connect(navigation, &NavigationSidebar::openCalendarRequested,
             this, &MainWindow::openCalendar);
+    connect(navigation, &NavigationSidebar::openIdeasRequested,
+            this, &MainWindow::openIdeas);
     connect(navigation, &NavigationSidebar::openLearningRequested,
             this, &MainWindow::openLearning);
     connect(navigation, &NavigationSidebar::openDomainNodeRequested,
@@ -148,6 +151,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
+    const auto refreshIdeas = [this] { apiClient.getIdeas(); };
+    connect(&apiClient, &ApiClient::ideaCreated, this, refreshIdeas);
+    connect(&apiClient, &ApiClient::ideaUpdated, this, refreshIdeas);
+    connect(&apiClient, &ApiClient::ideaDeleted, this, refreshIdeas);
     connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
             [this](const int) { apiClient.getDueFlashcards(); });
     connect(&apiClient, &ApiClient::flashcardRated, this,
@@ -182,6 +189,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             [this] { showToast("Kalendereintrag erstellt"); });
     connect(&apiClient, &ApiClient::calendarEntryUpdated, this,
             [this] { showToast("Kalendereintrag aktualisiert"); });
+    connect(&apiClient, &ApiClient::ideaCreated, this,
+            [this] { showToast("Idee erstellt"); });
+    connect(&apiClient, &ApiClient::ideaUpdated, this,
+            [this] { showToast("Idee aktualisiert"); });
     connect(&apiClient, &ApiClient::flashcardCreated, this,
             [this] { showToast("Lernkarte erstellt"); });
     connect(&apiClient, &ApiClient::flashcardUpdated, this,
@@ -206,6 +217,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     openTasks();
     apiClient.getMetadata();
     apiClient.getTasks();
+    apiClient.getIdeas();
     apiClient.getDomainTree();
     apiClient.getDueFlashcardCount();
     startupComplete = true;
@@ -231,6 +243,21 @@ void MainWindow::openCalendar() {
     workspaceManager->openView("calendar", "Kalender", [this] {
         return new CalendarView(apiClient);
     });
+}
+
+void MainWindow::openIdeas() {
+    bool created = false;
+    workspaceManager->openView("ideas", "Ideen", [this, &created] {
+        created = true;
+        auto *view = new IdeaView(apiClient);
+        connect(&apiClient, &ApiClient::metadataReceived,
+                view, &IdeaView::refreshMetadata);
+        view->refreshMetadata();
+        return view;
+    });
+    if (created) {
+        apiClient.getIdeas();
+    }
 }
 
 void MainWindow::openLearning() {

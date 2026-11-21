@@ -12,6 +12,7 @@
 #include "../models/CalendarEntry.h"
 #include "../models/EntityFieldVersion.h"
 #include "../models/Comment.h"
+#include "../models/Idea.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 
@@ -35,6 +36,10 @@ signals:
     void calendarEntryUpdateFailed(int id);
     void calendarEntryDeleted();
     void routineExecutionsGenerated();
+    void ideasReceived(const std::vector<Idea>& ideas);
+    void ideaCreated();
+    void ideaUpdated();
+    void ideaDeleted();
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void dueFlashcardCountReceived(int count);
     void dueFlashcardsLoadFailed();
@@ -107,6 +112,10 @@ public:
     void updateCalendarEntry(int id, const CreateCalendarEntry& entry);
     void deleteCalendarEntry(int id);
     void generateRoutineExecutions();
+    void getIdeas();
+    void createIdea(const CreateIdea& idea);
+    void updateIdeaField(int id, IdeaField field, const QJsonValue& value);
+    void deleteIdea(int id);
 
     void getDueFlashcards();
     void getDueFlashcardCount();
@@ -160,6 +169,7 @@ private:
     static constexpr auto PATH_TASKS = "/tasks";
     static constexpr auto PATH_METADATA = "/metadata";
     static constexpr auto PATH_CALENDAR_ENTRIES = "/calendar-entries";
+    static constexpr auto PATH_IDEAS = "/ideas";
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
 
     static QUrl buildUrl(const QString& path);

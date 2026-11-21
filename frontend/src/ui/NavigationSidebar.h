@@ -66,6 +66,16 @@ signals:
     void openRequested();
 };
 
+class IdeasNavigationSection final : public NavigationCard {
+    Q_OBJECT
+
+public:
+    explicit IdeasNavigationSection(ApiClient &apiClient, QWidget *parent = nullptr);
+
+signals:
+    void openRequested();
+};
+
 class LearningNavigationSection final : public NavigationCard {
     Q_OBJECT
 
@@ -110,6 +120,7 @@ public:
 signals:
     void openTasksRequested();
     void openCalendarRequested();
+    void openIdeasRequested();
     void openLearningRequested();
     void openDomainNodeRequested(int nodeId, const QString &title);
 

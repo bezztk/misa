@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::models::flashcard::{FlashcardRetentionClass, FlashcardReviewState};
+use crate::models::idea::{IdeaPhase, IdeaState};
 use crate::models::pursuit::PursuitRequirementType;
 use crate::models::routine::SystemTaskRoutineExecutionState;
 use crate::models::session::{SystemTaskSessionPreset, SystemTaskSessionState};
@@ -45,6 +46,8 @@ pub struct Metadata {
     pub document_verification_levels: Vec<DocumentVerificationLevel>,
     pub flashcard_retention_classes: Vec<FlashcardRetentionClass>,
     pub flashcard_review_states: Vec<FlashcardReviewState>,
+    pub idea_phases: Vec<IdeaPhase>,
+    pub idea_states: Vec<IdeaState>,
     pub pursuit_requirement_types: Vec<PursuitRequirementType>,
     pub systemtask_groups: Vec<SystemTaskGroup>,
     pub systemtask_states: Vec<SystemTaskState>,
