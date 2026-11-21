@@ -98,10 +98,13 @@ class RssNavigationSection final : public NavigationCard {
     Q_OBJECT
 
 public:
-    explicit RssNavigationSection(QWidget *parent = nullptr);
+    explicit RssNavigationSection(ApiClient &apiClient, QWidget *parent = nullptr);
 
 signals:
     void openRequested();
+    void createFeedRequested();
+    void createCategoryRequested();
+    void refreshAllRequested();
 };
 
 class ActualizationNavigationSection final : public NavigationCard {
@@ -141,6 +144,9 @@ signals:
     void openIdeasRequested();
     void openLearningRequested();
     void openRssRequested();
+    void createRssFeedRequested();
+    void createRssCategoryRequested();
+    void refreshAllRssRequested();
     void createTaskRequested();
     void createCalendarEntryRequested();
     void refreshCalendarRequested();

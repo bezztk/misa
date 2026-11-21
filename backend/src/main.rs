@@ -15,9 +15,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Database connection established!");
 
-    let rss_client = services::rss_service::create_http_client()?;
-    services::rss_service::start_fetch_loop(pool.clone(), rss_client);
-
     let app = create_router(pool.clone());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;

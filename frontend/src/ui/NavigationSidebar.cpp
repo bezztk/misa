@@ -337,10 +337,38 @@ LearningNavigationSection::LearningNavigationSection(
             });
 }
 
-RssNavigationSection::RssNavigationSection(QWidget *parent)
-    : NavigationCard("RSS", ":/assets/icons/file.png", false, parent) {
+RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent)
+    : NavigationCard("RSS", ":/assets/icons/rss.png", false, parent) {
+    setSubtext("Beiträge werden geladen …");
+    connect(&apiClient, &ApiClient::rssEntriesReceived, this,
+            [this](const std::vector<RssEntry> &entries) {
+                const int unread = static_cast<int>(std::count_if(
+                    entries.begin(), entries.end(),
+                    [](const RssEntry &entry) { return !entry.isRead; }
+                ));
+                setSubtext(
+                    unread == 1
+                        ? "1 ungelesener Beitrag"
+                        : QString::number(unread) + " ungelesene Beiträge"
+                );
+            });
     connect(this, &NavigationCard::activated,
             this, &RssNavigationSection::openRequested);
+    connect(this, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                QAction *createFeedAction = menu.addAction("Feed abonnieren");
+                QAction *createCategoryAction = menu.addAction("Kategorie erstellen");
+                QAction *refreshAction = menu.addAction("Alle Feeds aktualisieren");
+                QAction *selected = menu.exec(position);
+                if (selected == createFeedAction) {
+                    emit createFeedRequested();
+                } else if (selected == createCategoryAction) {
+                    emit createCategoryRequested();
+                } else if (selected == refreshAction) {
+                    emit refreshAllRequested();
+                }
+            });
 }
 
 ActualizationNavigationSection::ActualizationNavigationSection(
@@ -389,7 +417,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *calendarSection = new CalendarNavigationSection(cardContainer);
     auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
-    auto *rssSection = new RssNavigationSection(cardContainer);
+    auto *rssSection = new RssNavigationSection(apiClient, cardContainer);
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
     );
@@ -414,6 +442,12 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openLearningRequested);
     connect(rssSection, &RssNavigationSection::openRequested,
             this, &NavigationSidebar::openRssRequested);
+    connect(rssSection, &RssNavigationSection::createFeedRequested,
+            this, &NavigationSidebar::createRssFeedRequested);
+    connect(rssSection, &RssNavigationSection::createCategoryRequested,
+            this, &NavigationSidebar::createRssCategoryRequested);
+    connect(rssSection, &RssNavigationSection::refreshAllRequested,
+            this, &NavigationSidebar::refreshAllRssRequested);
     connect(tasksSection, &TasksNavigationSection::createRequested,
             this, &NavigationSidebar::createTaskRequested);
     connect(calendarSection, &CalendarNavigationSection::createRequested,

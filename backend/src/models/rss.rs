@@ -4,11 +4,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct RssFeed {
     pub id: i32,
+    pub category_id: Option<i32>,
     pub url: String,
     pub title: String,
     pub last_fetched_at: Option<DateTime<Utc>>,
     pub enabled: bool,
     pub is_hidden: bool,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct RssCategory {
+    pub id: i32,
+    pub name: String,
+    pub icon: Option<Vec<u8>>,
+    pub color: String,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
@@ -31,7 +40,20 @@ pub struct CreateRssFeedRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateRssFeedRequest {
+    pub url: String,
     pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignRssFeedCategoryRequest {
+    pub category_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveRssCategoryRequest {
+    pub name: String,
+    pub icon: Option<Vec<u8>>,
+    pub color: String,
 }
 
 #[derive(Debug, Deserialize)]

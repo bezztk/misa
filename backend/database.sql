@@ -678,9 +678,18 @@ CREATE UNIQUE INDEX unique_active_session_segment
 --endregion Systemaufgaben
 
 --region RSS
+CREATE TABLE rss_categories
+(
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name  varchar(100) NOT NULL UNIQUE,
+    icon  bytea,
+    color varchar(7)   NOT NULL
+);
+
 CREATE TABLE rss_feeds
 (
     id              integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    category_id     integer REFERENCES rss_categories (id) ON DELETE SET NULL,
     url             text        NOT NULL UNIQUE,
     title           text        NOT NULL,
     last_fetched_at timestamptz,

@@ -8,7 +8,6 @@
 #include <vector>
 
 class QLabel;
-class QLineEdit;
 class QListWidget;
 class QPoint;
 class QPushButton;
@@ -19,31 +18,39 @@ class RssView final : public QWidget {
 public:
     explicit RssView(ApiClient &apiClient, QWidget *parent = nullptr);
     void refresh();
+    void openCreateFeedDialog();
+    void openCreateCategoryDialog();
 
 private:
-    void renderFeeds();
-    void renderEntries();
+    void renderNavigation();
+    void renderArticles();
     void renderDetail();
-    void subscribe();
-    void showFeedContextMenu(const QPoint &position);
-    void showEntryContextMenu(const QPoint &position);
+    void updateCardSelection();
+    void openCategoryDialog(const RssCategory *category);
+    void openFeedDialog(const RssFeed &feed);
+    void showNavigationContextMenu(const QPoint &position);
     void openSelectedEntry();
     void toggleSelectedEntryRead();
     RssEntry *selectedEntry();
     RssFeed *feedById(int id);
+    RssCategory *categoryById(int id);
+    int unreadCount(std::optional<int> feedId = std::nullopt) const;
 
     ApiClient &apiClient;
     std::vector<RssFeed> feeds;
+    std::vector<RssCategory> categories;
     std::vector<RssEntry> entries;
-    QLineEdit *urlEdit;
-    QListWidget *feedList;
-    QTreeWidget *entryList;
+    QTreeWidget *navigationTree;
+    QListWidget *articleList;
     QLabel *detailTitle;
+    QLabel *detailSource;
     QLabel *detailUrl;
     QLabel *detailDate;
     QTextBrowser *detailSummary;
     QPushButton *openButton;
     QPushButton *readButton;
+    int selectedNavigationKind = 0;
+    int selectedNavigationId = 0;
 };
 
 #endif // FRONTEND_RSSVIEW_H

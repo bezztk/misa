@@ -100,10 +100,14 @@ signals:
     void commentUpdated(const Comment& comment);
     void commentDeleted(int id);
     void rssFeedsReceived(const std::vector<RssFeed>& feeds);
+    void rssCategoriesReceived(const std::vector<RssCategory>& categories);
     void rssEntriesReceived(const std::vector<RssEntry>& entries);
     void rssFeedCreated();
     void rssFeedUpdated();
     void rssFeedDeleted();
+    void rssFeedsRefreshed();
+    void rssFeedEntriesRead();
+    void rssCategoriesChanged();
     void rssEntryUpdated();
 
 public:
@@ -125,8 +129,19 @@ public:
     void deleteIdea(int id);
     void getRssFeeds();
     void createRssFeed(const QString& url);
-    void updateRssFeedEnabled(int id, bool enabled);
+    void updateRssFeed(int id, const QString& url, bool enabled);
+    void assignRssFeedCategory(int id, std::optional<int> categoryId);
+    void refreshRssFeed(int id);
+    void refreshAllRssFeeds();
+    void markRssFeedRead(int id);
     void deleteRssFeed(int id);
+    void getRssCategories();
+    void createRssCategory(const QString& name, const std::optional<QByteArray>& icon,
+                           const QString& color);
+    void updateRssCategory(int id, const QString& name,
+                           const std::optional<QByteArray>& icon,
+                           const QString& color);
+    void deleteRssCategory(int id);
     void getRssEntries();
     void updateRssEntryRead(int id, bool isRead);
 
@@ -186,6 +201,7 @@ private:
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
     static constexpr auto PATH_RSS_FEEDS = "/rss/feeds";
     static constexpr auto PATH_RSS_ENTRIES = "/rss/entries";
+    static constexpr auto PATH_RSS_CATEGORIES = "/rss/categories";
 
     static QUrl buildUrl(const QString& path);
     void requestDueFlashcards(bool includeFlashcards);

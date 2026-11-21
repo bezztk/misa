@@ -1,4 +1,6 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
+use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use feed_rs::model::Entry;
@@ -9,13 +11,14 @@ use crate::models::rss::RssFeed;
 use crate::repositories::rss_repository::{self, FetchedEntry};
 
 const MAX_FEED_SIZE: usize = 5 * 1024 * 1024;
-const FETCH_INTERVAL: Duration = Duration::from_secs(30 * 60);
+static ACTIVE_FETCHES: LazyLock<Mutex<HashSet<i32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 #[derive(Debug)]
 pub enum RssFetchError {
     Http(reqwest::Error),
     Parse(feed_rs::parser::ParseFeedError),
     Database(sqlx::Error),
+    AlreadyFetching,
     TooLarge,
 }
 
@@ -25,6 +28,7 @@ impl Display for RssFetchError {
             Self::Http(error) => write!(formatter, "HTTP request failed: {error}"),
             Self::Parse(error) => write!(formatter, "Feed could not be parsed: {error}"),
             Self::Database(error) => write!(formatter, "Feed could not be saved: {error}"),
+            Self::AlreadyFetching => write!(formatter, "Feed is already being fetched"),
             Self::TooLarge => write!(formatter, "Feed exceeds the 5 MiB size limit"),
         }
     }
@@ -45,6 +49,7 @@ pub async fn fetch_feed(
     client: &Client,
     feed: &RssFeed,
 ) -> Result<(), RssFetchError> {
+    let _fetch_guard = FetchGuard::acquire(feed.id).ok_or(RssFetchError::AlreadyFetching)?;
     let mut response = client
         .get(&feed.url)
         .send()
@@ -80,6 +85,26 @@ pub async fn fetch_feed(
     rss_repository::save_fetched_feed(pool, feed.id, title, &entries)
         .await
         .map_err(RssFetchError::Database)
+}
+
+struct FetchGuard {
+    feed_id: i32,
+}
+
+impl FetchGuard {
+    fn acquire(feed_id: i32) -> Option<Self> {
+        let mut active_fetches = ACTIVE_FETCHES.lock().unwrap();
+        if !active_fetches.insert(feed_id) {
+            return None;
+        }
+        Some(Self { feed_id })
+    }
+}
+
+impl Drop for FetchGuard {
+    fn drop(&mut self) {
+        ACTIVE_FETCHES.lock().unwrap().remove(&self.feed_id);
+    }
 }
 
 fn map_entry(entry: &Entry) -> FetchedEntry {
@@ -128,23 +153,12 @@ fn map_entry(entry: &Entry) -> FetchedEntry {
     }
 }
 
-pub fn start_fetch_loop(pool: PgPool, client: Client) {
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(FETCH_INTERVAL);
-        loop {
-            interval.tick().await;
-            let feeds = match rss_repository::get_active_feeds(&pool).await {
-                Ok(feeds) => feeds,
-                Err(error) => {
-                    eprintln!("RSS feeds could not be loaded: {error}");
-                    continue;
-                }
-            };
-            for feed in feeds {
-                if let Err(error) = fetch_feed(&pool, &client, &feed).await {
-                    eprintln!("RSS feed {} failed: {error}", feed.url);
-                }
-            }
+pub async fn refresh_active_feeds(pool: &PgPool, client: &Client) -> Result<(), sqlx::Error> {
+    let feeds = rss_repository::get_active_feeds(pool).await?;
+    for feed in feeds {
+        if let Err(error) = fetch_feed(pool, client, &feed).await {
+            eprintln!("RSS feed {} failed: {error}", feed.url);
         }
-    });
+    }
+    Ok(())
 }

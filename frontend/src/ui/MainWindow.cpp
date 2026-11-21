@@ -122,6 +122,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openLearning);
     connect(navigation, &NavigationSidebar::openRssRequested,
             this, &MainWindow::openRss);
+    connect(navigation, &NavigationSidebar::createRssFeedRequested,
+            this, [this] { openRss()->openCreateFeedDialog(); });
+    connect(navigation, &NavigationSidebar::createRssCategoryRequested,
+            this, [this] { openRss()->openCreateCategoryDialog(); });
+    connect(navigation, &NavigationSidebar::refreshAllRssRequested,
+            &apiClient, &ApiClient::refreshAllRssFeeds);
     connect(navigation, &NavigationSidebar::createTaskRequested,
             this, [this] { openTasks()->openCreateDialog(); });
     connect(navigation, &NavigationSidebar::createCalendarEntryRequested,
@@ -168,6 +174,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::ideaCreated, this, refreshIdeas);
     connect(&apiClient, &ApiClient::ideaUpdated, this, refreshIdeas);
     connect(&apiClient, &ApiClient::ideaDeleted, this, refreshIdeas);
+    const auto refreshRss = [this] {
+        apiClient.getRssCategories();
+        apiClient.getRssFeeds();
+        apiClient.getRssEntries();
+    };
+    connect(&apiClient, &ApiClient::rssFeedCreated, this, refreshRss);
+    connect(&apiClient, &ApiClient::rssFeedUpdated, this, refreshRss);
+    connect(&apiClient, &ApiClient::rssFeedDeleted, this, refreshRss);
+    connect(&apiClient, &ApiClient::rssFeedsRefreshed, this, refreshRss);
+    connect(&apiClient, &ApiClient::rssFeedEntriesRead, this, refreshRss);
+    connect(&apiClient, &ApiClient::rssCategoriesChanged, this, refreshRss);
+    connect(&apiClient, &ApiClient::rssEntryUpdated, this, refreshRss);
     connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
             [this](const int) { apiClient.getDueFlashcards(); });
     connect(&apiClient, &ApiClient::flashcardRated, this,
@@ -233,6 +251,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     apiClient.getIdeas();
     apiClient.getDomainTree();
     apiClient.getDueFlashcardCount();
+    apiClient.getRssCategories();
+    apiClient.getRssFeeds();
+    apiClient.getRssEntries();
+    apiClient.refreshAllRssFeeds();
     startupComplete = true;
 }
 

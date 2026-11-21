@@ -256,6 +256,8 @@ qt_add_resources(frontend "icons"
         assets/icons/calendar.png
         assets/icons/folder.png
         assets/icons/file.png
+        assets/icons/rss.png
+        assets/icons/open.png
         assets/icons/clock.png
         assets/icons/add.png
         assets/icons/edit.png

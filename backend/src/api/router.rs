@@ -16,6 +16,30 @@ pub fn create_router(pool: PgPool) -> Router {
             "/rss/feeds/{id}",
             axum::routing::patch(rss_handler::update_feed).delete(rss_handler::delete_feed),
         )
+        .route(
+            "/rss/feeds/refresh",
+            axum::routing::post(rss_handler::refresh_all_feeds),
+        )
+        .route(
+            "/rss/feeds/{id}/refresh",
+            axum::routing::post(rss_handler::refresh_feed),
+        )
+        .route(
+            "/rss/feeds/{id}/category",
+            axum::routing::put(rss_handler::assign_feed_category),
+        )
+        .route(
+            "/rss/feeds/{id}/read",
+            axum::routing::post(rss_handler::mark_feed_read),
+        )
+        .route(
+            "/rss/categories",
+            get(rss_handler::get_categories).post(rss_handler::create_category),
+        )
+        .route(
+            "/rss/categories/{id}",
+            axum::routing::put(rss_handler::update_category).delete(rss_handler::delete_category),
+        )
         .route("/rss/entries", get(rss_handler::get_entries))
         .route(
             "/rss/entries/{id}",
