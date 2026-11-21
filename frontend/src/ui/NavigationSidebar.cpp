@@ -337,6 +337,12 @@ LearningNavigationSection::LearningNavigationSection(
             });
 }
 
+RssNavigationSection::RssNavigationSection(QWidget *parent)
+    : NavigationCard("RSS", ":/assets/icons/file.png", false, parent) {
+    connect(this, &NavigationCard::activated,
+            this, &RssNavigationSection::openRequested);
+}
+
 ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
@@ -383,6 +389,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *calendarSection = new CalendarNavigationSection(cardContainer);
     auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
+    auto *rssSection = new RssNavigationSection(cardContainer);
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
     );
@@ -391,6 +398,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     cardLayout->addWidget(calendarSection);
     cardLayout->addWidget(ideasSection);
     cardLayout->addWidget(learningSection);
+    cardLayout->addWidget(rssSection);
     cardLayout->addWidget(actualizationSection);
     cardLayout->addStretch();
     scrollArea->setWidget(cardContainer);
@@ -404,6 +412,8 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openIdeasRequested);
     connect(learningSection, &LearningNavigationSection::openRequested,
             this, &NavigationSidebar::openLearningRequested);
+    connect(rssSection, &RssNavigationSection::openRequested,
+            this, &NavigationSidebar::openRssRequested);
     connect(tasksSection, &TasksNavigationSection::createRequested,
             this, &NavigationSidebar::createTaskRequested);
     connect(calendarSection, &CalendarNavigationSection::createRequested,

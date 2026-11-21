@@ -10,5 +10,6 @@ pub mod metadata_repository;
 pub mod progression_repository;
 pub mod pursuit_repository;
 pub mod routine_repository;
+pub mod rss_repository;
 pub mod skill_repository;
 pub mod task_repository;

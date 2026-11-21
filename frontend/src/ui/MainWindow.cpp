@@ -5,6 +5,7 @@
 #include "IdeaView.h"
 #include "LearningView.h"
 #include "NavigationSidebar.h"
+#include "RssView.h"
 #include "TaskView.h"
 #include "WorkspaceManager.h"
 
@@ -119,6 +120,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openIdeas);
     connect(navigation, &NavigationSidebar::openLearningRequested,
             this, &MainWindow::openLearning);
+    connect(navigation, &NavigationSidebar::openRssRequested,
+            this, &MainWindow::openRss);
     connect(navigation, &NavigationSidebar::createTaskRequested,
             this, [this] { openTasks()->openCreateDialog(); });
     connect(navigation, &NavigationSidebar::createCalendarEntryRequested,
@@ -288,6 +291,20 @@ LearningView *MainWindow::openLearning() {
             return view;
         }
     ));
+}
+
+RssView *MainWindow::openRss() {
+    bool created = false;
+    auto *view = static_cast<RssView *>(workspaceManager->openView(
+        "rss", "RSS", [this, &created] {
+            created = true;
+            return new RssView(apiClient);
+        }
+    ));
+    if (created) {
+        view->refresh();
+    }
+    return view;
 }
 
 void MainWindow::openDomainNode(const int nodeId, const QString &title) {

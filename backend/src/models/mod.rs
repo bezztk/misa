@@ -10,6 +10,7 @@ pub mod metadata;
 pub mod progression;
 pub mod pursuit;
 pub mod routine;
+pub mod rss;
 pub mod session;
 pub mod skill;
 pub mod system_task;

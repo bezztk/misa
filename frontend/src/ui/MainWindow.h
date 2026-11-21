@@ -13,6 +13,7 @@ class TaskView;
 class CalendarView;
 class IdeaView;
 class LearningView;
+class RssView;
 
 class MainWindow : public QMainWindow {
 public:
@@ -29,6 +30,7 @@ private:
     CalendarView *openCalendar();
     IdeaView *openIdeas();
     LearningView *openLearning();
+    RssView *openRss();
     void openDomainNode(int nodeId, const QString &title);
 
     ApiClient apiClient;

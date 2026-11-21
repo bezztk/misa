@@ -143,6 +143,7 @@ add_executable(frontend
         src/api/ApiClient.cpp
         src/api/ApiClientProgression.cpp
         src/api/ApiClientIdeas.cpp
+        src/api/ApiClientRss.cpp
         src/api/ApiClientWork.cpp
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
@@ -171,8 +172,11 @@ add_executable(frontend
         src/ui/TaskView.h
         src/ui/IdeaView.cpp
         src/ui/IdeaView.h
+        src/ui/RssView.cpp
+        src/ui/RssView.h
         src/models/Task.h
         src/models/Idea.h
+        src/models/Rss.h
         src/models/DomainNode.h
         src/models/Document.h
         src/ui/LearningView.cpp

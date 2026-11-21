@@ -13,6 +13,7 @@
 #include "../models/EntityFieldVersion.h"
 #include "../models/Comment.h"
 #include "../models/Idea.h"
+#include "../models/Rss.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 
@@ -98,6 +99,12 @@ signals:
     void commentCreated(int entityId, const Comment& comment);
     void commentUpdated(const Comment& comment);
     void commentDeleted(int id);
+    void rssFeedsReceived(const std::vector<RssFeed>& feeds);
+    void rssEntriesReceived(const std::vector<RssEntry>& entries);
+    void rssFeedCreated();
+    void rssFeedUpdated();
+    void rssFeedDeleted();
+    void rssEntryUpdated();
 
 public:
     explicit ApiClient(QObject *parent = nullptr);
@@ -116,6 +123,12 @@ public:
     void createIdea(const CreateIdea& idea);
     void updateIdeaField(int id, IdeaField field, const QJsonValue& value);
     void deleteIdea(int id);
+    void getRssFeeds();
+    void createRssFeed(const QString& url);
+    void updateRssFeedEnabled(int id, bool enabled);
+    void deleteRssFeed(int id);
+    void getRssEntries();
+    void updateRssEntryRead(int id, bool isRead);
 
     void getDueFlashcards();
     void getDueFlashcardCount();
@@ -171,6 +184,8 @@ private:
     static constexpr auto PATH_CALENDAR_ENTRIES = "/calendar-entries";
     static constexpr auto PATH_IDEAS = "/ideas";
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
+    static constexpr auto PATH_RSS_FEEDS = "/rss/feeds";
+    static constexpr auto PATH_RSS_ENTRIES = "/rss/entries";
 
     static QUrl buildUrl(const QString& path);
     void requestDueFlashcards(bool includeFlashcards);

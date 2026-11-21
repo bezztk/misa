@@ -1,13 +1,26 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
     entity_handler, flashcard_handler, idea_handler, metadata_handler, progression_handler,
-    pursuit_handler, routine_handler, skill_handler, task_handler,
+    pursuit_handler, routine_handler, rss_handler, skill_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route(
+            "/rss/feeds",
+            get(rss_handler::get_feeds).post(rss_handler::create_feed),
+        )
+        .route(
+            "/rss/feeds/{id}",
+            axum::routing::patch(rss_handler::update_feed).delete(rss_handler::delete_feed),
+        )
+        .route("/rss/entries", get(rss_handler::get_entries))
+        .route(
+            "/rss/entries/{id}",
+            axum::routing::patch(rss_handler::update_entry),
+        )
         .route(
             "/routines/generate-executions",
             axum::routing::post(routine_handler::generate_executions),
