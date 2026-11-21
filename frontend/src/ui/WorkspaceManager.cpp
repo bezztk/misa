@@ -4,10 +4,41 @@
 #include "WorkspaceSplitter.h"
 
 #include <QApplication>
+#include <QIcon>
 #include <QMenu>
 #include <QVBoxLayout>
 
 #include <memory>
+
+static constexpr auto TAB_CONTEXT_MENU_STYLE = R"(
+    QMenu {
+        min-width: 190px;
+        padding: 4px 0;
+        color: #D8D8D8;
+        background: #252525;
+        border: 1px solid #414141;
+        icon-size: 16px;
+    }
+    QMenu::item {
+        height: 28px;
+        margin: 0 4px;
+        padding: 0 28px 0 32px;
+        background: transparent;
+        border: none;
+    }
+    QMenu::item:selected {
+        color: #F0F0F0;
+        background: #343434;
+    }
+    QMenu::item:disabled {
+        color: #777777;
+    }
+    QMenu::separator {
+        height: 1px;
+        margin: 4px 8px;
+        background: #414141;
+    }
+)";
 
 WorkspaceManager::WorkspaceManager(QWidget *parent) : QWidget(parent) {
     workspaceLayout = new QVBoxLayout(this);
@@ -244,10 +275,21 @@ void WorkspaceManager::showTabContextMenu(
     const QPoint &globalPosition
 ) {
     QMenu menu(this);
-    QAction *closeAction = menu.addAction("Schließen");
+    menu.setObjectName("workspaceTabContextMenu");
+    menu.setStyleSheet(TAB_CONTEXT_MENU_STYLE);
+    QAction *closeAction = menu.addAction(
+        QIcon(":/assets/icons/close.png"),
+        "Schließen"
+    );
     menu.addSeparator();
-    QAction *splitRightAction = menu.addAction("Rechts teilen");
-    QAction *splitDownAction = menu.addAction("Unten teilen");
+    QAction *splitRightAction = menu.addAction(
+        QIcon(":/assets/icons/split-right.png"),
+        "Rechts teilen"
+    );
+    QAction *splitDownAction = menu.addAction(
+        QIcon(":/assets/icons/split-down.png"),
+        "Unten teilen"
+    );
 
     QMenu *moveMenu = menu.addMenu("In Tabgruppe verschieben");
     int groupNumber = 1;

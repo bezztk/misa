@@ -261,5 +261,7 @@ qt_add_resources(frontend "icons"
         assets/icons/knowledge.png
         assets/icons/version_history.png
         assets/icons/speech-bubble.png
-        assets/icons/close-tab.svg
+        assets/icons/close.png
+        assets/icons/split-right.png
+        assets/icons/split-down.png
 )

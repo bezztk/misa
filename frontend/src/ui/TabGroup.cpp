@@ -1,68 +1,103 @@
 #include "TabGroup.h"
 
+#include <QAbstractButton>
+#include <QColor>
+#include <QIcon>
+#include <QPainter>
+#include <QPalette>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
 static constexpr auto WORKSPACE_TABS_STYLE = R"(
     QTabWidget#workspaceTabs {
-        background: #1C1C1C;
+        background: #222222;
         border: none;
     }
     QTabWidget#workspaceTabs::pane {
+        background: #1C1C1C;
         border: none;
     }
     QTabBar#workspaceTabBar {
-        background: #1C1C1C;
+        background: #222222;
         border: none;
         qproperty-drawBase: 0;
     }
     QTabBar#workspaceTabBar::tab {
-        height: 30px;
-        padding: 0 12px;
-        color: #A0A0A0;
+        height: 37px;
+        margin-right: 3px;
+        padding: 0 7px 1px 12px;
+        color: #9A9A9A;
         background: #222222;
         border: none;
-        border-top: 2px solid transparent;
-        border-right: 1px solid #383838;
         border-radius: 0;
     }
     QTabBar#workspaceTabBar::tab:hover {
-        color: #E5E5E5;
-        background: #303030;
+        color: #D0D0D0;
+        background: #292929;
     }
     QTabBar#workspaceTabBar::tab:selected {
         color: #E5E5E5;
         background: #1C1C1C;
-        border-top-color: transparent;
-        font-weight: 600;
-    }
-    QTabBar#workspaceTabBar::close-button {
-        image: url(:/assets/icons/close-tab.svg);
-        width: 12px;
-        height: 12px;
-        margin-left: 4px;
-        margin-right: 2px;
         border: none;
     }
-    QTabBar#workspaceTabBar::close-button:hover {
+)";
+
+static constexpr auto TAB_CLOSE_BUTTON_STYLE = R"(
+    QAbstractButton {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding: 5px;
+    }
+    QAbstractButton:hover {
         background: #383838;
     }
+    QAbstractButton:pressed {
+        background: #424242;
+    }
 )";
+
+class WorkspaceTabBar final : public QTabBar {
+public:
+    using QTabBar::QTabBar;
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QTabBar::paintEvent(event);
+
+        QPainter painter(this);
+        painter.setPen(QColor("#3A3A3A"));
+        for (int index = 0; index + 1 < count(); ++index) {
+            const QRect current = tabRect(index);
+            const QRect next = tabRect(index + 1);
+            const int x = (current.right() + next.left()) / 2;
+            const int centerY = current.center().y();
+            painter.drawLine(x, centerY - 8, x, centerY + 8);
+        }
+    }
+};
+
+class WorkspaceTabWidget final : public QTabWidget {
+public:
+    explicit WorkspaceTabWidget(QWidget *parent = nullptr) : QTabWidget(parent) {
+        setTabBar(new WorkspaceTabBar(this));
+    }
+};
 
 TabGroup::TabGroup(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    tabs = new QTabWidget(this);
+    tabs = new WorkspaceTabWidget(this);
     tabs->setObjectName("workspaceTabs");
     tabs->setDocumentMode(true);
     tabs->setMovable(true);
     tabs->setTabsClosable(true);
     tabs->tabBar()->setObjectName("workspaceTabBar");
     tabs->setStyleSheet(WORKSPACE_TABS_STYLE);
-    tabs->tabBar()->setFixedHeight(32);
+    tabs->tabBar()->setFixedHeight(37);
     tabs->tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(tabs);
 
@@ -95,7 +130,27 @@ TabGroup::TabGroup(QWidget *parent) : QWidget(parent) {
 }
 
 void TabGroup::addView(QWidget *view, const QString &title) {
-    tabs->addTab(view, title);
+    QPalette workspacePalette = view->palette();
+    workspacePalette.setColor(QPalette::Window, QColor("#1C1C1C"));
+    workspacePalette.setColor(QPalette::Base, QColor("#1C1C1C"));
+    view->setPalette(workspacePalette);
+    view->setAutoFillBackground(true);
+
+    const int index = tabs->addTab(view, title);
+    QAbstractButton *closeButton = qobject_cast<QAbstractButton *>(
+        tabs->tabBar()->tabButton(index, QTabBar::RightSide)
+    );
+    if (!closeButton) {
+        closeButton = qobject_cast<QAbstractButton *>(
+            tabs->tabBar()->tabButton(index, QTabBar::LeftSide)
+        );
+    }
+    if (closeButton) {
+        closeButton->setFixedSize(24, 24);
+        closeButton->setIcon(QIcon(":/assets/icons/close.png"));
+        closeButton->setIconSize(QSize(14, 14));
+        closeButton->setStyleSheet(TAB_CLOSE_BUTTON_STYLE);
+    }
     tabs->setCurrentWidget(view);
     emit focusRequested(this);
 }
