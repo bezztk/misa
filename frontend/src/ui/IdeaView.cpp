@@ -7,6 +7,7 @@
 #include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QButtonGroup>
 #include <QFont>
 #include <QFontMetrics>
 #include <QFormLayout>
@@ -15,15 +16,16 @@
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QTimer>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -48,6 +50,18 @@ static QString phaseColor(const int index) {
         QString("#6FB18A")
     };
     return colors[index];
+}
+
+static QString phaseColor(
+    const std::vector<MetadataItem> &phases,
+    const int phaseId
+) {
+    for (int index = 0; index < static_cast<int>(phases.size()); ++index) {
+        if (phases[index].id == phaseId) {
+            return phaseColor(index);
+        }
+    }
+    return "#E5E5E5";
 }
 
 static void clearLayout(QLayout *layout) {
@@ -97,31 +111,47 @@ public:
         activate(std::move(activate)),
         openContextMenu(std::move(openContextMenu)) {
         setObjectName("ideaCard");
-        setFixedHeight(52);
+        const bool hasDescription = !idea.content.simplified().isEmpty();
+        setFixedHeight(hasDescription ? 52 : 30);
         setCursor(Qt::PointingHandCursor);
         setStyleSheet(selected
             ? "QFrame#ideaCard { background: rgba(120, 150, 210, 0.14); "
               "border: none; border-left: 2px solid #7896D2; "
-              "border-bottom: 1px solid #414141; }"
-            : "QFrame#ideaCard { background: transparent; border: none; "
-              "border-bottom: 1px solid #383838; }"
+              "}"
+            : "QFrame#ideaCard { background: transparent; border: none; }"
               "QFrame#ideaCard:hover { background: rgba(255, 255, 255, 0.04); }");
 
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(10, 5, 10, 5);
         layout->setSpacing(1);
 
-        auto *title = new ElidedLabel(idea.title, this);
+        auto *titleRow = new QWidget(this);
+        titleRow->setAttribute(Qt::WA_TransparentForMouseEvents);
+        auto *titleLayout = new QHBoxLayout(titleRow);
+        titleLayout->setContentsMargins(0, 0, 0, 0);
+        titleLayout->setSpacing(8);
+        auto *title = new ElidedLabel(idea.title, titleRow);
         QFont titleFont = title->font();
         titleFont.setBold(true);
         title->setFont(titleFont);
         title->setAttribute(Qt::WA_TransparentForMouseEvents);
-        layout->addWidget(title);
+        titleLayout->addWidget(title, 1);
+        auto *date = new QLabel(
+            idea.createdAt.toLocalTime().toString("dd.MM.yyyy"), titleRow
+        );
+        date->setStyleSheet("color: #888888; border: none; background: transparent;");
+        date->setAttribute(Qt::WA_TransparentForMouseEvents);
+        titleLayout->addWidget(date);
+        layout->addWidget(titleRow);
 
-        auto *description = new ElidedLabel(idea.content, this);
-        description->setAttribute(Qt::WA_TransparentForMouseEvents);
-        description->setStyleSheet("color: #B8B8B8; border: none; background: transparent;");
-        layout->addWidget(description);
+        if (hasDescription) {
+            auto *description = new ElidedLabel(idea.content, this);
+            description->setAttribute(Qt::WA_TransparentForMouseEvents);
+            description->setStyleSheet(
+                "color: #B8B8B8; border: none; background: transparent;"
+            );
+            layout->addWidget(description);
+        }
     }
 
 protected:
@@ -157,8 +187,8 @@ IdeaView::IdeaView(ApiClient &client, QWidget *parent)
     auto *outerLayout = new QHBoxLayout(this);
     outerLayout->setContentsMargins(20, 20, 20, 20);
 
-    auto *content = new QWidget(this);
-    content->setMaximumWidth(1200);
+    content = new QWidget(this);
+    content->setFixedWidth(520);
     content->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     outerLayout->addWidget(content);
     outerLayout->setAlignment(content, Qt::AlignHCenter);
@@ -168,25 +198,19 @@ IdeaView::IdeaView(ApiClient &client, QWidget *parent)
     contentLayout->setSpacing(14);
 
     auto *headerLayout = new QHBoxLayout();
-    auto *title = new QLabel("Ideeninkubator", content);
-    QFont titleFont = title->font();
-    titleFont.setBold(true);
-    titleFont.setPointSize(titleFont.pointSize() + 4);
-    title->setFont(titleFont);
     auto *createButton = new QPushButton("Neue Idee", content);
     connect(createButton, &QPushButton::clicked, this, [this] { openCreateDialog(); });
-    headerLayout->addWidget(title);
     headerLayout->addStretch();
     headerLayout->addWidget(createButton);
     contentLayout->addLayout(headerLayout);
 
-    auto *body = new QWidget(content);
-    auto *bodyLayout = new QHBoxLayout(body);
+    body = new QWidget(content);
+    bodyLayout = new QHBoxLayout(body);
     bodyLayout->setContentsMargins(0, 0, 0, 0);
     bodyLayout->setSpacing(24);
 
     auto *phaseArea = new QScrollArea(body);
-    phaseArea->setFixedWidth(600);
+    phaseArea->setFixedWidth(520);
     phaseArea->setWidgetResizable(true);
     phaseArea->setFrameShape(QFrame::NoFrame);
     phaseArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -197,14 +221,6 @@ IdeaView::IdeaView(ApiClient &client, QWidget *parent)
     phaseLayout->addStretch();
     phaseArea->setWidget(phaseContent);
     bodyLayout->addWidget(phaseArea);
-
-    auto *detail = new QFrame(body);
-    detail->setMaximumWidth(600);
-    detail->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    detailLayout = new QVBoxLayout(detail);
-    detailLayout->setContentsMargins(0, 0, 0, 0);
-    detailLayout->setSpacing(12);
-    bodyLayout->addWidget(detail, 1);
     contentLayout->addWidget(body, 1);
 
     connect(&apiClient, &ApiClient::ideasReceived, this,
@@ -219,6 +235,7 @@ IdeaView::IdeaView(ApiClient &client, QWidget *parent)
                     versionsLoading = true;
                     apiClient.getEntityFieldVersions(selectedIdeaId);
                 }
+                updateDetailVisibility();
                 renderIdeas();
                 renderDetail();
             });
@@ -254,12 +271,43 @@ IdeaView::IdeaView(ApiClient &client, QWidget *parent)
             });
 
     renderIdeas();
-    renderDetail();
+    updateDetailVisibility();
 }
 
 void IdeaView::refreshMetadata() {
     renderIdeas();
     renderDetail();
+}
+
+void IdeaView::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    updateDetailVisibility();
+}
+
+void IdeaView::updateDetailVisibility() {
+    const Idea *idea = ideaById(selectedIdeaId);
+    const bool shouldShowDetail = idea && idea->stateId == 1 && width() >= 800;
+    const int contentWidth = shouldShowDetail
+        ? qMin(900, width() - 40)
+        : 520;
+    content->setFixedWidth(contentWidth);
+    content->updateGeometry();
+
+    if (shouldShowDetail && !detail) {
+        detail = new QFrame(body);
+        detail->setMaximumWidth(356);
+        detail->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        detailLayout = new QVBoxLayout(detail);
+        detailLayout->setContentsMargins(0, 0, 0, 0);
+        detailLayout->setSpacing(12);
+        bodyLayout->addWidget(detail, 1);
+        renderDetail();
+    } else if (!shouldShowDetail && detail) {
+        bodyLayout->removeWidget(detail);
+        delete detail;
+        detail = nullptr;
+        detailLayout = nullptr;
+    }
 }
 
 void IdeaView::renderIdeas() {
@@ -288,9 +336,6 @@ void IdeaView::renderIdeas() {
 
         auto *track = new QWidget(section);
         track->setFixedWidth(22);
-        track->setStyleSheet(
-            "border-left: 2px solid #505050; margin-left: 10px;"
-        );
         auto *dot = new QLabel(track);
         dot->setFixedSize(10, 10);
         dot->move(5, 9);
@@ -301,8 +346,21 @@ void IdeaView::renderIdeas() {
 
         auto *cards = new QWidget(section);
         auto *cardsLayout = new QVBoxLayout(cards);
-        cardsLayout->setContentsMargins(0, 0, 0, 6);
+        cardsLayout->setContentsMargins(0, 14, 0, 6);
         cardsLayout->setSpacing(0);
+        auto *separator = new QFrame(cards);
+        separator->setFixedHeight(1);
+        separator->setStyleSheet(
+            "background: " + color + "; border: none;"
+        );
+        cardsLayout->addWidget(separator);
+        cardsLayout->addSpacing(8);
+
+        auto *ideaList = new QWidget(cards);
+        auto *ideaListLayout = new QVBoxLayout(ideaList);
+        ideaListLayout->setContentsMargins(0, 0, 0, 0);
+        ideaListLayout->setSpacing(4);
+        cardsLayout->addWidget(ideaList);
 
         std::vector<const Idea *> phaseIdeas;
         for (const Idea &idea : ideas) {
@@ -314,14 +372,14 @@ void IdeaView::renderIdeas() {
             return left->createdAt > right->createdAt;
         });
         for (const Idea *idea : phaseIdeas) {
-            cardsLayout->addWidget(new IdeaCard(
+            ideaListLayout->addWidget(new IdeaCard(
                 *idea,
                 idea->id == selectedIdeaId,
                 [this, id = idea->id] { selectIdea(id); },
                 [this, id = idea->id](const QPoint &position) {
                     showCardContextMenu(id, position);
                 },
-                cards
+                ideaList
             ));
         }
         sectionLayout->addWidget(cards, 1);
@@ -329,27 +387,19 @@ void IdeaView::renderIdeas() {
 
         if (phaseIndex + 1
             < static_cast<int>(apiClient.metadata().ideaPhases.size())) {
-            auto *separator = new QFrame();
-            separator->setFixedHeight(1);
-            separator->setStyleSheet(
-                "background: " + color + "; border: none;"
-            );
-            phaseLayout->addWidget(separator);
+            phaseLayout->addSpacing(60);
         }
     }
     phaseLayout->addStretch();
 }
 
 void IdeaView::renderDetail() {
+    if (!detailLayout) {
+        return;
+    }
     clearLayout(detailLayout);
     Idea *idea = ideaById(selectedIdeaId);
     if (!idea || idea->stateId != 1) {
-        auto *placeholder = new QLabel(
-            "Idee auswählen, um die Details anzuzeigen.", this
-        );
-        placeholder->setAlignment(Qt::AlignCenter);
-        placeholder->setStyleSheet("color: #969696;");
-        detailLayout->addWidget(placeholder, 1);
         return;
     }
 
@@ -363,12 +413,6 @@ void IdeaView::renderDetail() {
     titleFont.setPointSize(titleFont.pointSize() + 3);
     title->setFont(titleFont);
     headerLayout->addWidget(title, 1);
-    auto *createdAt = new QLabel(
-        idea->createdAt.toLocalTime().toString("dd.MM.yyyy"), header
-    );
-    createdAt->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    createdAt->setStyleSheet("color: #929292;");
-    headerLayout->addWidget(createdAt, 0, Qt::AlignTop | Qt::AlignRight);
     detailLayout->addWidget(header);
 
     auto *activityScroll = new QScrollArea(this);
@@ -395,157 +439,76 @@ void IdeaView::renderDetail() {
             events.push_back({.at = comment.createdAt, .comment = &comment});
         }
         for (const EntityFieldVersion &version : versions) {
-            events.push_back({.at = version.changedAt, .version = &version});
+            if (version.fieldName == "phase_id") {
+                events.push_back({.at = version.changedAt, .version = &version});
+            }
         }
         std::ranges::sort(events, [](const ActivityEvent &left,
                                     const ActivityEvent &right) {
             return left.at < right.at;
         });
 
+        QDate currentDay;
+        const QLocale german(QLocale::German, QLocale::Germany);
+        bool hasEventOnCurrentDay = false;
         for (const ActivityEvent &event : events) {
-            const bool phaseChange = event.version
-                && event.version->fieldName == "phase_id";
-
-            auto *row = new QWidget(activityContent);
-            auto *rowLayout = new QHBoxLayout(row);
-            rowLayout->setContentsMargins(0, 0, 0, 0);
-            rowLayout->setSpacing(8);
-
-            auto *marker = new QWidget(row);
-            marker->setFixedWidth(20);
-            marker->setStyleSheet(
-                "border-left: 2px solid #505050; margin-left: 9px;"
-            );
-            auto *dot = new QLabel(marker);
-            dot->setFixedSize(9, 9);
-            dot->move(5, phaseChange ? 20 : 10);
-            dot->setStyleSheet(QString(
-                "background: %1; border: none; border-radius: 4px;"
-            ).arg(phaseChange ? "#E1A85A" : "#7896D2"));
-            rowLayout->addWidget(marker);
-
-            auto *eventFrame = new QFrame(row);
-            eventFrame->setStyleSheet(phaseChange
-                ? "QFrame { background: #383226; border: 1px solid #6F5A35; border-radius: 4px; }"
-                : "QFrame { background: #292929; border: 1px solid #3D3D3D; border-radius: 4px; }");
-            auto *eventLayout = new QVBoxLayout(eventFrame);
-            eventLayout->setContentsMargins(10, 8, 10, 8);
-            eventLayout->setSpacing(5);
-            if (!phaseChange) {
-                auto *date = new QLabel(
-                    event.at.toLocalTime().toString("dd.MM.yyyy HH:mm"), eventFrame
+            const QDateTime localTime = event.at.toLocalTime();
+            if (localTime.date() != currentDay) {
+                if (currentDay.isValid()) {
+                    activityLayout->addSpacing(18);
+                }
+                currentDay = localTime.date();
+                auto *dayHeader = new QWidget(activityContent);
+                auto *dayHeaderLayout = new QHBoxLayout(dayHeader);
+                dayHeaderLayout->setContentsMargins(0, 0, 0, 8);
+                dayHeaderLayout->setSpacing(10);
+                auto *dayLabel = new QLabel(
+                    german.toString(currentDay, "dddd, d. MMMM"), dayHeader
                 );
-                date->setStyleSheet(
-                    "color: #929292; border: none; background: transparent;"
+                QFont dayFont = dayLabel->font();
+                dayFont.setBold(true);
+                dayLabel->setFont(dayFont);
+                dayHeaderLayout->addWidget(dayLabel);
+                auto *daySeparator = new QFrame(dayHeader);
+                daySeparator->setFixedHeight(1);
+                daySeparator->setStyleSheet(
+                    "background: #505050; border: none;"
                 );
-                eventLayout->addWidget(date);
+                dayHeaderLayout->addWidget(daySeparator, 1);
+                activityLayout->addWidget(dayHeader);
+                hasEventOnCurrentDay = false;
             }
 
+            if (hasEventOnCurrentDay) {
+                activityLayout->addSpacing(16);
+            }
+            hasEventOnCurrentDay = true;
+
+            QString text;
             if (event.comment) {
-                auto *kind = new QLabel("Kommentar", eventFrame);
-                QFont kindFont = kind->font();
-                kindFont.setBold(true);
-                kind->setFont(kindFont);
-                kind->setStyleSheet("border: none; background: transparent;");
-                eventLayout->addWidget(kind);
-                auto *text = new QLabel(event.comment->content, eventFrame);
-                text->setWordWrap(true);
-                text->setTextInteractionFlags(Qt::TextSelectableByMouse);
-                text->setStyleSheet("border: none; background: transparent;");
-                eventLayout->addWidget(text);
+                QString comment = event.comment->content.toHtmlEscaped();
+                comment.replace("\n", "<br>");
+                text = "<img src=\":/assets/icons/speech-bubble.png\" "
+                    "width=\"14\" height=\"14\">&nbsp;" + comment;
             } else if (event.version) {
                 const EntityFieldVersion &version = *event.version;
-                if (version.fieldName == "phase_id") {
-                    auto *text = new QLabel(
-                        event.at.toLocalTime().toString("dd.MM.yyyy HH:mm")
-                        + " · Phase: "
-                        + metadataName(
-                            apiClient.metadata().ideaPhases,
-                            version.oldValue.toInt()
-                        )
-                        + " → "
-                        + metadataName(
-                            apiClient.metadata().ideaPhases,
-                            version.newValue.toInt()
-                        ),
-                        eventFrame
-                    );
-                    QFont font = text->font();
-                    font.setBold(true);
-                    text->setFont(font);
-                    text->setStyleSheet("border: none; background: transparent;");
-                    eventLayout->addWidget(text);
-                } else if (version.fieldName == "title") {
-                    auto *text = new QLabel(
-                        "Titel: „" + version.oldValue.toString()
-                        + "“ → „" + version.newValue.toString() + "“",
-                        eventFrame
-                    );
-                    text->setWordWrap(true);
-                    text->setStyleSheet("border: none; background: transparent;");
-                    eventLayout->addWidget(text);
-                } else if (version.fieldName == "content") {
-                    auto *toggle = new QToolButton(eventFrame);
-                    toggle->setText("Beschreibung geändert");
-                    toggle->setCheckable(true);
-                    toggle->setArrowType(Qt::RightArrow);
-                    toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-                    toggle->setStyleSheet("border: none; background: transparent;");
-                    eventLayout->addWidget(toggle, 0, Qt::AlignLeft);
+                const int phaseId = version.newValue.toInt();
+                text = "<img src=\":/assets/icons/edit.png\" "
+                    "width=\"14\" height=\"14\">&nbsp;Phase geändert zu "
+                    "<span style=\"color: "
+                    + phaseColor(apiClient.metadata().ideaPhases, phaseId)
+                    + "; font-weight: 600;\">"
+                    + metadataName(apiClient.metadata().ideaPhases, phaseId).toHtmlEscaped()
+                    + "</span>";
+            }
+            text += " <span style=\"color: #858585;\">· "
+                + localTime.toString("HH:mm") + "</span>";
 
-                    auto *changes = new QWidget(eventFrame);
-                    auto *changesLayout = new QVBoxLayout(changes);
-                    changesLayout->setContentsMargins(0, 0, 0, 0);
-                    auto *oldText = new QLabel(
-                        "Vorher:\n" + version.oldValue.toString(), changes
-                    );
-                    oldText->setWordWrap(true);
-                    oldText->setTextInteractionFlags(Qt::TextSelectableByMouse);
-                    auto *newText = new QLabel(
-                        "Nachher:\n" + version.newValue.toString(), changes
-                    );
-                    newText->setWordWrap(true);
-                    newText->setTextInteractionFlags(Qt::TextSelectableByMouse);
-                    changesLayout->addWidget(oldText);
-                    changesLayout->addWidget(newText);
-                    changes->hide();
-                    eventLayout->addWidget(changes);
-                    connect(toggle, &QToolButton::toggled, changes,
-                            [toggle, changes](const bool expanded) {
-                                toggle->setArrowType(
-                                    expanded ? Qt::DownArrow : Qt::RightArrow
-                                );
-                                changes->setVisible(expanded);
-                            });
-                } else if (version.fieldName == "state_id") {
-                    auto *text = new QLabel(
-                        "Status: "
-                        + metadataName(
-                            apiClient.metadata().ideaStates,
-                            version.oldValue.toInt()
-                        )
-                        + " → "
-                        + metadataName(
-                            apiClient.metadata().ideaStates,
-                            version.newValue.toInt()
-                        ),
-                        eventFrame
-                    );
-                    text->setStyleSheet("border: none; background: transparent;");
-                    eventLayout->addWidget(text);
-                }
-            }
-            auto *eventColumn = new QWidget(row);
-            auto *eventColumnLayout = new QVBoxLayout(eventColumn);
-            eventColumnLayout->setContentsMargins(0, 0, 0, 0);
-            eventColumnLayout->setSpacing(0);
-            if (phaseChange) {
-                eventColumnLayout->addSpacing(10);
-            }
-            eventColumnLayout->addWidget(eventFrame);
-            eventColumnLayout->addSpacing(phaseChange ? 10 : 4);
-            rowLayout->addWidget(eventColumn, 1);
-            activityLayout->addWidget(row);
+            auto *eventText = new QLabel(text, activityContent);
+            eventText->setTextFormat(Qt::RichText);
+            eventText->setWordWrap(true);
+            eventText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            activityLayout->addWidget(eventText);
         }
 
         if (events.empty()) {
@@ -573,6 +536,7 @@ void IdeaView::selectIdea(const int id) {
     versions.clear();
     versionsLoading = true;
     renderIdeas();
+    updateDetailVisibility();
     renderDetail();
     apiClient.getEntityFieldVersions(id);
 }
@@ -590,6 +554,9 @@ void IdeaView::showCardContextMenu(
     QAction *editAction = menu.addAction(
         QIcon(":/assets/icons/edit.png"), "Bearbeiten"
     );
+    QAction *phaseAction = menu.addAction(
+        QIcon(":/assets/icons/knowledge.png"), "Phase ändern"
+    );
     QAction *commentsAction = menu.addAction(
         QIcon(":/assets/icons/speech-bubble.png"),
         idea->comments.empty()
@@ -603,6 +570,8 @@ void IdeaView::showCardContextMenu(
     QAction *selectedAction = menu.exec(globalPosition);
     if (selectedAction == editAction) {
         openEditDialog(*idea);
+    } else if (selectedAction == phaseAction) {
+        openPhaseDialog(*idea);
     } else if (selectedAction == commentsAction) {
         showCommentsDialog(
             this,
@@ -662,11 +631,6 @@ void IdeaView::openEditDialog(const Idea &idea) {
     auto *titleEdit = new QLineEdit(idea.title, &dialog);
     auto *contentEdit = new QPlainTextEdit(idea.content, &dialog);
     contentEdit->setMinimumHeight(180);
-    auto *phaseEdit = new QComboBox(&dialog);
-    for (const MetadataItem &phase : apiClient.metadata().ideaPhases) {
-        phaseEdit->addItem(phase.displayName.value_or(phase.name), phase.id);
-    }
-    phaseEdit->setCurrentIndex(phaseEdit->findData(idea.phaseId));
     auto *stateEdit = new QComboBox(&dialog);
     for (const MetadataItem &state : apiClient.metadata().ideaStates) {
         stateEdit->addItem(state.displayName.value_or(state.name), state.id);
@@ -674,7 +638,6 @@ void IdeaView::openEditDialog(const Idea &idea) {
     stateEdit->setCurrentIndex(stateEdit->findData(idea.stateId));
     layout->addRow("Titel", titleEdit);
     layout->addRow("Beschreibung", contentEdit);
-    layout->addRow("Phase", phaseEdit);
     layout->addRow("Status", stateEdit);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
@@ -691,12 +654,77 @@ void IdeaView::openEditDialog(const Idea &idea) {
     if (content != idea.content) {
         apiClient.updateIdeaField(idea.id, IdeaField::Content, content);
     }
-    const int phaseId = phaseEdit->currentData().toInt();
-    if (phaseId != idea.phaseId) {
-        apiClient.updateIdeaField(idea.id, IdeaField::PhaseId, phaseId);
-    }
     const int stateId = stateEdit->currentData().toInt();
     if (stateId != idea.stateId) {
         apiClient.updateIdeaField(idea.id, IdeaField::StateId, stateId);
+    }
+}
+
+void IdeaView::openPhaseDialog(const Idea &idea) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("Phase ändern");
+    dialog.setMinimumSize(520, 420);
+    dialog.resize(620, 600);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *scrollArea = new QScrollArea(&dialog);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    auto *selection = new QWidget(scrollArea);
+    auto *selectionLayout = new QVBoxLayout(selection);
+    selectionLayout->setContentsMargins(0, 0, 0, 0);
+    selectionLayout->setSpacing(14);
+    auto *phaseButtons = new QButtonGroup(selection);
+    phaseButtons->setExclusive(true);
+
+    for (int index = 0;
+         index < static_cast<int>(apiClient.metadata().ideaPhases.size());
+         ++index) {
+        const MetadataItem &phase = apiClient.metadata().ideaPhases[index];
+        auto *entry = new QWidget(selection);
+        auto *entryLayout = new QVBoxLayout(entry);
+        entryLayout->setContentsMargins(0, 0, 0, 0);
+        entryLayout->setSpacing(3);
+
+        auto *radio = new QRadioButton(
+            phase.displayName.value_or(phase.name), entry
+        );
+        radio->setChecked(phase.id == idea.phaseId);
+        radio->setStyleSheet("color: " + phaseColor(index) + ";");
+        phaseButtons->addButton(radio, phase.id);
+        entryLayout->addWidget(radio);
+
+        if (phase.description.has_value()) {
+            auto *description = new QLabel(*phase.description, entry);
+            description->setWordWrap(true);
+            description->setContentsMargins(26, 0, 0, 0);
+            entryLayout->addWidget(description);
+        }
+        selectionLayout->addWidget(entry);
+    }
+    selectionLayout->addStretch();
+    scrollArea->setWidget(selection);
+    layout->addWidget(scrollArea, 1);
+
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+        &dialog
+    );
+    buttons->button(QDialogButtonBox::Save)->setText("Speichern");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    prepareDialog(dialog, 520);
+
+    if (execDialog(dialog) == QDialog::Accepted
+        && phaseButtons->checkedId() != idea.phaseId) {
+        apiClient.updateIdeaField(
+            idea.id,
+            IdeaField::PhaseId,
+            phaseButtons->checkedId()
+        );
     }
 }
