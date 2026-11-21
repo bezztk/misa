@@ -4,11 +4,13 @@
 #include "../api/ApiClient.h"
 
 #include <QWidget>
+#include <QSet>
 
 #include <vector>
 
 class QLabel;
 class QListWidget;
+class QListWidgetItem;
 class QPoint;
 class QPushButton;
 class QTextBrowser;
@@ -25,7 +27,7 @@ private:
     void renderNavigation();
     void renderArticles();
     void renderDetail();
-    void updateCardSelection();
+    void updateCardSelection(QListWidgetItem *current, QListWidgetItem *previous);
     void openCategoryDialog(const RssCategory *category);
     void openFeedDialog(const RssFeed &feed);
     void showNavigationContextMenu(const QPoint &position);
@@ -51,6 +53,7 @@ private:
     QPushButton *readButton;
     int selectedNavigationKind = 0;
     int selectedNavigationId = 0;
+    QSet<QString> collapsedArticleGroups;
 };
 
 #endif // FRONTEND_RSSVIEW_H

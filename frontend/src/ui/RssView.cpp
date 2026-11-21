@@ -19,26 +19,29 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSignalBlocker>
-#include <QSplitter>
 #include <QTextBrowser>
 #include <QTextDocumentFragment>
 #include <QTextLayout>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
 
 namespace {
 constexpr int NAV_KIND_ROLE = Qt::UserRole;
 constexpr int NAV_ID_ROLE = Qt::UserRole + 1;
 constexpr int ENTRY_ID_ROLE = Qt::UserRole;
+constexpr int GROUP_KEY_ROLE = Qt::UserRole + 1;
 
 enum NavigationKind {
     AllFeeds,
@@ -49,8 +52,14 @@ enum NavigationKind {
 
 class ArticleCard final : public QFrame {
 public:
-    ArticleCard(const RssEntry &entry, QWidget *parent)
-        : QFrame(parent), fullTitle(entry.title), unread(!entry.isRead) {
+    ArticleCard(
+        const RssEntry &entry,
+        std::function<void(int)> heightChanged,
+        QWidget *parent
+    ) : QFrame(parent),
+        fullTitle(entry.title),
+        unread(!entry.isRead),
+        heightChanged(std::move(heightChanged)) {
         setObjectName("rssArticleCard");
         setFixedHeight(76);
         setCursor(Qt::PointingHandCursor);
@@ -60,7 +69,6 @@ public:
         layout->setContentsMargins(10, 7, 10, 7);
         layout->setSpacing(3);
         title = new QLabel(this);
-        title->setFixedHeight(title->fontMetrics().lineSpacing() * 2 + 2);
         title->setAlignment(Qt::AlignLeft | Qt::AlignTop);
         layout->addWidget(title);
 
@@ -74,19 +82,22 @@ public:
         source->setTextInteractionFlags(Qt::NoTextInteraction);
         source->setToolTip(entry.feedTitle);
         metaLayout->addWidget(source, 1);
-        auto *date = new QLabel(
+        auto *time = new QLabel(
             entry.publishedAt.has_value()
-                ? entry.publishedAt->toLocalTime().toString("dd.MM.yyyy")
+                ? entry.publishedAt->toLocalTime().toString("HH:mm")
                 : QString(),
             metaRow
         );
-        date->setStyleSheet("color: #888888; background: transparent;");
-        metaLayout->addWidget(date);
+        time->setStyleSheet("color: #888888; background: transparent;");
+        metaLayout->addWidget(time);
         layout->addWidget(metaRow);
         applyStyle();
     }
 
     void setSelected(const bool value) {
+        if (selected == value) {
+            return;
+        }
         selected = value;
         applyStyle();
     }
@@ -120,6 +131,7 @@ private:
         ).trimmed();
         if (!secondLine.isValid()) {
             title->setText(first);
+            updateHeight(false);
             return;
         }
 
@@ -132,6 +144,17 @@ private:
             );
         }
         title->setText(first + "\n" + second);
+        updateHeight(true);
+    }
+
+    void updateHeight(const bool twoLines) {
+        const int lineHeight = title->fontMetrics().lineSpacing();
+        title->setFixedHeight(lineHeight * (twoLines ? 2 : 1) + 2);
+        const int cardHeight = twoLines ? 76 : 58;
+        if (height() != cardHeight) {
+            setFixedHeight(cardHeight);
+            heightChanged(cardHeight);
+        }
     }
 
     void applyStyle() {
@@ -170,6 +193,49 @@ private:
     QLabel *title;
     bool unread;
     bool selected = false;
+    std::function<void(int)> heightChanged;
+};
+
+class DateHeader final : public QWidget {
+public:
+    DateHeader(
+        const QString &text,
+        const bool collapsed,
+        std::function<void(bool)> toggled,
+        QWidget *parent
+    ) : QWidget(parent), collapsed(collapsed), toggled(std::move(toggled)) {
+        auto *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(0, 7, 2, 5);
+        layout->setSpacing(6);
+        button = new QToolButton(this);
+        button->setArrowType(collapsed ? Qt::RightArrow : Qt::DownArrow);
+        button->setAutoRaise(true);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setFixedSize(16, 16);
+        button->setStyleSheet("QToolButton { border: none; padding: 0; margin: 0; }");
+        layout->addWidget(button);
+        auto *label = new QLabel(text, this);
+        QFont font = label->font();
+        font.setBold(true);
+        label->setFont(font);
+        layout->addWidget(label);
+        auto *separator = new QFrame(this);
+        separator->setFixedHeight(1);
+        separator->setStyleSheet("background: #505050; border: none;");
+        layout->addWidget(separator, 1);
+        connect(button, &QToolButton::clicked, this, [this] {
+            this->collapsed = !this->collapsed;
+            button->setArrowType(
+                this->collapsed ? Qt::RightArrow : Qt::DownArrow
+            );
+            this->toggled(this->collapsed);
+        });
+    }
+
+private:
+    bool collapsed;
+    std::function<void(bool)> toggled;
+    QToolButton *button;
 };
 
 static QIcon categoryIcon(const RssCategory &category) {
@@ -189,8 +255,11 @@ RssView::RssView(ApiClient &client, QWidget *parent)
     layout->setSpacing(0);
 
     auto *navigationPane = new QWidget(this);
+    navigationPane->setObjectName("rssNavigationPane");
     navigationPane->setFixedWidth(320);
-    navigationPane->setStyleSheet("background: #222222;");
+    navigationPane->setStyleSheet(
+        "QWidget#rssNavigationPane { border-right: 1px solid #383838; }"
+    );
     auto *navigationLayout = new QVBoxLayout(navigationPane);
     navigationLayout->setContentsMargins(10, 12, 10, 12);
     navigationLayout->setSpacing(8);
@@ -214,12 +283,12 @@ RssView::RssView(ApiClient &client, QWidget *parent)
     navigationLayout->addWidget(navigationTree, 1);
     layout->addWidget(navigationPane);
 
-    auto *contentSplitter = new QSplitter(Qt::Horizontal, this);
-    contentSplitter->setChildrenCollapsible(false);
-
-    auto *articlePane = new QWidget(contentSplitter);
-    articlePane->setMinimumWidth(350);
-    articlePane->setMaximumWidth(430);
+    auto *articlePane = new QWidget(this);
+    articlePane->setObjectName("rssArticlePane");
+    articlePane->setFixedWidth(440);
+    articlePane->setStyleSheet(
+        "QWidget#rssArticlePane { border-right: 1px solid #383838; }"
+    );
     auto *articleLayout = new QVBoxLayout(articlePane);
     articleLayout->setContentsMargins(10, 12, 10, 12);
     articleLayout->setSpacing(8);
@@ -238,7 +307,7 @@ RssView::RssView(ApiClient &client, QWidget *parent)
     );
     articleLayout->addWidget(articleList, 1);
 
-    auto *detailPane = new QWidget(contentSplitter);
+    auto *detailPane = new QWidget(this);
     auto *detailLayout = new QVBoxLayout(detailPane);
     detailLayout->setContentsMargins(20, 18, 20, 18);
     detailLayout->setSpacing(8);
@@ -273,12 +342,8 @@ RssView::RssView(ApiClient &client, QWidget *parent)
     detailButtons->addStretch();
     detailLayout->addLayout(detailButtons);
 
-    contentSplitter->addWidget(articlePane);
-    contentSplitter->addWidget(detailPane);
-    contentSplitter->setStretchFactor(0, 0);
-    contentSplitter->setStretchFactor(1, 1);
-    contentSplitter->setSizes({390, 800});
-    layout->addWidget(contentSplitter, 1);
+    layout->addWidget(articlePane);
+    layout->addWidget(detailPane, 1);
 
     connect(navigationTree, &QTreeWidget::currentItemChanged,
             this, [this](QTreeWidgetItem *item) {
@@ -290,8 +355,9 @@ RssView::RssView(ApiClient &client, QWidget *parent)
             });
     connect(navigationTree, &QTreeWidget::customContextMenuRequested,
             this, &RssView::showNavigationContextMenu);
-    connect(articleList, &QListWidget::currentItemChanged, this, [this] {
-        updateCardSelection();
+    connect(articleList, &QListWidget::currentItemChanged, this,
+            [this](QListWidgetItem *current, QListWidgetItem *previous) {
+        updateCardSelection(current, previous);
         renderDetail();
     });
     connect(articleList, &QListWidget::itemDoubleClicked,
@@ -422,6 +488,9 @@ void RssView::renderArticles() {
     const QSignalBlocker blocker(articleList);
     articleList->clear();
     QListWidgetItem *selection = nullptr;
+    QListWidgetItem *firstVisibleEntry = nullptr;
+    QString currentGroupKey;
+    const QLocale german(QLocale::German, QLocale::Germany);
 
     for (const RssEntry &entry : entries) {
         RssFeed *feed = feedById(entry.feedId);
@@ -436,27 +505,79 @@ void RssView::renderArticles() {
             continue;
         }
 
+        const QDate publishedDate = entry.publishedAt.has_value()
+            ? entry.publishedAt->toLocalTime().date()
+            : QDate();
+        const QString groupKey = publishedDate.isValid()
+            ? publishedDate.toString(Qt::ISODate)
+            : QString("without-date");
+        if (groupKey != currentGroupKey) {
+            currentGroupKey = groupKey;
+            const QString groupTitle = publishedDate.isValid()
+                ? german.toString(publishedDate, "dddd, d. MMMM")
+                : QString("Ohne Datum");
+            auto *headerItem = new QListWidgetItem(articleList);
+            headerItem->setFlags(headerItem->flags() & ~Qt::ItemIsSelectable);
+            headerItem->setSizeHint(QSize(360, 36));
+            articleList->setItemWidget(headerItem, new DateHeader(
+                groupTitle,
+                collapsedArticleGroups.contains(groupKey),
+                [this, groupKey](const bool collapsed) {
+                    if (collapsed) {
+                        collapsedArticleGroups.insert(groupKey);
+                    } else {
+                        collapsedArticleGroups.remove(groupKey);
+                    }
+                    for (int index = 0; index < articleList->count(); ++index) {
+                        QListWidgetItem *groupItem = articleList->item(index);
+                        if (groupItem->data(GROUP_KEY_ROLE).toString() == groupKey) {
+                            groupItem->setHidden(collapsed);
+                        }
+                    }
+                },
+                articleList
+            ));
+        }
+
         auto *item = new QListWidgetItem(articleList);
         item->setData(ENTRY_ID_ROLE, entry.id);
+        item->setData(GROUP_KEY_ROLE, groupKey);
         item->setSizeHint(QSize(360, 76));
-        articleList->setItemWidget(item, new ArticleCard(entry, articleList));
-        if (entry.id == selectedEntryId) {
+        articleList->setItemWidget(item, new ArticleCard(
+            entry,
+            [item](const int height) {
+                item->setSizeHint(QSize(item->sizeHint().width(), height));
+            },
+            articleList
+        ));
+        const bool collapsed = collapsedArticleGroups.contains(groupKey);
+        item->setHidden(collapsed);
+        if (!collapsed && !firstVisibleEntry) {
+            firstVisibleEntry = item;
+        }
+        if (!collapsed && entry.id == selectedEntryId) {
             selection = item;
         }
     }
-    if (!selection && articleList->count() > 0) {
-        selection = articleList->item(0);
+    if (!selection) {
+        selection = firstVisibleEntry;
     }
     articleList->setCurrentItem(selection);
-    updateCardSelection();
+    updateCardSelection(selection, nullptr);
     renderDetail();
 }
 
-void RssView::updateCardSelection() {
-    for (int index = 0; index < articleList->count(); ++index) {
-        QListWidgetItem *item = articleList->item(index);
-        auto *card = static_cast<ArticleCard *>(articleList->itemWidget(item));
-        card->setSelected(item == articleList->currentItem());
+void RssView::updateCardSelection(
+    QListWidgetItem *current,
+    QListWidgetItem *previous
+) {
+    if (previous && previous->data(ENTRY_ID_ROLE).isValid()) {
+        auto *card = static_cast<ArticleCard *>(articleList->itemWidget(previous));
+        card->setSelected(false);
+    }
+    if (current && current->data(ENTRY_ID_ROLE).isValid()) {
+        auto *card = static_cast<ArticleCard *>(articleList->itemWidget(current));
+        card->setSelected(true);
     }
 }
 

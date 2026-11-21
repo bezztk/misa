@@ -279,7 +279,7 @@ IdeasNavigationSection::IdeasNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 ) : NavigationCard(
-        "Ideeninkubator", ":/assets/icons/incubator.png", false, parent
+        "Ideeninkubator", ":/assets/icons/idea.png", false, parent
     ) {
     setSubtext("Ideen werden geladen …");
     connect(&apiClient, &ApiClient::ideasReceived, this,
@@ -375,7 +375,7 @@ ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 ) : NavigationCard(
-        "Verwirklichung", ":/assets/icons/folder.png", true, parent
+        "Verwirklichung", ":/assets/icons/infinity.png", true, parent
     ) {
     domainNavigation = new DomainView(apiClient, this);
     domainNavigation->setNodeOpenHandler(
