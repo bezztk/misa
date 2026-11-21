@@ -1940,6 +1940,7 @@ void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     style()->polish(this);
     treeView->style()->unpolish(treeView);
     treeView->style()->polish(treeView);
+    treeView->setMinimumWidth(0);
     treeView->setMaximumWidth(QWIDGETSIZE_MAX);
     treeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     treeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

@@ -14,6 +14,7 @@ class LearningView : public QWidget {
 public:
     explicit LearningView(ApiClient &apiClient, QWidget* parent = nullptr);
     void refreshMetadata();
+    void reloadFlashcards();
 
 protected:
     void hideEvent(QHideEvent* event) override;
@@ -38,7 +39,6 @@ private:
     QWidget* learningCard;
     QPushButton* commentButton;
 
-    void reloadFlashcards();
     void showStartScreen();
     void showCurrentFlashcard();
     void showAnswer();

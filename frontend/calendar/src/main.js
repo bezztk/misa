@@ -37,17 +37,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
     headerToolbar: {
       left: 'prev,next today',
       center: 'title',
-      right: 'refresh,newEntry timeGridDay,timeGridWeek,dayGridMonth',
-    },
-    customButtons: {
-      refresh: {
-        text: 'Aktualisieren',
-        click: () => bridge.refreshRequested(),
-      },
-      newEntry: {
-        text: 'Neuer Eintrag',
-        click: () => bridge.createEntryRequested(),
-      },
+      right: 'timeGridDay,timeGridWeek,dayGridMonth',
     },
     buttonText: {
       today: 'Heute',

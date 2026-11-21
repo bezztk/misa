@@ -11,7 +11,6 @@ static constexpr auto WORKSPACE_TABS_STYLE = R"(
     }
     QTabWidget#workspaceTabs::pane {
         border: none;
-        border-top: 1px solid #383838;
     }
     QTabBar#workspaceTabBar {
         background: #1C1C1C;
@@ -34,8 +33,9 @@ static constexpr auto WORKSPACE_TABS_STYLE = R"(
     }
     QTabBar#workspaceTabBar::tab:selected {
         color: #E5E5E5;
-        background: #292929;
-        border-top-color: #708FA6;
+        background: #1C1C1C;
+        border-top-color: transparent;
+        font-weight: 600;
     }
     QTabBar#workspaceTabBar::close-button {
         image: url(:/assets/icons/close-tab.svg);

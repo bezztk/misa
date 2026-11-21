@@ -3,11 +3,13 @@
 #include "DomainView.h"
 
 #include <QColor>
+#include <QContextMenuEvent>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QMenu>
 #include <QPainter>
 #include <QScrollArea>
 #include <QToolButton>
@@ -169,6 +171,11 @@ void NavigationCard::mouseReleaseEvent(QMouseEvent *event) {
     QFrame::mouseReleaseEvent(event);
 }
 
+void NavigationCard::contextMenuEvent(QContextMenuEvent *event) {
+    emit contextMenuRequested(event->globalPos());
+    event->accept();
+}
+
 bool NavigationCard::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() != QEvent::MouseButtonPress
         && event->type() != QEvent::MouseButtonRelease) {
@@ -234,12 +241,38 @@ TasksNavigationSection::TasksNavigationSection(
             [this] { setSubtext("Aufgaben konnten nicht geladen werden"); });
     connect(this, &NavigationCard::activated,
             this, &TasksNavigationSection::openRequested);
+    connect(this, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                QAction *createAction = menu.addAction(
+                    QIcon(":/assets/icons/add.png"),
+                    "Neue Aufgabe erstellen"
+                );
+                if (menu.exec(position) == createAction) {
+                    emit createRequested();
+                }
+            });
 }
 
 CalendarNavigationSection::CalendarNavigationSection(QWidget *parent)
     : NavigationCard("Kalender", ":/assets/icons/calendar.png", false, parent) {
     connect(this, &NavigationCard::activated,
             this, &CalendarNavigationSection::openRequested);
+    connect(this, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                QAction *createAction = menu.addAction(
+                    QIcon(":/assets/icons/add.png"),
+                    "Neuen Eintrag erstellen"
+                );
+                QAction *refreshAction = menu.addAction("Aktualisieren");
+                QAction *selectedAction = menu.exec(position);
+                if (selectedAction == createAction) {
+                    emit createRequested();
+                } else if (selectedAction == refreshAction) {
+                    emit refreshRequested();
+                }
+            });
 }
 
 IdeasNavigationSection::IdeasNavigationSection(
@@ -259,6 +292,17 @@ IdeasNavigationSection::IdeasNavigationSection(
             });
     connect(this, &NavigationCard::activated,
             this, &IdeasNavigationSection::openRequested);
+    connect(this, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                QAction *createAction = menu.addAction(
+                    QIcon(":/assets/icons/add.png"),
+                    "Neue Idee erstellen"
+                );
+                if (menu.exec(position) == createAction) {
+                    emit createRequested();
+                }
+            });
 }
 
 LearningNavigationSection::LearningNavigationSection(
@@ -283,6 +327,14 @@ LearningNavigationSection::LearningNavigationSection(
             [this] { setSubtext("Lernkarten konnten nicht geladen werden"); });
     connect(this, &NavigationCard::activated,
             this, &LearningNavigationSection::openRequested);
+    connect(this, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                QAction *refreshAction = menu.addAction("Aktualisieren");
+                if (menu.exec(position) == refreshAction) {
+                    emit refreshRequested();
+                }
+            });
 }
 
 ActualizationNavigationSection::ActualizationNavigationSection(
@@ -352,6 +404,16 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openIdeasRequested);
     connect(learningSection, &LearningNavigationSection::openRequested,
             this, &NavigationSidebar::openLearningRequested);
+    connect(tasksSection, &TasksNavigationSection::createRequested,
+            this, &NavigationSidebar::createTaskRequested);
+    connect(calendarSection, &CalendarNavigationSection::createRequested,
+            this, &NavigationSidebar::createCalendarEntryRequested);
+    connect(calendarSection, &CalendarNavigationSection::refreshRequested,
+            this, &NavigationSidebar::refreshCalendarRequested);
+    connect(ideasSection, &IdeasNavigationSection::createRequested,
+            this, &NavigationSidebar::createIdeaRequested);
+    connect(learningSection, &LearningNavigationSection::refreshRequested,
+            this, &NavigationSidebar::refreshLearningRequested);
     connect(actualizationSection,
             &ActualizationNavigationSection::openDomainNodeRequested,
             this, &NavigationSidebar::openDomainNodeRequested);

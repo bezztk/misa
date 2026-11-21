@@ -63,12 +63,6 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     layout->setSpacing(14);
 
     auto* headerLayout = new QHBoxLayout();
-    auto *title = new QLabel("Lernkarten", content);
-    QFont titleFont = title->font();
-    titleFont.setBold(true);
-    titleFont.setPointSize(titleFont.pointSize() + 4);
-    title->setFont(titleFont);
-    auto* refreshButton = new QPushButton("Neu laden", content);
     pauseButton = new QPushButton("Pause", content);
     pauseButton->hide();
 
@@ -77,12 +71,9 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
         color: #969696;
         font-size: 11px;
     )");
-    headerLayout->addWidget(title);
-    headerLayout->addSpacing(12);
-    headerLayout->addWidget(remainingLabel, 1, Qt::AlignBottom);
+    headerLayout->addWidget(remainingLabel, 1);
     headerLayout->addStretch();
     headerLayout->addWidget(pauseButton);
-    headerLayout->addWidget(refreshButton);
     layout->addLayout(headerLayout);
 
     learningCard = new QFrame(content);
@@ -211,7 +202,6 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
         showAnswer();
     });
 
-    connect(refreshButton, &QPushButton::clicked, this, &LearningView::reloadFlashcards);
     connect(commentButton, &QPushButton::clicked, this, [this] {
         showCurrentComments();
     });

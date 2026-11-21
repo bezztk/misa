@@ -9,6 +9,10 @@ class QLabel;
 class QResizeEvent;
 class QTimer;
 class WorkspaceManager;
+class TaskView;
+class CalendarView;
+class IdeaView;
+class LearningView;
 
 class MainWindow : public QMainWindow {
 public:
@@ -21,10 +25,10 @@ protected:
 private:
     void showToast(const QString &message);
     void positionToast();
-    void openTasks();
-    void openCalendar();
-    void openIdeas();
-    void openLearning();
+    TaskView *openTasks();
+    CalendarView *openCalendar();
+    IdeaView *openIdeas();
+    LearningView *openLearning();
     void openDomainNode(int nodeId, const QString &title);
 
     ApiClient apiClient;

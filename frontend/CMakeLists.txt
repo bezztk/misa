@@ -96,6 +96,43 @@ add_custom_command(
 add_custom_target(calendar_web DEPENDS ${CALENDAR_WEB_OUTPUTS})
 set_source_files_properties(${CALENDAR_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
 
+set(KANBAN_WEB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/kanban")
+set(KANBAN_DIST_DIR "${KANBAN_WEB_DIR}/dist")
+set(KANBAN_NODE_MODULES_MARKER "${KANBAN_WEB_DIR}/node_modules/.package-lock.json")
+set(KANBAN_WEB_OUTPUTS
+        "${KANBAN_DIST_DIR}/index.html"
+        "${KANBAN_DIST_DIR}/kanban.js"
+        "${KANBAN_DIST_DIR}/kanban.css"
+)
+
+add_custom_command(
+        OUTPUT "${KANBAN_NODE_MODULES_MARKER}"
+        COMMAND "${NPM_EXECUTABLE}" ci
+        WORKING_DIRECTORY "${KANBAN_WEB_DIR}"
+        DEPENDS
+        "${KANBAN_WEB_DIR}/package.json"
+        "${KANBAN_WEB_DIR}/package-lock.json"
+        COMMENT "Installing SVAR Kanban dependencies"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT ${KANBAN_WEB_OUTPUTS}
+        COMMAND "${NPM_EXECUTABLE}" run build
+        WORKING_DIRECTORY "${KANBAN_WEB_DIR}"
+        DEPENDS
+        "${KANBAN_NODE_MODULES_MARKER}"
+        "${KANBAN_WEB_DIR}/index.html"
+        "${KANBAN_WEB_DIR}/vite.config.js"
+        "${KANBAN_WEB_DIR}/src/main.jsx"
+        "${KANBAN_WEB_DIR}/src/style.css"
+        COMMENT "Building SVAR Kanban view"
+        VERBATIM
+)
+
+add_custom_target(kanban_web DEPENDS ${KANBAN_WEB_OUTPUTS})
+set_source_files_properties(${KANBAN_WEB_OUTPUTS} PROPERTIES GENERATED TRUE)
+
 if (WIN32)
     set(APP_ICON_RESOURCE frontend.rc)
 endif()
@@ -172,7 +209,7 @@ if (WIN32)
 endif()
 
 target_compile_options(frontend PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
-add_dependencies(frontend editor_web calendar_web)
+add_dependencies(frontend editor_web calendar_web kanban_web)
 
 if (WIN32)
     get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
@@ -195,6 +232,12 @@ qt_add_resources(frontend "calendar"
         PREFIX "/calendar"
         BASE "${CALENDAR_DIST_DIR}"
         FILES ${CALENDAR_WEB_OUTPUTS}
+)
+
+qt_add_resources(frontend "kanban"
+        PREFIX "/kanban"
+        BASE "${KANBAN_DIST_DIR}"
+        FILES ${KANBAN_WEB_OUTPUTS}
 )
 
 qt_add_resources(frontend "icons"

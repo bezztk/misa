@@ -8,6 +8,7 @@
 class ApiClient;
 class DomainView;
 class QLabel;
+class QContextMenuEvent;
 class QMouseEvent;
 class QToolButton;
 class QVBoxLayout;
@@ -29,9 +30,11 @@ protected:
     void setSubtext(const QString &text);
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 signals:
     void activated();
+    void contextMenuRequested(const QPoint &globalPosition);
 
 private:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -54,6 +57,7 @@ public:
 
 signals:
     void openRequested();
+    void createRequested();
 };
 
 class CalendarNavigationSection final : public NavigationCard {
@@ -64,6 +68,8 @@ public:
 
 signals:
     void openRequested();
+    void createRequested();
+    void refreshRequested();
 };
 
 class IdeasNavigationSection final : public NavigationCard {
@@ -74,6 +80,7 @@ public:
 
 signals:
     void openRequested();
+    void createRequested();
 };
 
 class LearningNavigationSection final : public NavigationCard {
@@ -84,6 +91,7 @@ public:
 
 signals:
     void openRequested();
+    void refreshRequested();
 };
 
 class ActualizationNavigationSection final : public NavigationCard {
@@ -122,6 +130,11 @@ signals:
     void openCalendarRequested();
     void openIdeasRequested();
     void openLearningRequested();
+    void createTaskRequested();
+    void createCalendarEntryRequested();
+    void refreshCalendarRequested();
+    void createIdeaRequested();
+    void refreshLearningRequested();
     void openDomainNodeRequested(int nodeId, const QString &title);
 
 private:

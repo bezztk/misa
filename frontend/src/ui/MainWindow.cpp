@@ -119,6 +119,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openIdeas);
     connect(navigation, &NavigationSidebar::openLearningRequested,
             this, &MainWindow::openLearning);
+    connect(navigation, &NavigationSidebar::createTaskRequested,
+            this, [this] { openTasks()->openCreateDialog(); });
+    connect(navigation, &NavigationSidebar::createCalendarEntryRequested,
+            this, [this] { openCalendar()->openCreateDialog(); });
+    connect(navigation, &NavigationSidebar::refreshCalendarRequested,
+            this, [this] { openCalendar()->refresh(); });
+    connect(navigation, &NavigationSidebar::createIdeaRequested,
+            this, [this] { openIdeas()->openCreateDialog(); });
+    connect(navigation, &NavigationSidebar::refreshLearningRequested,
+            this, [this] { openLearning()->reloadFlashcards(); });
     connect(navigation, &NavigationSidebar::openDomainNodeRequested,
             this, &MainWindow::openDomainNode);
     navigation->setBeforeNodeActionHandler(
@@ -223,51 +233,61 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     startupComplete = true;
 }
 
-void MainWindow::openTasks() {
+TaskView *MainWindow::openTasks() {
     bool created = false;
-    workspaceManager->openView("tasks", "Aufgaben", [this, &created] {
-        created = true;
-        auto *view = new TaskView(apiClient);
-        connect(&apiClient, &ApiClient::metadataReceived,
-                view, &TaskView::refreshMetadata);
-        view->refreshMetadata();
-        return view;
-    });
+    auto *view = static_cast<TaskView *>(workspaceManager->openView(
+        "tasks", "Aufgaben", [this, &created] {
+            created = true;
+            auto *view = new TaskView(apiClient);
+            connect(&apiClient, &ApiClient::metadataReceived,
+                    view, &TaskView::refreshMetadata);
+            view->refreshMetadata();
+            return view;
+        }
+    ));
     if (created && startupComplete) {
         apiClient.getTasks();
         apiClient.getDomainTree();
     }
+    return view;
 }
 
-void MainWindow::openCalendar() {
-    workspaceManager->openView("calendar", "Kalender", [this] {
-        return new CalendarView(apiClient);
-    });
+CalendarView *MainWindow::openCalendar() {
+    return static_cast<CalendarView *>(workspaceManager->openView(
+        "calendar", "Kalender", [this] {
+            return new CalendarView(apiClient);
+        }
+    ));
 }
 
-void MainWindow::openIdeas() {
+IdeaView *MainWindow::openIdeas() {
     bool created = false;
-    workspaceManager->openView("ideas", "Ideen", [this, &created] {
-        created = true;
-        auto *view = new IdeaView(apiClient);
-        connect(&apiClient, &ApiClient::metadataReceived,
-                view, &IdeaView::refreshMetadata);
-        view->refreshMetadata();
-        return view;
-    });
+    auto *view = static_cast<IdeaView *>(workspaceManager->openView(
+        "ideas", "Ideen", [this, &created] {
+            created = true;
+            auto *view = new IdeaView(apiClient);
+            connect(&apiClient, &ApiClient::metadataReceived,
+                    view, &IdeaView::refreshMetadata);
+            view->refreshMetadata();
+            return view;
+        }
+    ));
     if (created) {
         apiClient.getIdeas();
     }
+    return view;
 }
 
-void MainWindow::openLearning() {
-    workspaceManager->openView("learning", "Lernkarten", [this] {
-        auto *view = new LearningView(apiClient);
-        connect(&apiClient, &ApiClient::metadataReceived,
-                view, &LearningView::refreshMetadata);
-        view->refreshMetadata();
-        return view;
-    });
+LearningView *MainWindow::openLearning() {
+    return static_cast<LearningView *>(workspaceManager->openView(
+        "learning", "Lernkarten", [this] {
+            auto *view = new LearningView(apiClient);
+            connect(&apiClient, &ApiClient::metadataReceived,
+                    view, &LearningView::refreshMetadata);
+            view->refreshMetadata();
+            return view;
+        }
+    ));
 }
 
 void MainWindow::openDomainNode(const int nodeId, const QString &title) {

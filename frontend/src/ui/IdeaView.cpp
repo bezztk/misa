@@ -197,13 +197,6 @@ IdeaView::IdeaView(ApiClient &client, QWidget *parent)
     contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(14);
 
-    auto *headerLayout = new QHBoxLayout();
-    auto *createButton = new QPushButton("Neue Idee", content);
-    connect(createButton, &QPushButton::clicked, this, [this] { openCreateDialog(); });
-    headerLayout->addStretch();
-    headerLayout->addWidget(createButton);
-    contentLayout->addLayout(headerLayout);
-
     body = new QWidget(content);
     bodyLayout = new QHBoxLayout(body);
     bodyLayout->setContentsMargins(0, 0, 0, 0);

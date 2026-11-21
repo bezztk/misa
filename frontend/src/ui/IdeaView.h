@@ -16,6 +16,7 @@ class IdeaView final : public QWidget {
 public:
     explicit IdeaView(ApiClient &apiClient, QWidget *parent = nullptr);
     void refreshMetadata();
+    void openCreateDialog();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -26,7 +27,6 @@ private:
     void updateDetailVisibility();
     void selectIdea(int id);
     void showCardContextMenu(int id, const QPoint &globalPosition);
-    void openCreateDialog();
     void openEditDialog(const Idea &idea);
     void openPhaseDialog(const Idea &idea);
     Idea *ideaById(int id);

@@ -24,8 +24,6 @@ public:
 public slots:
     void calendarReady();
     void rangeChanged(const QString &start, const QString &end);
-    void createEntryRequested();
-    void refreshRequested();
     void timeRangeSelected(const QString &start, const QString &end);
     void editEntryRequested(int id);
     void contextMenuRequested(int id, int x, int y);
@@ -34,8 +32,6 @@ public slots:
 signals:
     void ready();
     void visibleRangeChanged(const QString &start, const QString &end);
-    void createEntry();
-    void refresh();
     void createEntryForRange(const QString &start, const QString &end);
     void editEntry(int id);
     void showContextMenu(int id, int x, int y);
@@ -50,13 +46,14 @@ class CalendarView final : public QWidget {
 
 public:
     explicit CalendarView(ApiClient &apiClient, QWidget *parent = nullptr);
+    void openCreateDialog();
+    void refresh();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
     void pushEntries();
-    void openCreateDialog();
     void openCreateDialog(const QDateTime &start, const QDateTime &end);
     void openEditDialog(int id);
     void showEntryContextMenu(int id, int x, int y);

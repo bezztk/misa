@@ -21,14 +21,6 @@ void CalendarBridge::rangeChanged(const QString &start, const QString &end) {
     emit visibleRangeChanged(start, end);
 }
 
-void CalendarBridge::createEntryRequested() {
-    emit createEntry();
-}
-
-void CalendarBridge::refreshRequested() {
-    emit refresh();
-}
-
 void CalendarBridge::timeRangeSelected(const QString &start, const QString &end) {
     emit createEntryForRange(start, end);
 }
@@ -67,12 +59,6 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
             [this](const QString &, const QString &) {
                 apiClient.getCalendarEntries();
             });
-    connect(bridge, &CalendarBridge::createEntry, this, [this] {
-        openCreateDialog();
-    });
-    connect(bridge, &CalendarBridge::refresh, this, [this] {
-        apiClient.generateRoutineExecutions();
-    });
     connect(bridge, &CalendarBridge::createEntryForRange, this,
             [this](const QString &start, const QString &end) {
                 openCreateDialog(
@@ -166,6 +152,10 @@ void CalendarView::openCreateDialog() {
     if (entry) {
         apiClient.createCalendarEntry(*entry);
     }
+}
+
+void CalendarView::refresh() {
+    apiClient.generateRoutineExecutions();
 }
 
 void CalendarView::openCreateDialog(const QDateTime &start, const QDateTime &end) {
