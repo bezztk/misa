@@ -42,7 +42,9 @@ void TaskBridge::contextMenuRequested(const int id, const int x, const int y) {
 }
 
 static QString metadataName(const MetadataItem &item) {
-    return item.displayName.value_or(item.name);
+    return item.displayName.has_value() && !item.displayName->isEmpty()
+        ? *item.displayName
+        : item.name;
 }
 
 static QString taskPriorityColor(const Metadata &metadata, const int id) {
@@ -61,6 +63,38 @@ static QString taskPriorityColor(const Metadata &metadata, const int id) {
         }
     }
     return "#a0a0a0";
+}
+
+static QString taskAssignment(
+    const Task &task,
+    const Metadata &metadata,
+    const std::vector<DomainNode> &domainNodes
+) {
+    if (task.domainNodeId.has_value()) {
+        const auto node = std::find_if(
+            domainNodes.begin(), domainNodes.end(),
+            [&task](const DomainNode &item) {
+                return item.id == *task.domainNodeId;
+            }
+        );
+        if (node != domainNodes.end()) {
+            return node->name;
+        }
+    }
+
+    if (task.groupId.has_value()) {
+        const auto group = std::find_if(
+            metadata.systemTaskGroups.begin(), metadata.systemTaskGroups.end(),
+            [&task](const MetadataItem &item) {
+                return item.id == *task.groupId;
+            }
+        );
+        if (group != metadata.systemTaskGroups.end()) {
+            return metadataName(*group);
+        }
+    }
+
+    return {};
 }
 
 TaskView::TaskView(ApiClient &client, QWidget *parent)
@@ -161,7 +195,8 @@ void TaskView::pushBoardData() {
             {"domainNodeId", task.domainNodeId.has_value()
                 ? QJsonValue(*task.domainNodeId) : QJsonValue(QJsonValue::Null)},
             {"priorityColor", taskPriorityColor(apiClient.metadata(), task.priorityId)},
-            {"commentCount", static_cast<int>(task.comments.size())}
+            {"commentCount", static_cast<int>(task.comments.size())},
+            {"assignment", taskAssignment(task, apiClient.metadata(), domainNodes)}
         });
     }
 
@@ -183,7 +218,15 @@ void TaskView::pushBoardData() {
 
     QJsonArray nodes;
     for (const DomainNode &node : domainNodes) {
-        nodes.append(QJsonObject{{"id", node.id}, {"name", node.name}});
+        const bool hasTask = std::any_of(
+            tasks.begin(), tasks.end(),
+            [&node](const Task &task) {
+                return task.domainNodeId == node.id;
+            }
+        );
+        if (hasTask) {
+            nodes.append(QJsonObject{{"id", node.id}, {"name", node.name}});
+        }
     }
 
     const QJsonObject board{

@@ -24,7 +24,12 @@ function TaskCard({ card }) {
         className="priority"
         style={{ backgroundColor: card.priorityColor }}
       />
-      <span className="task-name">{card.label}</span>
+      <span className="task-text">
+        <span className="task-name">{card.label}</span>
+        {card.assignment && (
+          <span className="task-assignment">{card.assignment}</span>
+        )}
+      </span>
       {card.commentCount > 0 && (
         <span className="comment-count" title="Kommentare">
           {card.commentCount}
@@ -42,8 +47,8 @@ function TaskBoard({ bridge }) {
     domainNodes: [],
   })
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState('group')
-  const [filterId, setFilterId] = useState('all')
+  const [groupId, setGroupId] = useState('all')
+  const [domainNodeId, setDomainNodeId] = useState('all')
 
   useEffect(() => {
     window.taskBridge = bridge
@@ -56,15 +61,12 @@ function TaskBoard({ bridge }) {
     return data.tasks.filter((task) => {
       const matchesSearch = !term || task.label.toLocaleLowerCase('de').includes(term)
       const matchesFilter =
-        filterId === 'all' ||
-        (filterType === 'group'
-          ? task.groupId === Number(filterId)
-          : task.domainNodeId === Number(filterId))
+        (groupId === 'all' && domainNodeId === 'all') ||
+        (groupId !== 'all' && task.groupId === Number(groupId)) ||
+        (domainNodeId !== 'all' && task.domainNodeId === Number(domainNodeId))
       return matchesSearch && matchesFilter
     })
-  }, [data.tasks, search, filterType, filterId])
-
-  const options = filterType === 'group' ? data.groups : data.domainNodes
+  }, [data.tasks, search, groupId, domainNodeId])
 
   return (
     <WillowDark>
@@ -78,25 +80,32 @@ function TaskBoard({ bridge }) {
             aria-label="Aufgaben suchen"
           />
           <select
-            value={filterType}
+            value={groupId}
             onChange={(event) => {
-              setFilterType(event.target.value)
-              setFilterId('all')
+              setGroupId(event.target.value)
+              setDomainNodeId('all')
             }}
-            aria-label="Filtertyp"
+            aria-label="Gruppe"
           >
-            <option value="group">Gruppe</option>
-            <option value="domainNode">Wissensknoten</option>
+            <option value="all">Alle Gruppen</option>
+            {data.groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
           </select>
           <select
-            value={filterId}
-            onChange={(event) => setFilterId(event.target.value)}
-            aria-label="Filterauswahl"
+            value={domainNodeId}
+            onChange={(event) => {
+              setDomainNodeId(event.target.value)
+              setGroupId('all')
+            }}
+            aria-label="Wissensknoten"
           >
-            <option value="all">Alle</option>
-            {options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.name}
+            <option value="all">Alle Wissensknoten</option>
+            {data.domainNodes.map((node) => (
+              <option key={node.id} value={node.id}>
+                {node.name}
               </option>
             ))}
           </select>
@@ -107,6 +116,7 @@ function TaskBoard({ bridge }) {
             columns={data.states}
             cardContent={TaskCard}
             card={{ menu: false }}
+            render={{ fixedColumnWidth: false }}
             onMoveCard={({ id, column }) => {
               const taskId = Number(id)
               const stateId = Number(column)
