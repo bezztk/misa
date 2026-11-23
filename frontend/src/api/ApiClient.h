@@ -14,6 +14,7 @@
 #include "../models/Comment.h"
 #include "../models/Idea.h"
 #include "../models/Rss.h"
+#include "../models/Password.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 
@@ -109,6 +110,10 @@ signals:
     void rssFeedEntriesRead();
     void rssCategoriesChanged();
     void rssEntryUpdated();
+    void passwordEntriesReceived(const std::vector<PasswordEntry>& entries);
+    void passwordCategoriesReceived(const std::vector<PasswordCategory>& categories);
+    void passwordEntriesChanged();
+    void passwordCategoriesChanged();
 
 public:
     explicit ApiClient(QObject *parent = nullptr);
@@ -144,6 +149,17 @@ public:
     void deleteRssCategory(int id);
     void getRssEntries();
     void updateRssEntryRead(int id, bool isRead);
+    void getPasswordEntries();
+    void createPasswordEntry(std::optional<int> categoryId, const QByteArray& ciphertext,
+                             const QByteArray& salt, const QByteArray& nonce);
+    void updatePasswordEntry(int id, std::optional<int> categoryId,
+                             const QByteArray& ciphertext, const QByteArray& salt,
+                             const QByteArray& nonce);
+    void deletePasswordEntry(int id);
+    void getPasswordCategories();
+    void createPasswordCategory(const QString& name);
+    void updatePasswordCategory(int id, const QString& name);
+    void deletePasswordCategory(int id);
 
     void getDueFlashcards();
     void getDueFlashcardCount();
@@ -202,6 +218,8 @@ private:
     static constexpr auto PATH_RSS_FEEDS = "/rss/feeds";
     static constexpr auto PATH_RSS_ENTRIES = "/rss/entries";
     static constexpr auto PATH_RSS_CATEGORIES = "/rss/categories";
+    static constexpr auto PATH_PASSWORD_ENTRIES = "/passwords/entries";
+    static constexpr auto PATH_PASSWORD_CATEGORIES = "/passwords/categories";
 
     static QUrl buildUrl(const QString& path);
     void requestDueFlashcards(bool includeFlashcards);

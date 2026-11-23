@@ -1,5 +1,15 @@
-﻿cmake_minimum_required(VERSION 4.4)
+﻿cmake_minimum_required(VERSION 3.30)
 project(frontend LANGUAGES CXX)
+
+include(FetchContent)
+
+FetchContent_Declare(sodium
+        GIT_REPOSITORY https://github.com/robinlinden/libsodium-cmake.git
+        GIT_TAG 9b2848dfc1b917a9410f0de9d81059b26cbfaa8d
+        GIT_SHALLOW TRUE
+)
+set(SODIUM_DISABLE_TESTS ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(sodium)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_AUTOMOC ON)
@@ -144,6 +154,7 @@ add_executable(frontend
         src/api/ApiClientProgression.cpp
         src/api/ApiClientIdeas.cpp
         src/api/ApiClientRss.cpp
+        src/api/ApiClientPassword.cpp
         src/api/ApiClientWork.cpp
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
@@ -174,9 +185,12 @@ add_executable(frontend
         src/ui/IdeaView.h
         src/ui/RssView.cpp
         src/ui/RssView.h
+        src/ui/PasswordManagerView.cpp
+        src/ui/PasswordManagerView.h
         src/models/Task.h
         src/models/Idea.h
         src/models/Rss.h
+        src/models/Password.h
         src/models/DomainNode.h
         src/models/Document.h
         src/ui/LearningView.cpp
@@ -206,6 +220,7 @@ target_link_libraries(frontend
         Qt6::Network
         Qt6::WebEngineWidgets
         Qt6::WebChannel
+        sodium
 )
 
 if (WIN32)
@@ -250,6 +265,7 @@ qt_add_resources(frontend "icons"
         assets/icons/task-white.png
         assets/icons/attach-file.png
         assets/icons/star.png
+        assets/icons/lock.png
         assets/icons/incubator.png
         assets/icons/pursuit.png
         assets/icons/flashcards-white.png

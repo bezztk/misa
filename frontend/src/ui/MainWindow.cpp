@@ -6,6 +6,7 @@
 #include "LearningView.h"
 #include "NavigationSidebar.h"
 #include "RssView.h"
+#include "PasswordManagerView.h"
 #include "TaskView.h"
 #include "WorkspaceManager.h"
 
@@ -122,6 +123,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openLearning);
     connect(navigation, &NavigationSidebar::openRssRequested,
             this, &MainWindow::openRss);
+    connect(navigation, &NavigationSidebar::openPasswordsRequested,
+            this, &MainWindow::openPasswords);
+    connect(navigation, &NavigationSidebar::createPasswordEntryRequested,
+            this, [this] { openPasswords()->openCreateDialog(); });
+    connect(navigation, &NavigationSidebar::managePasswordCategoriesRequested,
+            this, [this] { openPasswords()->openCategoryManager(); });
     connect(navigation, &NavigationSidebar::createRssFeedRequested,
             this, [this] { openRss()->openCreateFeedDialog(); });
     connect(navigation, &NavigationSidebar::createRssCategoryRequested,
@@ -327,6 +334,14 @@ RssView *MainWindow::openRss() {
         view->refresh();
     }
     return view;
+}
+
+PasswordManagerView *MainWindow::openPasswords() {
+    return static_cast<PasswordManagerView *>(workspaceManager->openView(
+        "passwords", "Passwörter", [this] {
+            return new PasswordManagerView(apiClient);
+        }
+    ));
 }
 
 void MainWindow::openDomainNode(const int nodeId, const QString &title) {

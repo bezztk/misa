@@ -107,6 +107,18 @@ signals:
     void refreshAllRequested();
 };
 
+class PasswordNavigationSection final : public NavigationCard {
+    Q_OBJECT
+
+public:
+    explicit PasswordNavigationSection(QWidget *parent = nullptr);
+
+signals:
+    void openRequested();
+    void createEntryRequested();
+    void manageCategoriesRequested();
+};
+
 class ActualizationNavigationSection final : public NavigationCard {
     Q_OBJECT
 
@@ -144,6 +156,9 @@ signals:
     void openIdeasRequested();
     void openLearningRequested();
     void openRssRequested();
+    void openPasswordsRequested();
+    void createPasswordEntryRequested();
+    void managePasswordCategoriesRequested();
     void createRssFeedRequested();
     void createRssCategoryRequested();
     void refreshAllRssRequested();
