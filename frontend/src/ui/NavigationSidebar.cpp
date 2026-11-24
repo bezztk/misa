@@ -371,24 +371,6 @@ RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent
             });
 }
 
-PasswordNavigationSection::PasswordNavigationSection(QWidget *parent)
-    : NavigationCard("Passwörter", ":/assets/icons/lock.png", false, parent) {
-    connect(this, &NavigationCard::activated,
-            this, &PasswordNavigationSection::openRequested);
-    connect(this, &NavigationCard::contextMenuRequested, this,
-            [this](const QPoint &position) {
-                QMenu menu(this);
-                QAction *createAction = menu.addAction("Neuen Eintrag erstellen");
-                QAction *categoriesAction = menu.addAction("Kategorien verwalten");
-                QAction *selected = menu.exec(position);
-                if (selected == createAction) {
-                    emit createEntryRequested();
-                } else if (selected == categoriesAction) {
-                    emit manageCategoriesRequested();
-                }
-            });
-}
-
 ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
@@ -436,7 +418,6 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
     auto *rssSection = new RssNavigationSection(apiClient, cardContainer);
-    auto *passwordSection = new PasswordNavigationSection(cardContainer);
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
     );
@@ -446,7 +427,6 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     cardLayout->addWidget(ideasSection);
     cardLayout->addWidget(learningSection);
     cardLayout->addWidget(rssSection);
-    cardLayout->addWidget(passwordSection);
     cardLayout->addWidget(actualizationSection);
     cardLayout->addStretch();
     scrollArea->setWidget(cardContainer);
@@ -462,12 +442,6 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openLearningRequested);
     connect(rssSection, &RssNavigationSection::openRequested,
             this, &NavigationSidebar::openRssRequested);
-    connect(passwordSection, &PasswordNavigationSection::openRequested,
-            this, &NavigationSidebar::openPasswordsRequested);
-    connect(passwordSection, &PasswordNavigationSection::createEntryRequested,
-            this, &NavigationSidebar::createPasswordEntryRequested);
-    connect(passwordSection, &PasswordNavigationSection::manageCategoriesRequested,
-            this, &NavigationSidebar::managePasswordCategoriesRequested);
     connect(rssSection, &RssNavigationSection::createFeedRequested,
             this, &NavigationSidebar::createRssFeedRequested);
     connect(rssSection, &RssNavigationSection::createCategoryRequested,

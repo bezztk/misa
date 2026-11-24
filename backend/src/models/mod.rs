@@ -7,7 +7,6 @@ pub mod entity;
 pub mod flashcard;
 pub mod idea;
 pub mod metadata;
-pub mod password;
 pub mod progression;
 pub mod pursuit;
 pub mod routine;
