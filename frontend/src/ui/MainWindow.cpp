@@ -7,6 +7,7 @@
 #include "MediaView.h"
 #include "NavigationSidebar.h"
 #include "RssView.h"
+#include "ShortTermLearningView.h"
 #include "SourceView.h"
 #include "TaskView.h"
 #include "WorkspaceManager.h"
@@ -20,6 +21,7 @@
 #include <QPointer>
 #include <QResizeEvent>
 #include <QSplitter>
+#include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -148,8 +150,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, [this] { openCalendar()->refresh(); });
     connect(navigation, &NavigationSidebar::createIdeaRequested,
             this, [this] { openIdeas()->openCreateDialog(); });
-    connect(navigation, &NavigationSidebar::refreshLearningRequested,
-            this, [this] { openLearning()->reloadFlashcards(); });
+    connect(navigation, &NavigationSidebar::refreshLearningRequested, this, [this] {
+        auto *tabs = openLearning();
+        tabs->setCurrentIndex(0);
+        static_cast<LearningView *>(tabs->widget(0))->reloadFlashcards();
+    });
     connect(navigation, &NavigationSidebar::openDomainNodeRequested,
             this, &MainWindow::openDomainNode);
     navigation->setBeforeNodeActionHandler(
@@ -313,14 +318,17 @@ IdeaView *MainWindow::openIdeas() {
     return view;
 }
 
-LearningView *MainWindow::openLearning() {
-    return static_cast<LearningView *>(workspaceManager->openView(
+QTabWidget *MainWindow::openLearning() {
+    return static_cast<QTabWidget *>(workspaceManager->openView(
         "learning", "Lernkarten", [this] {
-            auto *view = new LearningView(apiClient);
+            auto *tabs = new QTabWidget;
+            auto *view = new LearningView(apiClient, tabs);
             connect(&apiClient, &ApiClient::metadataReceived,
                     view, &LearningView::refreshMetadata);
             view->refreshMetadata();
-            return view;
+            tabs->addTab(view, "Langzeitlernen");
+            tabs->addTab(new ShortTermLearningView(apiClient, tabs), "Kurzzeitlernen");
+            return tabs;
         }
     ));
 }

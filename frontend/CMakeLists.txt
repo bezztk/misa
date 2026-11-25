@@ -146,6 +146,7 @@ add_executable(frontend
         src/api/ApiClientIdeas.cpp
         src/api/ApiClientMedia.cpp
         src/api/ApiClientRss.cpp
+        src/api/ApiClientShortTermLearning.cpp
         src/api/ApiClientSources.cpp
         src/api/ApiClientWork.cpp
         src/api/ApiClient.h
@@ -199,11 +200,14 @@ add_executable(frontend
         src/models/Document.h
         src/ui/LearningView.cpp
         src/ui/LearningView.h
+        src/ui/ShortTermLearningView.cpp
+        src/ui/ShortTermLearningView.h
         src/ui/DomainView.cpp
         src/ui/DomainView.h
         src/ui/DocumentEditor.cpp
         src/ui/DocumentEditor.h
         src/models/Flashcard.h
+        src/models/ShortTermLearning.h
         src/models/Attachment.h
         src/models/Metadata.h
         src/models/Pursuit.h

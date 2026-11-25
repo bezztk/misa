@@ -1,8 +1,8 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
     entity_handler, flashcard_handler, idea_handler, media_handler, metadata_handler,
-    progression_handler, pursuit_handler, routine_handler, rss_handler, source_handler,
-    task_handler,
+    progression_handler, pursuit_handler, routine_handler, rss_handler, short_term_learning_handler,
+    source_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -197,6 +197,31 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/domain-nodes/{node_id}/flashcards",
             get(flashcard_handler::get_flashcards).post(flashcard_handler::create_flashcard),
+        )
+        .route(
+            "/short-term-learning/sets",
+            get(short_term_learning_handler::get_sets).post(short_term_learning_handler::create_set),
+        )
+        .route(
+            "/short-term-learning/sets/{id}",
+            axum::routing::delete(short_term_learning_handler::delete_set),
+        )
+        .route(
+            "/short-term-learning/sets/{id}/reset",
+            axum::routing::post(short_term_learning_handler::reset_set),
+        )
+        .route(
+            "/short-term-learning/sets/{id}/cards",
+            get(short_term_learning_handler::get_cards).post(short_term_learning_handler::import_cards),
+        )
+        .route(
+            "/short-term-learning/cards/{id}",
+            axum::routing::patch(short_term_learning_handler::update_card)
+                .delete(short_term_learning_handler::delete_card),
+        )
+        .route(
+            "/short-term-learning/cards/{id}/state",
+            axum::routing::patch(short_term_learning_handler::update_state),
         )
         .route(
             "/domain-nodes/{node_id}/attachments",

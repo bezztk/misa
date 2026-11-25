@@ -12,5 +12,6 @@ pub mod progression_repository;
 pub mod pursuit_repository;
 pub mod routine_repository;
 pub mod rss_repository;
+pub mod short_term_learning_repository;
 pub mod source_repository;
 pub mod task_repository;

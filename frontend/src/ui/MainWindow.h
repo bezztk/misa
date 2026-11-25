@@ -12,7 +12,7 @@ class WorkspaceManager;
 class TaskView;
 class CalendarView;
 class IdeaView;
-class LearningView;
+class QTabWidget;
 class MediaView;
 class RssView;
 class SourceView;
@@ -31,7 +31,7 @@ private:
     TaskView *openTasks();
     CalendarView *openCalendar();
     IdeaView *openIdeas();
-    LearningView *openLearning();
+    QTabWidget *openLearning();
     RssView *openRss();
     SourceView *openSources();
     MediaView *openMedia();

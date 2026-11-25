@@ -15,12 +15,14 @@
 #include "../models/Media.h"
 #include "../models/Rss.h"
 #include "../models/Source.h"
+#include "../models/ShortTermLearning.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 
 #include <functional>
 
+class QJsonArray;
 class QJsonDocument;
 class QJsonObject;
 class QNetworkReply;
@@ -186,6 +188,21 @@ public:
     void updateFlashcardField(int nodeId, int id, FlashcardField field,
                               const QJsonValue& value);
     void deleteFlashcard(int nodeId, int id);
+    void getShortTermLearningSets(QObject &context,
+        std::function<void(std::optional<std::vector<ShortTermLearningSet>>)> received);
+    void createShortTermLearningSet(const QString &title, bool bidirectional,
+        QObject &context, std::function<void(bool)> finished);
+    void deleteShortTermLearningSet(int id, QObject &context, std::function<void(bool)> finished);
+    void resetShortTermLearningSet(int id, QObject &context, std::function<void(bool)> finished);
+    void getShortTermLearningCards(int setId, QObject &context,
+        std::function<void(std::optional<std::vector<ShortTermLearningCard>>)> received);
+    void importShortTermLearningCards(int setId, const QJsonArray &cards,
+        QObject &context, std::function<void(bool)> finished);
+    void updateShortTermLearningCard(const ShortTermLearningCard &card,
+        QObject &context, std::function<void(bool)> finished);
+    void deleteShortTermLearningCard(int id, QObject &context, std::function<void(bool)> finished);
+    void rateShortTermLearningCard(int id, bool reverse, ShortTermLearningState state,
+        QObject &context, std::function<void(bool)> finished);
     void getNodeAttachments(int nodeId);
     void createAttachment(int nodeId, const QString& originalName,
                           const QString& storageName, qint64 sizeBytes);
@@ -242,6 +259,8 @@ private:
     bool readJson(QNetworkReply *reply, const QString& operation, QJsonDocument& document);
     void sendSourceChange(const QString &path, const QByteArray &method,
                           const QJsonObject &body, void (ApiClient::*changed)());
+    void sendShortTermLearningChange(const QString &path, const QByteArray &method,
+        const QJsonDocument &body, QObject &context, std::function<void(bool)> finished);
     int getMediaJson(const QString &path, const QString &operation,
                      std::function<bool(int, const QJsonDocument &)> received);
     int patchMediaJson(const QString &path, const QJsonObject &fields,
