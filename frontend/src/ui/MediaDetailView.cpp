@@ -328,9 +328,6 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
     auto *intro = new QVBoxLayout(introPanel);
     intro->setContentsMargins(0, 0, 0, 0);
     intro->setSpacing(7);
-    mediaTypeLabel = mediaText({}, hero);
-    mediaTypeLabel->setObjectName("mediaMutedText");
-    intro->addWidget(mediaTypeLabel);
     title = mediaText({}, hero);
     title->setObjectName("mediaDetailTitle");
     intro->addWidget(title);
@@ -525,7 +522,6 @@ void MediaDetailView::setMedia(const Media &entry) {
     media = entry;
     setRating(media.personalRating);
     const bool isSeries = media.mediaType == "tv";
-    mediaTypeLabel->setText(isSeries ? "Serie" : "Film");
     title->setText(media.displayTitle());
     originalTitle->setText(media.originalTitle);
     originalTitle->setVisible(!media.originalTitle.isEmpty() && media.originalTitle != title->text());

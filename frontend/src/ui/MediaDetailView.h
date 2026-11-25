@@ -44,7 +44,6 @@ private:
     QBoxLayout *heading = nullptr;
     QBoxLayout *actions;
     MediaImage *cover;
-    QLabel *mediaTypeLabel;
     QLabel *title;
     QLabel *originalTitle;
     QLabel *facts;

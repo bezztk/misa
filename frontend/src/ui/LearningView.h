@@ -1,5 +1,7 @@
-﻿#ifndef FRONTEND_LEARNINGVIEW_H
+#ifndef FRONTEND_LEARNINGVIEW_H
 #define FRONTEND_LEARNINGVIEW_H
+
+#include <array>
 
 #include <QDateTime>
 #include <QWidget>
@@ -8,7 +10,11 @@
 
 class QHideEvent;
 class QLabel;
+class QMenu;
+class QProgressBar;
 class QPushButton;
+class QScrollArea;
+class QStackedWidget;
 
 class LearningView : public QWidget {
 public:
@@ -20,30 +26,43 @@ protected:
     void hideEvent(QHideEvent* event) override;
 
 private:
+    struct RatingControl {
+        QPushButton *button;
+        QLabel *interval;
+    };
+
     std::vector<FlashcardReviewQueueItem> flashcards;
     std::size_t currentIndex = 0;
+    QStackedWidget* screens;
+    QWidget* startScreen;
+    QWidget* sessionScreen;
+    QLabel* dueCountLabel;
+    QLabel* dueCaption;
+    QLabel* dueBreakdown;
+    QLabel* emptyNotice;
     QLabel* remainingLabel;
+    QProgressBar* progress;
+    QScrollArea* cardScrollArea;
     QLabel* front;
-    QLabel* backLabel;
     QLabel* back;
-    QWidget* metadataWidget;
-    QLabel* metadataLabel;
+    QWidget* answerDivider;
+    QMenu* metadataMenu;
+    std::array<QLabel *, 5> metadataValues;
+    QStackedWidget* actions;
+    QWidget* revealWidget;
     QWidget* ratingWidget;
-    QPushButton* againButton;
-    QPushButton* hardButton;
-    QPushButton* goodButton;
-    QPushButton* easyButton;
-    QPushButton* showAnswerButton;
+    std::array<RatingControl, 4> ratingControls;
     QPushButton* startButton;
-    QPushButton* pauseButton;
     QWidget* learningCard;
     QPushButton* commentButton;
 
+    QWidget *createStartScreen();
+    QWidget *createSessionScreen();
     void showStartScreen();
     void showCurrentFlashcard();
     void showAnswer();
     void rateFlashcard(FlashcardRating);
-    void updateMetadataBanner();
+    void updateMetadata();
     void showCurrentComments();
     void updateCommentButton();
 

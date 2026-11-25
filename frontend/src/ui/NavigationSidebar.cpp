@@ -381,7 +381,7 @@ RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent
 }
 
 MediaNavigationSection::MediaNavigationSection(QWidget *parent)
-    : NavigationCard("Film & Serien",
+    : NavigationCard("Filme und Serien",
                      ":/assets/icons/video-camera.png", false, parent) {
     connect(this, &NavigationCard::activated, this, &MediaNavigationSection::openRequested);
     connect(this, &NavigationCard::contextMenuRequested, this, [this](const QPoint &position) {
@@ -397,7 +397,7 @@ ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 ) : NavigationCard(
-        "Verwirklichung", ":/assets/icons/infinity.png", true, parent
+        "Aufschriebe", ":/assets/icons/quill-pen.png", true, parent
     ) {
     domainNavigation = new DomainView(apiClient, this);
     domainNavigation->setNodeOpenHandler(
