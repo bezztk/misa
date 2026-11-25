@@ -1,5 +1,6 @@
 use crate::models::media::{
-    EpisodeMetadata, MediaIdentity, MediaMetadata, MediaType, SeasonMetadata,
+    EpisodeMetadata, MAX_ADDITIONAL_BACKDROPS, MediaIdentity, MediaMetadata, MediaType,
+    SeasonMetadata,
 };
 use chrono::NaiveDate;
 use reqwest::{Client, StatusCode, Url};
@@ -48,14 +49,23 @@ impl TmdbClient {
             media_type,
         } = *identity;
         let path = format!("{}/{tmdb_id}", media_type.as_str());
-        let response: MediaResponse = self.get(&path).await?;
+        let response: MediaResponse = self
+            .get(
+                &path,
+                &[
+                    ("append_to_response", "videos,keywords,images"),
+                    ("include_image_language", "en,null"),
+                ],
+            )
+            .await?;
         let mut seasons = Vec::new();
 
         if media_type == MediaType::Tv {
             for season in response.seasons.unwrap_or_default() {
                 let season_number = season.season_number;
-                let details: Result<SeasonResponse, _> =
-                    self.get(&format!("{path}/season/{season_number}")).await;
+                let details: Result<SeasonResponse, _> = self
+                    .get(&format!("{path}/season/{season_number}"), &[])
+                    .await;
                 match details {
                     Ok(details) => seasons.push(details.into_metadata()),
                     Err(TmdbError::NotFound) => continue,
@@ -76,6 +86,9 @@ impl TmdbClient {
                 response.first_air_date,
             ),
         };
+        let backdrop_path = nonempty(response.backdrop_path);
+        let additional_backdrop_paths =
+            select_additional_backdrops(response.images, backdrop_path.as_deref());
         Ok(MediaMetadata {
             tmdb_id: response.id,
             media_type,
@@ -83,17 +96,29 @@ impl TmdbClient {
             original_title: nonempty(original_title),
             description: nonempty(response.overview),
             poster_path: nonempty(response.poster_path),
-            backdrop_path: nonempty(response.backdrop_path),
+            backdrop_path,
+            trailer_url: select_trailer(response.videos),
+            additional_backdrop_paths,
             release_date: parse_date(release_date),
             runtime_minutes: response
                 .runtime
                 .filter(|&runtime| media_type == MediaType::Movie && runtime > 0),
             production_status: nonempty(response.status),
+            tmdb_vote_average: response.vote_average,
+            tmdb_vote_count: response.vote_count,
             genres: response.genres.map(|genres| {
                 genres
                     .into_iter()
                     .filter_map(|genre| nonempty(genre.name))
                     .collect()
+            }),
+            keywords: response.keywords.and_then(|keywords| {
+                keywords.entries.map(|entries| {
+                    entries
+                        .into_iter()
+                        .map(|entry| (entry.id, entry.name))
+                        .collect()
+                })
             }),
             seasons,
         })
@@ -111,9 +136,15 @@ impl TmdbClient {
         Ok(bytes.to_vec())
     }
 
-    async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, TmdbError> {
+    async fn get<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T, TmdbError> {
         let mut url = Url::parse(&format!("{API_URL}/{path}")).expect("valid TMDB endpoint");
-        url.query_pairs_mut().append_pair("language", "en-US");
+        url.query_pairs_mut()
+            .append_pair("language", "en-US")
+            .extend_pairs(query.iter().copied());
 
         let request = match &self.credentials {
             Credentials::ReadAccessToken(token) => self.http.get(url).bearer_auth(token),
@@ -185,6 +216,49 @@ fn parse_date(date: Option<String>) -> Option<NaiveDate> {
     date.and_then(|date| NaiveDate::parse_from_str(&date, "%Y-%m-%d").ok())
 }
 
+fn select_trailer(videos: Option<VideosResponse>) -> Option<String> {
+    videos?
+        .results?
+        .into_iter()
+        .filter(|video| {
+            video.kind.as_deref() == Some("Trailer")
+                && video.site.as_deref() == Some("YouTube")
+                && video.key.as_deref().is_some_and(|key| {
+                    !key.is_empty()
+                        && key
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                })
+        })
+        .min_by_key(|video| !video.official.unwrap_or(false))
+        .and_then(|video| video.key)
+        .map(|key| format!("https://www.youtube.com/watch?v={key}"))
+}
+
+fn select_additional_backdrops(
+    images: Option<ImagesResponse>,
+    primary: Option<&str>,
+) -> Vec<String> {
+    let mut backdrops = Vec::new();
+    for path in images
+        .and_then(|images| images.backdrops)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|image| image.file_path)
+    {
+        if Some(path.as_str()) != primary
+            && !backdrops.contains(&path)
+            && image_url(Some(&path)).is_some()
+        {
+            backdrops.push(path);
+            if backdrops.len() == MAX_ADDITIONAL_BACKDROPS {
+                break;
+            }
+        }
+    }
+    backdrops
+}
+
 #[derive(Deserialize)]
 struct MediaResponse {
     id: i32,
@@ -199,8 +273,49 @@ struct MediaResponse {
     first_air_date: Option<String>,
     runtime: Option<i32>,
     status: Option<String>,
+    vote_average: Option<f64>,
+    vote_count: Option<i32>,
     genres: Option<Vec<GenreResponse>>,
     seasons: Option<Vec<SeasonSummary>>,
+    videos: Option<VideosResponse>,
+    keywords: Option<KeywordsResponse>,
+    images: Option<ImagesResponse>,
+}
+
+#[derive(Deserialize)]
+struct VideosResponse {
+    results: Option<Vec<VideoResponse>>,
+}
+
+#[derive(Deserialize)]
+struct VideoResponse {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    site: Option<String>,
+    key: Option<String>,
+    official: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct KeywordsResponse {
+    #[serde(rename = "keywords", alias = "results")]
+    entries: Option<Vec<KeywordResponse>>,
+}
+
+#[derive(Deserialize)]
+struct KeywordResponse {
+    id: i32,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct ImagesResponse {
+    backdrops: Option<Vec<ImageResponse>>,
+}
+
+#[derive(Deserialize)]
+struct ImageResponse {
+    file_path: Option<String>,
 }
 
 #[derive(Deserialize)]

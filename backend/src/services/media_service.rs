@@ -1,5 +1,5 @@
 use crate::api::error::{ApiError, ApiResult};
-use crate::models::media::{MediaIdentity, MediaMetadata};
+use crate::models::media::{MAX_ADDITIONAL_BACKDROPS, MediaIdentity, MediaMetadata};
 use crate::repositories::media_repository::{self, SavedMedia};
 use crate::services::tmdb_client::{TmdbClient, TmdbError, image_url};
 use sqlx::PgPool;
@@ -18,15 +18,20 @@ pub async fn sync_media(
     } else {
         metadata.tmdb_id
     };
-    let images = download_images(&client, &metadata, tmdb_id).await?;
+    let directory = PathBuf::from(metadata.media_type.as_str()).join(tmdb_id.to_string());
+    let images = download_images(&client, &metadata, &directory).await?;
 
     let mut transaction = pool.begin().await?;
     let saved = media_repository::save_media(&mut transaction, &metadata, existing_id)
         .await?
         .ok_or(ApiError::NotFound)?;
-    store_images(images)
-        .await
-        .map_err(|error| ApiError::Internal(Box::new(error)))?;
+    store_images(
+        images,
+        &directory.join("backdrops"),
+        metadata.additional_backdrop_paths.len(),
+    )
+    .await
+    .map_err(|error| ApiError::Internal(Box::new(error)))?;
     transaction.commit().await?;
     Ok(saved)
 }
@@ -39,14 +44,19 @@ struct DownloadedImage {
 async fn download_images(
     client: &TmdbClient,
     metadata: &MediaMetadata,
-    tmdb_id: i32,
+    directory: &Path,
 ) -> Result<Vec<DownloadedImage>, TmdbError> {
-    let directory = PathBuf::from(metadata.media_type.as_str()).join(tmdb_id.to_string());
     let poster_url = image_url(metadata.poster_path.as_deref());
     let backdrop_url = image_url(metadata.backdrop_path.as_deref());
     let mut images = Vec::new();
-    images.extend(download_image(client, &directory, "poster", poster_url.as_deref()).await?);
-    images.extend(download_image(client, &directory, "backdrop", backdrop_url.as_deref()).await?);
+    images.extend(download_image(client, directory, "poster", poster_url.as_deref()).await?);
+    images.extend(download_image(client, directory, "backdrop", backdrop_url.as_deref()).await?);
+    let gallery_directory = directory.join("backdrops");
+    for (index, image_path) in metadata.additional_backdrop_paths.iter().enumerate() {
+        let name = (index + 1).to_string();
+        let url = image_url(Some(image_path));
+        images.extend(download_image(client, &gallery_directory, &name, url.as_deref()).await?);
+    }
     for season in &metadata.seasons {
         let season_directory = directory
             .join("seasons")
@@ -82,10 +92,11 @@ async fn download_image(
     Ok(Some(DownloadedImage { path, bytes }))
 }
 
-async fn store_images(images: Vec<DownloadedImage>) -> io::Result<()> {
-    if images.is_empty() {
-        return Ok(());
-    }
+async fn store_images(
+    images: Vec<DownloadedImage>,
+    gallery_directory: &Path,
+    gallery_size: usize,
+) -> io::Result<()> {
     let app_data =
         std::env::var_os("LOCALAPPDATA").ok_or_else(|| io::Error::other("LOCALAPPDATA missing"))?;
     let root = PathBuf::from(app_data).join("misa").join("media");
@@ -108,6 +119,25 @@ async fn store_images(images: Vec<DownloadedImage>) -> io::Result<()> {
             {
                 tokio::fs::remove_file(previous).await?;
             }
+        }
+    }
+
+    let mut files = match tokio::fs::read_dir(root.join(gallery_directory)).await {
+        Ok(files) => files,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    while let Some(file) = files.next_entry().await? {
+        let path = file.path();
+        let position = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.parse::<usize>().ok());
+        if position.is_some_and(|position| {
+            (gallery_size + 1..=MAX_ADDITIONAL_BACKDROPS).contains(&position)
+        }) && file.file_type().await?.is_file()
+        {
+            tokio::fs::remove_file(path).await?;
         }
     }
     Ok(())

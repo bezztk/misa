@@ -761,9 +761,14 @@ CREATE TABLE media
     description       text,
     poster_path       text,
     backdrop_path     text,
+    trailer_url       text,
+    additional_backdrop_paths text[] NOT NULL DEFAULT '{}'
+        CHECK (cardinality(additional_backdrop_paths) <= 4),
     release_date      date,
     runtime_minutes   integer CHECK (runtime_minutes > 0),
     production_status text,
+    tmdb_vote_average double precision CHECK (tmdb_vote_average BETWEEN 0 AND 10),
+    tmdb_vote_count   integer CHECK (tmdb_vote_count >= 0),
     personal_rating   integer REFERENCES media_ratings (id),
     personal_notes    text,
     watch_status_id   integer NOT NULL DEFAULT 1 REFERENCES media_watch_statuses (id),
@@ -821,4 +826,19 @@ CREATE TABLE media_genre_assignments
     PRIMARY KEY (media_id, genre_id)
 );
 CREATE INDEX idx_media_genre_assignments_genre_id ON media_genre_assignments (genre_id);
+
+CREATE TABLE media_keywords
+(
+    id   integer PRIMARY KEY CHECK (id > 0),
+    name text NOT NULL
+);
+
+CREATE TABLE media_keyword_assignments
+(
+    media_id   integer NOT NULL REFERENCES media (entity_id) ON DELETE CASCADE,
+    keyword_id integer NOT NULL REFERENCES media_keywords (id),
+
+    PRIMARY KEY (media_id, keyword_id)
+);
+CREATE INDEX idx_media_keyword_assignments_keyword_id ON media_keyword_assignments (keyword_id);
 --endregion Media

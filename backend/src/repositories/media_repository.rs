@@ -14,6 +14,13 @@ const SELECT_MEDIA: &str = "SELECT media.*, media_types.name AS media_type,
             WHERE assignment.media_id = media.entity_id
             ORDER BY genre.name
         ) AS genres,
+        ARRAY(
+            SELECT keyword.name
+            FROM media_keyword_assignments assignment
+            JOIN media_keywords keyword ON keyword.id = assignment.keyword_id
+            WHERE assignment.media_id = media.entity_id
+            ORDER BY keyword.name, keyword.id
+        ) AS keywords,
         (SELECT COUNT(*) FROM media_seasons season WHERE season.media_id = media.entity_id)
             AS season_count,
         (SELECT COUNT(*) FROM media_seasons season
@@ -98,7 +105,9 @@ pub async fn save_media(
         "UPDATE media
          SET title = $2, original_title = $3, description = $4, poster_path = $5,
              backdrop_path = $6, release_date = $7, runtime_minutes = $8,
-             production_status = $9, last_synced_at = NOW()
+             production_status = $9, trailer_url = $10, additional_backdrop_paths = $11,
+             tmdb_vote_average = $12, tmdb_vote_count = $13,
+             last_synced_at = NOW()
          WHERE entity_id = $1",
     )
     .bind(id)
@@ -110,6 +119,10 @@ pub async fn save_media(
     .bind(metadata.release_date)
     .bind(metadata.runtime_minutes)
     .bind(metadata.production_status.as_deref())
+    .bind(metadata.trailer_url.as_deref())
+    .bind(&metadata.additional_backdrop_paths)
+    .bind(metadata.tmdb_vote_average)
+    .bind(metadata.tmdb_vote_count)
     .execute(&mut **transaction)
     .await?;
     if updated.rows_affected() == 0 {
@@ -136,6 +149,35 @@ pub async fn save_media(
         )
         .bind(id)
         .bind(genres)
+        .execute(&mut **transaction)
+        .await?;
+    }
+    if let Some(keywords) = &metadata.keywords {
+        let (keyword_ids, keyword_names): (Vec<_>, Vec<_>) = keywords
+            .iter()
+            .map(|(&keyword_id, name)| (keyword_id, name.as_str()))
+            .unzip();
+        sqlx::query(
+            "INSERT INTO media_keywords (id, name)
+             SELECT id, name FROM UNNEST($1::integer[], $2::text[]) AS keyword(id, name)
+             ORDER BY id
+             ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+             WHERE media_keywords.name IS DISTINCT FROM EXCLUDED.name",
+        )
+        .bind(&keyword_ids)
+        .bind(&keyword_names)
+        .execute(&mut **transaction)
+        .await?;
+        sqlx::query("DELETE FROM media_keyword_assignments WHERE media_id = $1")
+            .bind(id)
+            .execute(&mut **transaction)
+            .await?;
+        sqlx::query(
+            "INSERT INTO media_keyword_assignments (media_id, keyword_id)
+             SELECT $1, keyword_id FROM UNNEST($2::integer[]) AS keyword(keyword_id)",
+        )
+        .bind(id)
+        .bind(&keyword_ids)
         .execute(&mut **transaction)
         .await?;
     }

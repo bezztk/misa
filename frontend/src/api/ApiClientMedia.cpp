@@ -36,6 +36,8 @@ int ApiClient::getMedia() {
             for (const QJsonValue &value : response.array()) {
                 const QJsonObject object = value.toObject();
                 const QJsonValue runtime = object["runtime_minutes"];
+                const QJsonValue voteAverage = object["tmdb_vote_average"];
+                const QJsonValue voteCount = object["tmdb_vote_count"];
                 QStringList genres;
                 for (const QJsonValue &genre : object["genres"].toArray()) {
                     genres.append(genre.toString());
@@ -53,7 +55,9 @@ int ApiClient::getMedia() {
                     .backdropPath = object["backdrop_path"].toString(),
                     .description = object["description"].toString(),
                     .genres = std::move(genres),
-                    .runtimeMinutes = runtime.isDouble() ? std::optional(runtime.toInt()) : std::nullopt
+                    .runtimeMinutes = runtime.isDouble() ? std::optional(runtime.toInt()) : std::nullopt,
+                    .tmdbVoteAverage = voteAverage.isDouble() ? std::optional(voteAverage.toDouble()) : std::nullopt,
+                    .tmdbVoteCount = voteCount.isDouble() ? std::optional(voteCount.toInt()) : std::nullopt
                 });
             }
             emit mediaReceived(requestId, media);

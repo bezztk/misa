@@ -1,7 +1,9 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::BTreeMap;
 
 pub const COMPLETED_WATCH_STATUS: i32 = 3;
+pub const MAX_ADDITIONAL_BACKDROPS: usize = 4;
 
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, sqlx::Type)]
@@ -43,6 +45,8 @@ pub struct Media {
     pub description: Option<String>,
     pub poster_path: Option<String>,
     pub backdrop_path: Option<String>,
+    pub trailer_url: Option<String>,
+    pub additional_backdrop_paths: Vec<String>,
     #[sqlx(skip)]
     pub poster_url: Option<String>,
     #[sqlx(skip)]
@@ -50,6 +54,8 @@ pub struct Media {
     pub release_date: Option<NaiveDate>,
     pub runtime_minutes: Option<i32>,
     pub production_status: Option<String>,
+    pub tmdb_vote_average: Option<f64>,
+    pub tmdb_vote_count: Option<i32>,
     pub personal_rating: Option<MediaRating>,
     pub personal_notes: Option<String>,
     pub watch_status_id: i32,
@@ -57,6 +63,7 @@ pub struct Media {
     pub completed_at: Option<DateTime<Utc>>,
     pub last_synced_at: DateTime<Utc>,
     pub genres: Vec<String>,
+    pub keywords: Vec<String>,
     pub season_count: i64,
     pub episode_count: i64,
 }
@@ -172,10 +179,15 @@ pub struct MediaMetadata {
     pub description: Option<String>,
     pub poster_path: Option<String>,
     pub backdrop_path: Option<String>,
+    pub trailer_url: Option<String>,
+    pub additional_backdrop_paths: Vec<String>,
     pub release_date: Option<NaiveDate>,
     pub runtime_minutes: Option<i32>,
     pub production_status: Option<String>,
+    pub tmdb_vote_average: Option<f64>,
+    pub tmdb_vote_count: Option<i32>,
     pub genres: Option<Vec<String>>,
+    pub keywords: Option<BTreeMap<i32, String>>,
     pub seasons: Vec<SeasonMetadata>,
 }
 

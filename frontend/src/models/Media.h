@@ -28,6 +28,8 @@ struct Media {
     QString description;
     QStringList genres;
     std::optional<int> runtimeMinutes;
+    std::optional<double> tmdbVoteAverage;
+    std::optional<int> tmdbVoteCount;
 
     QString displayTitle() const {
         if (!title.isEmpty()) {

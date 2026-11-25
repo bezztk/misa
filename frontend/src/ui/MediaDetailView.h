@@ -28,6 +28,7 @@ private:
     QLabel *title;
     QLabel *metadata;
     QLabel *description;
+    QLabel *tmdbRating;
     QComboBox *rating;
     int entityId = 0;
     int ratingUpdateEntityId = 0;

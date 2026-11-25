@@ -10,6 +10,7 @@
 #include <QImageReader>
 #include <QLabel>
 #include <QLinearGradient>
+#include <QLocale>
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
@@ -32,7 +33,7 @@ constexpr auto DETAIL_STYLE = R"(
         font-weight: 600;
     }
     QLabel#mediaDetailCover { background: #303030; }
-    QLabel#mediaDetailMetadata { color: #B8B8B8; font-size: 14px; }
+    QLabel#mediaDetailMetadata, QLabel#mediaDetailTmdbRating { color: #B8B8B8; font-size: 14px; }
     QLabel#mediaDetailRatingLabel { color: #E5E5E5; font-size: 14px; }
     QComboBox#mediaDetailRating {
         background: #262626;
@@ -202,6 +203,12 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
     description->setWordWrap(true);
     body->addWidget(description);
 
+    tmdbRating = new QLabel(content);
+    tmdbRating->setObjectName("mediaDetailTmdbRating");
+    tmdbRating->setTextFormat(Qt::PlainText);
+    tmdbRating->setWordWrap(true);
+    body->addWidget(tmdbRating);
+
     auto *ratingLayout = new QVBoxLayout();
     ratingLayout->setSpacing(5);
     auto *ratingLabel = new QLabel("&Persönliche Bewertung", content);
@@ -260,6 +267,18 @@ void MediaDetailView::setMedia(
 ) {
     entityId = media.entityId;
     setRating(media.personalRating);
+    const QLocale locale(QLocale::German);
+    QStringList voteSummary;
+    if (media.tmdbVoteAverage && media.tmdbVoteCount != 0) {
+        voteSummary.append(QString("%1/10").arg(locale.toString(*media.tmdbVoteAverage, 'f', 1)));
+    }
+    if (media.tmdbVoteCount) {
+        const QString count = locale.toString(*media.tmdbVoteCount);
+        voteSummary.append(*media.tmdbVoteCount == 1 ? "1 Stimme" : QString("%1 Stimmen").arg(count));
+    }
+    tmdbRating->setText(QString("TMDB · %1").arg(voteSummary.join(" · ")));
+    tmdbRating->setVisible(!voteSummary.isEmpty());
+
     title->setText(media.displayTitle());
     const QPixmap poster = readImage(posterFile, QSize(384, 576));
     if (poster.isNull()) {
