@@ -45,10 +45,11 @@ constexpr auto DETAIL_STYLE = R"(
         border-radius: 4px;
         padding: 3px 8px;
     }
-    QFrame#mediaSeason { background: #262626; border: 1px solid #383838; border-radius: 4px; }
-    QFrame#mediaEpisode { background: #222222; border-radius: 4px; }
+    QFrame#mediaSeason, QFrame#mediaEpisode { background: transparent; border: none; }
+    QFrame#mediaSeason[separated="true"] { border-top: 1px solid #737373; }
+    QFrame#mediaEpisode[separated="true"] { border-top: 1px solid #3E3E3E; }
     QWidget#mediaDetailContent QComboBox, QWidget#mediaDetailContent QPushButton,
-    QToolButton#mediaSeasonToggle, QToolButton#mediaTechnicalToggle {
+    QToolButton#mediaTechnicalToggle {
         background: #262626;
         color: #E5E5E5;
         border: 1px solid #454545;
@@ -56,7 +57,7 @@ constexpr auto DETAIL_STYLE = R"(
         padding: 5px 8px;
     }
     QWidget#mediaDetailContent QPushButton:hover,
-    QToolButton#mediaSeasonToggle:hover, QToolButton#mediaTechnicalToggle:hover { background: #383838; }
+    QToolButton#mediaTechnicalToggle:hover { background: #383838; }
     QWidget#mediaDetailContent QPushButton:disabled,
     QWidget#mediaDetailContent QComboBox:disabled { color: #888888; }
     QWidget#mediaDetailContent QPushButton#mediaEpisodeWatchedButton:checked {
@@ -64,8 +65,13 @@ constexpr auto DETAIL_STYLE = R"(
         color: #B8D9C1;
         border-color: #3F5949;
     }
-    QToolButton#mediaDetailBack { background: transparent; border: none; padding: 6px; }
-    QToolButton#mediaDetailBack:hover, QToolButton#mediaDetailBack:focus {
+    QToolButton#mediaDetailBack, QToolButton#mediaSeasonToggle {
+        background: transparent;
+        border: none;
+        padding: 6px;
+    }
+    QToolButton#mediaDetailBack:hover, QToolButton#mediaDetailBack:focus,
+    QToolButton#mediaSeasonToggle:hover, QToolButton#mediaSeasonToggle:focus {
         background: rgba(25, 25, 25, 110);
         border-radius: 4px;
     }

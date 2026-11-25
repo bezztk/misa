@@ -26,11 +26,12 @@ QProgressBar *progressBar(QWidget *parent) {
 class MediaEpisodeRow final : public QFrame {
 public:
     MediaEpisodeRow(ApiClient &apiClient, const Media &media, const MediaSeason &season,
-                    const MediaEpisode &episode, QWidget *parent)
+                    const MediaEpisode &episode, const bool separated, QWidget *parent)
         : QFrame(parent), episodeId(episode.id) {
         setObjectName("mediaEpisode");
+        setProperty("separated", separated);
         auto *layout = new QHBoxLayout(this);
-        layout->setContentsMargins(10, 10, 10, 10);
+        layout->setContentsMargins(0, 8, 0, 8);
         layout->setSpacing(12);
         picture = new MediaImage(this);
         picture->setFixedSize(180, 101);
@@ -143,17 +144,18 @@ private:
 
 class MediaSeasonCard final : public QFrame {
 public:
-    MediaSeasonCard(const Media &media, const MediaSeason &season, QWidget *parent)
+    MediaSeasonCard(const Media &media, const MediaSeason &season, const bool separated, QWidget *parent)
         : QFrame(parent), season(season) {
         setObjectName("mediaSeason");
+        setProperty("separated", separated);
         auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(12, 12, 12, 12);
-        layout->setSpacing(9);
+        layout->setContentsMargins(0, 10, 0, 10);
+        layout->setSpacing(6);
 
         auto *header = new QHBoxLayout();
         header->setSpacing(12);
         auto *poster = new MediaImage(this);
-        poster->setFixedSize(64, 96);
+        poster->setFixedSize(56, 84);
         poster->setFocusPolicy(Qt::NoFocus);
         poster->setAttribute(Qt::WA_TransparentForMouseEvents);
         const QString posterName = QString("seasons/%1/poster").arg(season.number);
@@ -167,37 +169,40 @@ public:
         text->setSpacing(5);
         const QString name = season.number == 0 ? QStringLiteral("Sonderfolgen")
                                                 : QString("Staffel %1").arg(season.number);
-        auto *nameLabel = mediaText(name, details);
+        auto *heading = new QHBoxLayout();
+        heading->setSpacing(8);
+        auto *nameLabel = new QLabel(name, details);
         nameLabel->setObjectName("mediaSeasonTitle");
-        text->addWidget(nameLabel);
-        toggle = new QToolButton(this);
+        heading->addWidget(nameLabel);
+        if (season.releaseDate.isValid()) {
+            auto *date = new QLabel(QString("· %1").arg(season.releaseDate.toString("dd.MM.yyyy")), details);
+            date->setObjectName("mediaMutedText");
+            heading->addWidget(date);
+        }
+        heading->addStretch(1);
+        count = mediaText({}, details);
+        count->setObjectName("mediaMutedText");
+        count->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        count->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        heading->addWidget(count);
+        toggle = new QToolButton(details);
         toggle->setObjectName("mediaSeasonToggle");
         toggle->setAccessibleName(name + " ein- oder ausklappen");
         toggle->setCheckable(true);
         toggle->setArrowType(Qt::RightArrow);
         toggle->setCursor(Qt::PointingHandCursor);
-        if (!season.title.isEmpty()) {
-            text->addWidget(mediaText(season.title, this));
-        }
-        if (season.releaseDate.isValid()) {
-            auto *date = mediaText(season.releaseDate.toString("dd.MM.yyyy"), this);
-            date->setObjectName("mediaMutedText");
-            text->addWidget(date);
-        }
-        count = mediaText({}, this);
-        count->setObjectName("mediaMutedText");
-        text->addWidget(count);
-        auto *description = new MediaDescription(300, this);
+        heading->addWidget(toggle);
+        text->addLayout(heading);
+        auto *description = new MediaDescription(300, details);
         description->setText(season.description);
         text->addWidget(description);
         header->addWidget(details, 1, Qt::AlignTop);
-        header->addWidget(toggle, 0, Qt::AlignTop);
         layout->addLayout(header);
 
         auto *episodes = new QWidget(this);
         episodeLayout = new QVBoxLayout(episodes);
-        episodeLayout->setContentsMargins(0, 4, 0, 0);
-        episodeLayout->setSpacing(8);
+        episodeLayout->setContentsMargins(24, 0, 0, 0);
+        episodeLayout->setSpacing(0);
         episodeNotice = mediaText({}, episodes);
         episodeNotice->setObjectName("mediaMutedText");
         episodeLayout->addWidget(episodeNotice);
@@ -240,7 +245,7 @@ public:
             }
             rows.clear();
             for (const MediaEpisode &episode : episodes) {
-                auto *row = new MediaEpisodeRow(apiClient, media, season, episode, this);
+                auto *row = new MediaEpisodeRow(apiClient, media, season, episode, !rows.empty(), this);
                 episodeLayout->addWidget(row);
                 rows.push_back(row);
             }
@@ -292,7 +297,7 @@ MediaSeriesView::MediaSeriesView(ApiClient &apiClient, QWidget *parent)
     seasonNotice->setObjectName("mediaMutedText");
     layout->addWidget(seasonNotice);
     seasonLayout = new QVBoxLayout();
-    seasonLayout->setSpacing(8);
+    seasonLayout->setSpacing(0);
     layout->addLayout(seasonLayout);
 
     connect(&apiClient, &ApiClient::mediaSeriesProgressReceived, this,
@@ -406,7 +411,7 @@ void MediaSeriesView::showSeasons(const std::vector<MediaSeason> &seasons) {
     });
     MediaSeasonCard *firstUnfinished = nullptr;
     for (const MediaSeason &season : sorted) {
-        auto *card = new MediaSeasonCard(series, season, this);
+        auto *card = new MediaSeasonCard(series, season, !cards.empty(), this);
         seasonLayout->addWidget(card);
         cards.push_back(card);
         connect(card->toggle, &QToolButton::toggled, this, [this, card](const bool open) {
