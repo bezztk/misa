@@ -39,6 +39,7 @@ struct FlashcardReviewQueueItem {
     int id;
     QString front;
     QString back;
+    QString hint;
     std::int16_t reviewStateId;
     std::int16_t learningStep;
     int retentionClassId;

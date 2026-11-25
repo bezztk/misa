@@ -63,6 +63,7 @@ WorkspaceManager::WorkspaceManager(QWidget *parent) : QWidget(parent) {
 QWidget *WorkspaceManager::openView(
     const QString &key,
     const QString &title,
+    const QIcon &icon,
     ViewFactory factory,
     CloseHandler closeHandler
 ) {
@@ -77,11 +78,12 @@ QWidget *WorkspaceManager::openView(
 
     TabGroup *group = targetGroup();
     QWidget *view = factory();
-    group->addView(view, title);
+    group->addView(view, title, icon);
     views.insert(key, ViewRecord{
         .view = view,
         .group = group,
         .title = title,
+        .icon = icon,
         .closeHandler = std::move(closeHandler)
     });
     return view;
@@ -202,7 +204,7 @@ void WorkspaceManager::moveView(QWidget *view, TabGroup *target) {
     }
     TabGroup *source = views[key].group;
     source->removeView(view);
-    target->addView(view, views[key].title);
+    target->addView(view, views[key].title, views[key].icon);
     views[key].group = target;
     focusedGroup = target;
     removeEmptyGroup(source);

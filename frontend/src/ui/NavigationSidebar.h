@@ -15,6 +15,19 @@ class QToolButton;
 class QVBoxLayout;
 class QWidget;
 
+namespace NavigationIcons {
+inline constexpr auto tasks = ":/assets/icons/task-white.png";
+inline constexpr auto calendar = ":/assets/icons/calendar.png";
+inline constexpr auto ideas = ":/assets/icons/idea.png";
+inline constexpr auto learning = ":/assets/icons/flashcards-white.png";
+inline constexpr auto rss = ":/assets/icons/rss.png";
+inline constexpr auto sources = ":/assets/icons/text-analytics.png";
+inline constexpr auto media = ":/assets/icons/video-camera.png";
+inline constexpr auto notes = ":/assets/icons/quill-pen.png";
+
+QIcon tabIcon(const QString &path);
+}
+
 class NavigationCard : public QFrame {
     Q_OBJECT
 
@@ -98,6 +111,7 @@ public:
 
 signals:
     void openRequested();
+    void createSetRequested();
     void refreshRequested();
 };
 
@@ -161,6 +175,7 @@ signals:
     void openCalendarRequested();
     void openIdeasRequested();
     void openLearningRequested();
+    void createLearningSetRequested();
     void openRssRequested();
     void openSourcesRequested();
     void createSourceRequested();

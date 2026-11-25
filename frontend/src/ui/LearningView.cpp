@@ -8,6 +8,7 @@
 #include <QHBoxLayout>
 #include <QHideEvent>
 #include <QIcon>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
 #include <QPalette>
@@ -15,6 +16,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QToolButton>
@@ -23,24 +25,23 @@
 
 namespace {
 
-constexpr int contentWidth = 960;
+constexpr int cardWidth = 760;
 constexpr int pageMargin = 24;
-constexpr int actionHeight = 60;
+constexpr int actionHeight = 56;
 constexpr int ratingWidth = 170;
 constexpr int controlSpacing = 12;
 
 struct RatingOption {
     const char *title;
-    const char *accent;
     FlashcardRating rating;
     float FlashcardReviewPreview::*interval;
 };
 
 constexpr std::array<RatingOption, 4> ratingOptions{{
-    {"Nochmal", "#C45D5D", FlashcardRating::Again, &FlashcardReviewPreview::again},
-    {"Schwer", "#C49550", FlashcardRating::Hard, &FlashcardReviewPreview::hard},
-    {"Gut", "#65A875", FlashcardRating::Good, &FlashcardReviewPreview::good},
-    {"Einfach", "#6495C4", FlashcardRating::Easy, &FlashcardReviewPreview::easy},
+    {"Nochmal", FlashcardRating::Again, &FlashcardReviewPreview::again},
+    {"Schwer", FlashcardRating::Hard, &FlashcardReviewPreview::hard},
+    {"Gut", FlashcardRating::Good, &FlashcardReviewPreview::good},
+    {"Einfach", FlashcardRating::Easy, &FlashcardReviewPreview::easy},
 }};
 
 constexpr std::array<const char *, 5> metadataCaptions{
@@ -48,13 +49,19 @@ constexpr std::array<const char *, 5> metadataCaptions{
 };
 
 constexpr const char *learningStyles = R"(
-    QLabel#learningTitle { font-size: 26px; font-weight: 600; }
     QLabel#learningDueCount { font-size: 54px; font-weight: 600; }
+    QLabel#learningDueBreakdown { font-size: 15px; color: %1; }
     QLabel#learningMutedText { color: %1; }
-    QLabel#learningQuestion { font-size: 24px; font-weight: 600; }
-    QLabel#learningAnswer { font-size: 18px; }
+    QPushButton#learningStart { font-size: 16px; }
+    QLabel#learningState {
+        color: %1;
+        background: rgba(127, 127, 127, 32);
+        padding: 3px 6px;
+    }
+    QLabel#learningQuestion { font-size: 34px; font-weight: 600; }
+    QLabel#learningHint { font-size: 18px; color: %1; }
+    QLabel#learningAnswer { font-size: 26px; }
     QScrollArea#learningCardScroll { background: transparent; }
-    QFrame#learningAnswerDivider { background: rgba(127, 127, 127, 60); }
     QProgressBar#learningProgress {
         background: rgba(127, 127, 127, 50);
         border: none;
@@ -65,30 +72,12 @@ constexpr const char *learningStyles = R"(
         border-radius: 2px;
     }
     QToolButton#learningInfo::menu-indicator { image: none; width: 0; }
-    QLabel#learningRatingTitle { font-size: 15px; font-weight: 600; }
-    QLabel#learningRatingInterval { font-size: 12px; }
 )";
 
-QString ratingStyle(const QColor &accent) {
-    const auto tint = [&accent](int alpha) {
-        return QString("rgba(%1, %2, %3, %4)")
-            .arg(accent.red()).arg(accent.green()).arg(accent.blue()).arg(alpha);
-    };
-    return QString(R"(
-        QPushButton#learningRating {
-            border: 1px solid %1;
-            border-radius: 6px;
-            background: %2;
-            padding: 0;
-        }
-        QPushButton#learningRating:hover { background: %3; }
-        QPushButton#learningRating:pressed { background: %4; }
-        QPushButton#learningRating:focus { border-color: palette(highlight); }
-        QPushButton#learningRating:disabled {
-            border-color: %5;
-            background: %6;
-        }
-    )").arg(tint(150), tint(27), tint(51), tint(76), tint(65), tint(14));
+void retainHiddenSpace(QWidget &widget) {
+    auto policy = widget.sizePolicy();
+    policy.setRetainSizeWhenHidden(true);
+    widget.setSizePolicy(policy);
 }
 
 QString formatInterval(const float days) {
@@ -138,13 +127,10 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
     const bool darkBackground = palette().color(QPalette::Window).lightness() < 128;
     setStyleSheet(QString(learningStyles).arg(darkBackground ? "#a7a7a7" : "#626262"));
 
-    auto *outerLayout = new QHBoxLayout(this);
+    auto *outerLayout = new QVBoxLayout(this);
     outerLayout->setContentsMargins(0, 0, 0, 0);
     screens = new QStackedWidget(this);
-    screens->setMaximumWidth(contentWidth);
-    outerLayout->addStretch();
-    outerLayout->addWidget(screens, 1);
-    outerLayout->addStretch();
+    outerLayout->addWidget(screens);
 
     startScreen = createStartScreen();
     sessionScreen = createSessionScreen();
@@ -159,13 +145,16 @@ LearningView::LearningView(ApiClient &client, QWidget *parent)
             });
     connect(&apiClient, &ApiClient::flashcardRated, this, [this] {
         ratingPending = false;
-        ratingWidget->setEnabled(true);
         ++currentIndex;
-        showCurrentFlashcard();
+        if (screens->currentWidget() == sessionScreen) {
+            showCurrentFlashcard();
+        } else {
+            showStartScreen();
+        }
     });
     connect(&apiClient, &ApiClient::flashcardRatingFailed, this, [this] {
         ratingPending = false;
-        ratingWidget->setEnabled(true);
+        updateSessionActions();
     });
 
     reloadFlashcards();
@@ -175,28 +164,33 @@ QWidget *LearningView::createStartScreen() {
     auto *screen = new QWidget(screens);
     auto *layout = new QVBoxLayout(screen);
     layout->setContentsMargins(pageMargin, pageMargin, pageMargin, pageMargin);
-    layout->setSpacing(8);
+    layout->setSpacing(20);
 
-    auto *title = new QLabel("Lernkarten", screen);
-    title->setObjectName("learningTitle");
-    dueCountLabel = new QLabel(screen);
+    auto *summary = new QWidget(screen);
+    auto *summaryLayout = new QHBoxLayout(summary);
+    summaryLayout->setContentsMargins(0, 0, 0, 0);
+    summaryLayout->setSpacing(24);
+    auto *total = new QVBoxLayout;
+    total->setSpacing(0);
+    dueCountLabel = new QLabel(summary);
     dueCountLabel->setObjectName("learningDueCount");
-    dueCaption = new QLabel("Fällige Karten", screen);
+    dueCountLabel->setAlignment(Qt::AlignCenter);
+    auto *dueCaption = new QLabel("Fällige Karten", summary);
     dueCaption->setObjectName("learningMutedText");
-    dueBreakdown = new QLabel(screen);
-    dueBreakdown->setObjectName("learningMutedText");
-    dueBreakdown->setWordWrap(true);
-    emptyNotice = new QLabel("Aktuell sind keine Lernkarten fällig.", screen);
-    emptyNotice->setObjectName("learningMutedText");
-    emptyNotice->setWordWrap(true);
+    dueCaption->setAlignment(Qt::AlignCenter);
+    total->addWidget(dueCountLabel);
+    total->addWidget(dueCaption);
+    summaryLayout->addLayout(total);
+    dueBreakdown = new QLabel(summary);
+    dueBreakdown->setObjectName("learningDueBreakdown");
+    summaryLayout->addWidget(dueBreakdown, 0, Qt::AlignVCenter);
+
     startButton = new QPushButton("Lernen starten", screen);
-    startButton->setMinimumSize(160, 42);
+    startButton->setObjectName("learningStart");
+    startButton->setMinimumSize(184, 48);
 
     layout->addStretch();
-    for (auto *label : {title, dueCountLabel, dueCaption, dueBreakdown, emptyNotice}) {
-        label->setAlignment(Qt::AlignCenter);
-        layout->addWidget(label);
-    }
+    layout->addWidget(summary, 0, Qt::AlignHCenter);
     layout->addWidget(startButton, 0, Qt::AlignHCenter);
     layout->addStretch();
 
@@ -206,6 +200,7 @@ QWidget *LearningView::createStartScreen() {
 
 QWidget *LearningView::createSessionScreen() {
     auto *screen = new QWidget(screens);
+    screen->setFocusPolicy(Qt::ClickFocus);
     auto *layout = new QVBoxLayout(screen);
     layout->setContentsMargins(pageMargin, pageMargin, pageMargin, pageMargin);
     layout->setSpacing(20);
@@ -215,17 +210,22 @@ QWidget *LearningView::createSessionScreen() {
     header->setColumnStretch(2, 1);
     header->setHorizontalSpacing(controlSpacing);
 
+    auto *status = new QHBoxLayout;
     remainingLabel = new QLabel(screen);
-    remainingLabel->setObjectName("learningMutedText");
-    header->addWidget(remainingLabel, 0, 0);
+    stateLabel = new QLabel(screen);
+    stateLabel->setObjectName("learningState");
+    status->addWidget(remainingLabel);
+    status->addWidget(stateLabel);
+    status->addStretch();
+    header->addLayout(status, 0, 0);
 
     progress = new QProgressBar(screen);
     progress->setObjectName("learningProgress");
     progress->setAccessibleName("Sitzungsfortschritt");
     progress->setTextVisible(false);
     progress->setFixedHeight(4);
-    progress->setMinimumWidth(36);
-    progress->setMaximumWidth(120);
+    progress->setMinimumWidth(48);
+    progress->setMaximumWidth(144);
     header->addWidget(progress, 0, 1, Qt::AlignVCenter);
 
     auto *headerActions = new QHBoxLayout();
@@ -263,7 +263,7 @@ QWidget *LearningView::createSessionScreen() {
     infoButton->setMenu(metadataMenu);
     headerActions->addWidget(infoButton);
 
-    auto *endButton = new QPushButton("Lernen beenden", screen);
+    auto *endButton = new QPushButton("Lernsession beenden", screen);
     headerActions->addWidget(endButton);
     connect(endButton, &QPushButton::clicked, this, &LearningView::showStartScreen);
     header->addLayout(headerActions, 0, 2);
@@ -272,39 +272,55 @@ QWidget *LearningView::createSessionScreen() {
     cardScrollArea = new QScrollArea(screen);
     cardScrollArea->setObjectName("learningCardScroll");
     cardScrollArea->setFrameShape(QFrame::NoFrame);
-    cardScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     cardScrollArea->setWidgetResizable(true);
+    cardScrollArea->setMaximumWidth(cardWidth);
 
     learningCard = new QWidget();
     auto *cardLayout = new QVBoxLayout(learningCard);
-    cardLayout->setContentsMargins(0, 8, 8, 0);
-    cardLayout->setSpacing(16);
+    cardLayout->setContentsMargins(12, 8, 12, 8);
+    auto *fields = new QGridLayout;
+    fields->setVerticalSpacing(16);
+    fields->setRowMinimumHeight(0, 88);
+    fields->setRowMinimumHeight(1, 76);
+    fields->setRowMinimumHeight(2, 112);
 
     front = new QLabel(learningCard);
     front->setObjectName("learningQuestion");
-    front->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    front->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    front->setWordWrap(true);
-    cardLayout->addWidget(front);
-
-    auto *divider = new QFrame(learningCard);
-    divider->setObjectName("learningAnswerDivider");
-    divider->setFixedHeight(1);
-    answerDivider = divider;
-    cardLayout->addWidget(answerDivider);
-
+    hint = new QLabel(learningCard);
+    hint->setObjectName("learningHint");
+    hint->setTextFormat(Qt::PlainText);
     back = new QLabel(learningCard);
     back->setObjectName("learningAnswer");
-    back->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    back->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    back->setWordWrap(true);
-    cardLayout->addWidget(back);
-    cardLayout->addStretch();
+    for (auto *label : {front, hint, back}) {
+        label->setAlignment(Qt::AlignCenter);
+        label->setWordWrap(true);
+    }
+
+    revealHint = new QPushButton("Hinweis anzeigen (I)", learningCard);
+    revealAnswer = new QPushButton("Antwort anzeigen (Leertaste)", learningCard);
+    for (auto *button : {revealHint, revealAnswer}) {
+        button->setMinimumSize(184, 48);
+        retainHiddenSpace(*button);
+    }
+    retainHiddenSpace(*hint);
+    retainHiddenSpace(*back);
+    fields->addWidget(front, 0, 0);
+    fields->addWidget(hint, 1, 0);
+    fields->addWidget(revealHint, 1, 0, Qt::AlignCenter);
+    fields->addWidget(back, 2, 0);
+    fields->addWidget(revealAnswer, 2, 0, Qt::AlignCenter);
+    cardLayout->addStretch(1);
+    cardLayout->addLayout(fields);
+    cardLayout->addStretch(2);
 
     cardScrollArea->setWidget(learningCard);
     learningCard->setAutoFillBackground(false);
     cardScrollArea->viewport()->setAutoFillBackground(false);
-    layout->addWidget(cardScrollArea, 1);
+    auto *cardBand = new QHBoxLayout;
+    cardBand->addStretch();
+    cardBand->addWidget(cardScrollArea, 24);
+    cardBand->addStretch();
+    layout->addLayout(cardBand, 1);
 
     learningCard->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(learningCard, &QWidget::customContextMenuRequested, this,
@@ -322,59 +338,41 @@ QWidget *LearningView::createSessionScreen() {
                 }
             });
 
-    actions = new QStackedWidget(screen);
-    actions->setFixedHeight(actionHeight);
-    actions->setMaximumWidth(ratingWidth * 4 + controlSpacing * 3);
+    const auto makeShortcut = [screen](const Qt::Key key, QPushButton *button) {
+        auto *shortcut = new QShortcut(QKeySequence(key), screen);
+        shortcut->setContext(Qt::WidgetWithChildrenShortcut);
+        shortcut->setAutoRepeat(false);
+        shortcut->setEnabled(false);
+        connect(shortcut, &QShortcut::activated, button, &QPushButton::click);
+        return shortcut;
+    };
+    hintShortcut = makeShortcut(Qt::Key_I, revealHint);
+    answerShortcut = makeShortcut(Qt::Key_Space, revealAnswer);
+    connect(revealHint, &QPushButton::clicked, this, &LearningView::showHint);
+    connect(revealAnswer, &QPushButton::clicked, this, &LearningView::showAnswer);
 
-    revealWidget = new QWidget(actions);
-    auto *revealLayout = new QHBoxLayout(revealWidget);
-    revealLayout->setContentsMargins(0, 0, 0, 0);
-    auto *showAnswerButton = new QPushButton("Antwort anzeigen", revealWidget);
-    showAnswerButton->setFixedSize(184, actionHeight);
-    revealLayout->addWidget(showAnswerButton, 0, Qt::AlignHCenter);
-    connect(showAnswerButton, &QPushButton::clicked, this, &LearningView::showAnswer);
-    actions->addWidget(revealWidget);
-
-    ratingWidget = new QWidget(actions);
+    ratingWidget = new QWidget(screen);
     auto *ratingLayout = new QHBoxLayout(ratingWidget);
     ratingLayout->setContentsMargins(0, 0, 0, 0);
     ratingLayout->setSpacing(controlSpacing);
+    ratingLayout->addStretch();
+    constexpr std::array keys{Qt::Key_1, Qt::Key_2, Qt::Key_3, Qt::Key_4};
     for (std::size_t i = 0; i < ratingOptions.size(); ++i) {
-        const auto &option = ratingOptions[i];
         auto *button = new QPushButton(ratingWidget);
-        button->setObjectName("learningRating");
-        button->setStyleSheet(ratingStyle(QColor(option.accent)));
         button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
         button->setFixedHeight(actionHeight);
         button->setMaximumWidth(ratingWidth);
-
-        auto *labels = new QVBoxLayout(button);
-        labels->setContentsMargins(0, 0, 0, 0);
-        labels->setSpacing(2);
-        auto *title = new QLabel(option.title, button);
-        title->setObjectName("learningRatingTitle");
-        title->setAttribute(Qt::WA_TransparentForMouseEvents);
-        auto *interval = new QLabel(button);
-        interval->setObjectName("learningRatingInterval");
-        interval->setAttribute(Qt::WA_TransparentForMouseEvents);
-        labels->addStretch();
-        labels->addWidget(title, 0, Qt::AlignHCenter);
-        labels->addWidget(interval, 0, Qt::AlignHCenter);
-        labels->addStretch();
-
-        ratingControls[i] = {button, interval};
-        ratingLayout->addWidget(button, 1);
-        connect(button, &QPushButton::clicked, this, [this, rating = option.rating] {
+        ratingLayout->addWidget(button, 8);
+        ratingControls[i] = {button, makeShortcut(keys[i], button)};
+        connect(button, &QPushButton::clicked, this, [this, rating = ratingOptions[i].rating] {
             rateFlashcard(rating);
         });
     }
-    actions->addWidget(ratingWidget);
-
-    auto *footer = new QHBoxLayout();
-    footer->addStretch();
-    footer->addWidget(actions, 1);
-    footer->addStretch();
-    layout->addLayout(footer);
+    ratingLayout->addStretch();
+    ratingWidget->setFixedHeight(actionHeight);
+    retainHiddenSpace(*ratingWidget);
+    ratingWidget->hide();
+    layout->addWidget(ratingWidget);
 
     return screen;
 }
@@ -406,25 +404,23 @@ void LearningView::showStartScreen() {
     }
 
     dueCountLabel->setText(QString::number(dueCount));
-    dueBreakdown->setText(QString("Neu: %1  ·  Im Lernen: %2  ·  Wiederholungen: %3")
+    dueBreakdown->setText(QString("%1 Neu\n%2 Im Lernen\n%3 Wiederholungen")
         .arg(newCount).arg(learningCount).arg(reviewCount));
-    dueCountLabel->setVisible(hasDueCards);
-    dueCaption->setVisible(hasDueCards);
-    dueBreakdown->setVisible(hasDueCards);
     startButton->setVisible(hasDueCards);
-    emptyNotice->setVisible(!hasDueCards);
 
     metadataMenu->hide();
     screens->setCurrentWidget(startScreen);
+    updateSessionActions();
 }
 
 void LearningView::rateFlashcard(FlashcardRating rating) {
-    if (ratingPending || currentIndex >= flashcards.size()) {
+    if (!ratingWidget->isEnabled() || currentIndex >= flashcards.size()) {
         return;
     }
 
+    sessionScreen->setFocus(Qt::OtherFocusReason);
     ratingPending = true;
-    ratingWidget->setEnabled(false);
+    updateSessionActions();
     const auto ms = static_cast<int>(flashcardShownAt.msecsTo(answerOpenedAt));
 
     apiClient.rateFlashcard(
@@ -441,12 +437,17 @@ void LearningView::showCurrentFlashcard() {
         return;
     }
 
+    const bool enteringSession = screens->currentWidget() != sessionScreen;
     flashcardShownAt = QDateTime::currentDateTime();
     const FlashcardReviewQueueItem &flashcard = flashcards[currentIndex];
     front->setText(flashcard.front);
-    answerDivider->hide();
+    hint->setText(flashcard.hint);
+    back->setText(flashcard.back);
+    hint->hide();
     back->hide();
-    back->clear();
+    revealHint->setVisible(!flashcard.hint.isEmpty());
+    revealAnswer->show();
+    ratingWidget->hide();
     metadataMenu->hide();
     updateMetadata();
     updateCommentButton();
@@ -460,21 +461,42 @@ void LearningView::showCurrentFlashcard() {
     for (std::size_t i = 0; i < ratingOptions.size(); ++i) {
         const auto &option = ratingOptions[i];
         const QString interval = formatInterval(flashcard.preview.*option.interval);
-        ratingControls[i].interval->setText(interval);
-        ratingControls[i].button->setAccessibleName(QString("%1, %2").arg(option.title, interval));
+        ratingControls[i].button->setText(QString("%1 (%2)\n%3").arg(option.title).arg(i + 1).arg(interval));
     }
 
-    actions->setCurrentWidget(revealWidget);
-    cardScrollArea->verticalScrollBar()->setValue(0);
     screens->setCurrentWidget(sessionScreen);
+    updateSessionActions();
+    cardScrollArea->verticalScrollBar()->setValue(0);
+    if (enteringSession) {
+        sessionScreen->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+void LearningView::showHint() {
+    revealHint->hide();
+    hint->show();
+    updateSessionActions();
+    sessionScreen->setFocus(Qt::OtherFocusReason);
 }
 
 void LearningView::showAnswer() {
     answerOpenedAt = QDateTime::currentDateTime();
-    back->setText(flashcards[currentIndex].back);
-    answerDivider->show();
+    revealAnswer->hide();
     back->show();
-    actions->setCurrentWidget(ratingWidget);
+    ratingWidget->show();
+    updateSessionActions();
+    sessionScreen->setFocus(Qt::OtherFocusReason);
+}
+
+void LearningView::updateSessionActions() {
+    const bool active = screens->currentWidget() == sessionScreen;
+    hintShortcut->setEnabled(active && !revealHint->isHidden());
+    answerShortcut->setEnabled(active && !revealAnswer->isHidden());
+    const bool canRate = active && !ratingPending && !ratingWidget->isHidden();
+    ratingWidget->setEnabled(canRate);
+    for (const auto &control : ratingControls) {
+        control.shortcut->setEnabled(canRate);
+    }
 }
 
 void LearningView::hideEvent(QHideEvent* event) {
@@ -490,7 +512,9 @@ void LearningView::refreshMetadata() {
 
 void LearningView::updateMetadata() {
     const FlashcardReviewQueueItem &flashcard = flashcards[currentIndex];
-    metadataValues[0]->setText(flashcardStateName(flashcard.reviewStateId));
+    const QString state = flashcardStateName(flashcard.reviewStateId);
+    stateLabel->setText(state);
+    metadataValues[0]->setText(state);
     metadataValues[1]->setText(retentionLevelText(apiClient.metadata(), flashcard.retentionClassId));
     metadataValues[2]->setText(metricText(flashcard.stability));
     metadataValues[3]->setText(metricText(flashcard.difficulty));

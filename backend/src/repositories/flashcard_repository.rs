@@ -148,6 +148,7 @@ pub async fn get_due_flashcard_contexts(
             f.entity_id AS id,
             f.front,
             f.back,
+            f.hint,
             f.review_state_id,
             f.retention_class_id,
             f.stability,

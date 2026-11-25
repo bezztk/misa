@@ -12,6 +12,7 @@
 #include "TaskView.h"
 #include "WorkspaceManager.h"
 
+#include <QButtonGroup>
 #include <QCloseEvent>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -19,9 +20,10 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPointer>
+#include <QPushButton>
 #include <QResizeEvent>
 #include <QSplitter>
-#include <QTabWidget>
+#include <QStackedWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -43,6 +45,78 @@ static constexpr auto SIDEBAR_TOGGLE_STYLE = R"(
         background: #303030;
     }
 )";
+
+class LearningArea final : public QWidget {
+public:
+    explicit LearningArea(ApiClient &apiClient) {
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 10, 0, 0);
+        layout->setSpacing(6);
+
+        auto *segments = new QWidget(this);
+        auto *segmentLayout = new QHBoxLayout(segments);
+        segmentLayout->setContentsMargins(0, 0, 0, 0);
+        segmentLayout->setSpacing(0);
+        segments->setStyleSheet(R"(
+            QPushButton {
+                background: #222222;
+                color: #AAAAAA;
+                border: 1px solid #404040;
+                border-radius: 0;
+            }
+            QPushButton:hover { background: #292929; }
+            QPushButton:checked {
+                background: #333333;
+                color: #E5E5E5;
+            }
+            QPushButton:focus { border-color: #666666; }
+            QPushButton#longTermMode { border-right: none; }
+        )");
+        auto *longTermButton = new QPushButton("Langzeitlernen", segments);
+        longTermButton->setObjectName("longTermMode");
+        auto *shortTermButton = new QPushButton("Kurzzeitlernen", segments);
+        for (auto *button : {longTermButton, shortTermButton}) {
+            button->setCheckable(true);
+            button->setFixedSize(138, 32);
+            segmentLayout->addWidget(button);
+        }
+        layout->addWidget(segments, 0, Qt::AlignHCenter);
+
+        pages = new QStackedWidget(this);
+        longTerm = new LearningView(apiClient, pages);
+        shortTerm = new ShortTermLearningView(apiClient, pages);
+        pages->addWidget(longTerm);
+        pages->addWidget(shortTerm);
+        layout->addWidget(pages, 1);
+
+        auto *modes = new QButtonGroup(segments);
+        modes->addButton(longTermButton, pages->indexOf(longTerm));
+        modes->addButton(shortTermButton, pages->indexOf(shortTerm));
+        longTermButton->setChecked(true);
+        connect(modes, &QButtonGroup::idClicked, pages, &QStackedWidget::setCurrentIndex);
+        connect(pages, &QStackedWidget::currentChanged, modes, [modes](const int index) {
+            modes->button(index)->setChecked(true);
+        });
+
+        connect(&apiClient, &ApiClient::metadataReceived, longTerm, &LearningView::refreshMetadata);
+        longTerm->refreshMetadata();
+    }
+
+    void refreshLongTerm() {
+        pages->setCurrentWidget(longTerm);
+        longTerm->reloadFlashcards();
+    }
+
+    void createShortTermSet() {
+        pages->setCurrentWidget(shortTerm);
+        shortTerm->openCreateSetDialog();
+    }
+
+private:
+    QStackedWidget *pages;
+    LearningView *longTerm;
+    ShortTermLearningView *shortTerm;
+};
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     setWindowTitle("Misa");
@@ -124,6 +198,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openIdeas);
     connect(navigation, &NavigationSidebar::openLearningRequested,
             this, &MainWindow::openLearning);
+    connect(navigation, &NavigationSidebar::createLearningSetRequested,
+            this, [this] { openLearning()->createShortTermSet(); });
     connect(navigation, &NavigationSidebar::openRssRequested,
             this, &MainWindow::openRss);
     connect(navigation, &NavigationSidebar::openSourcesRequested,
@@ -150,11 +226,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, [this] { openCalendar()->refresh(); });
     connect(navigation, &NavigationSidebar::createIdeaRequested,
             this, [this] { openIdeas()->openCreateDialog(); });
-    connect(navigation, &NavigationSidebar::refreshLearningRequested, this, [this] {
-        auto *tabs = openLearning();
-        tabs->setCurrentIndex(0);
-        static_cast<LearningView *>(tabs->widget(0))->reloadFlashcards();
-    });
+    connect(navigation, &NavigationSidebar::refreshLearningRequested,
+            this, [this] { openLearning()->refreshLongTerm(); });
     connect(navigation, &NavigationSidebar::openDomainNodeRequested,
             this, &MainWindow::openDomainNode);
     navigation->setBeforeNodeActionHandler(
@@ -276,7 +349,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
 TaskView *MainWindow::openTasks() {
     bool created = false;
     auto *view = static_cast<TaskView *>(workspaceManager->openView(
-        "tasks", "Aufgaben", [this, &created] {
+        "tasks", "Aufgaben", NavigationIcons::tabIcon(NavigationIcons::tasks), [this, &created] {
             created = true;
             auto *view = new TaskView(apiClient);
             connect(&apiClient, &ApiClient::metadataReceived,
@@ -294,7 +367,7 @@ TaskView *MainWindow::openTasks() {
 
 CalendarView *MainWindow::openCalendar() {
     return static_cast<CalendarView *>(workspaceManager->openView(
-        "calendar", "Kalender", [this] {
+        "calendar", "Kalender", NavigationIcons::tabIcon(NavigationIcons::calendar), [this] {
             return new CalendarView(apiClient);
         }
     ));
@@ -303,7 +376,7 @@ CalendarView *MainWindow::openCalendar() {
 IdeaView *MainWindow::openIdeas() {
     bool created = false;
     auto *view = static_cast<IdeaView *>(workspaceManager->openView(
-        "ideas", "Ideen", [this, &created] {
+        "ideas", "Ideen", NavigationIcons::tabIcon(NavigationIcons::ideas), [this, &created] {
             created = true;
             auto *view = new IdeaView(apiClient);
             connect(&apiClient, &ApiClient::metadataReceived,
@@ -318,25 +391,17 @@ IdeaView *MainWindow::openIdeas() {
     return view;
 }
 
-QTabWidget *MainWindow::openLearning() {
-    return static_cast<QTabWidget *>(workspaceManager->openView(
-        "learning", "Lernkarten", [this] {
-            auto *tabs = new QTabWidget;
-            auto *view = new LearningView(apiClient, tabs);
-            connect(&apiClient, &ApiClient::metadataReceived,
-                    view, &LearningView::refreshMetadata);
-            view->refreshMetadata();
-            tabs->addTab(view, "Langzeitlernen");
-            tabs->addTab(new ShortTermLearningView(apiClient, tabs), "Kurzzeitlernen");
-            return tabs;
-        }
+LearningArea *MainWindow::openLearning() {
+    return static_cast<LearningArea *>(workspaceManager->openView(
+        "learning", "Lernkarten", NavigationIcons::tabIcon(NavigationIcons::learning),
+        [this] { return new LearningArea(apiClient); }
     ));
 }
 
 RssView *MainWindow::openRss() {
     bool created = false;
     auto *view = static_cast<RssView *>(workspaceManager->openView(
-        "rss", "RSS", [this, &created] {
+        "rss", "RSS", NavigationIcons::tabIcon(NavigationIcons::rss), [this, &created] {
             created = true;
             return new RssView(apiClient);
         }
@@ -349,13 +414,14 @@ RssView *MainWindow::openRss() {
 
 SourceView *MainWindow::openSources() {
     return static_cast<SourceView *>(workspaceManager->openView(
-        "sources", "Quellen", [this] { return new SourceView(apiClient); }
+        "sources", "Quellen", NavigationIcons::tabIcon(NavigationIcons::sources),
+        [this] { return new SourceView(apiClient); }
     ));
 }
 
 MediaView *MainWindow::openMedia() {
     auto *view = static_cast<MediaView *>(workspaceManager->openView(
-        "media", "Filme und Serien", [this] {
+        "media", "Filme und Serien", NavigationIcons::tabIcon(NavigationIcons::media), [this] {
             return new MediaView(apiClient);
         }
     ));
@@ -370,6 +436,7 @@ void MainWindow::openDomainNode(const int nodeId, const QString &title) {
     workspaceManager->openView(
         key,
         title,
+        NavigationIcons::tabIcon(NavigationIcons::notes),
         [this, nodeId, view] {
             *view = new DomainView(apiClient);
             (*view)->showNode(nodeId);

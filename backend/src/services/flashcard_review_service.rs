@@ -81,6 +81,7 @@ pub async fn get_due_flashcards(
             id: context.id,
             front: context.front,
             back: context.back,
+            hint: context.hint,
             review_state_id: context.review_state_id,
             retention_class_id: context.retention_class_id,
             learning_step: i16::from(

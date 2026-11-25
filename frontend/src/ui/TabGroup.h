@@ -3,6 +3,7 @@
 
 #include <QWidget>
 
+class QIcon;
 class QTabWidget;
 
 class TabGroup final : public QWidget {
@@ -11,7 +12,7 @@ class TabGroup final : public QWidget {
 public:
     explicit TabGroup(QWidget *parent = nullptr);
 
-    void addView(QWidget *view, const QString &title);
+    void addView(QWidget *view, const QString &title, const QIcon &icon);
     void removeView(QWidget *view);
     void setCurrentView(QWidget *view);
     void setViewTitle(QWidget *view, const QString &title);

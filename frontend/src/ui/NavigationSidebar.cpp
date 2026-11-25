@@ -62,12 +62,16 @@ static constexpr auto NAVIGATION_STYLE = R"(
     }
 )";
 
-static QPixmap navigationIcon(const QIcon &icon) {
-    QPixmap pixmap = icon.pixmap(18, 18);
+static QPixmap navigationIcon(const QIcon &icon, const int size) {
+    QPixmap pixmap = icon.pixmap(size, size);
     QPainter painter(&pixmap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
     painter.fillRect(pixmap.rect(), QColor("#B5B5B5"));
     return pixmap;
+}
+
+QIcon NavigationIcons::tabIcon(const QString &path) {
+    return QIcon(navigationIcon(QIcon(path), 32));
 }
 
 NavigationCard::NavigationCard(
@@ -104,7 +108,7 @@ NavigationCard::NavigationCard(
     auto *icon = new QLabel(header);
     icon->setObjectName("navigationCardIcon");
     icon->setFixedSize(18, 18);
-    icon->setPixmap(navigationIcon(cardIcon));
+    icon->setPixmap(navigationIcon(cardIcon, 18));
     icon->setAttribute(Qt::WA_TransparentForMouseEvents);
     headerLayout->addWidget(icon, 0, Qt::AlignTop);
 
@@ -228,7 +232,7 @@ TasksNavigationSection::TasksNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 )
-    : NavigationCard("Aufgaben", ":/assets/icons/task-white.png", false, parent) {
+    : NavigationCard("Aufgaben", NavigationIcons::tasks, false, parent) {
     setSubtext("Aufgaben werden geladen …");
     connect(&apiClient, &ApiClient::taskReceived, this,
             [this](const std::vector<Task> &tasks) {
@@ -264,7 +268,7 @@ TasksNavigationSection::TasksNavigationSection(
 }
 
 CalendarNavigationSection::CalendarNavigationSection(QWidget *parent)
-    : NavigationCard("Kalender", ":/assets/icons/calendar.png", false, parent) {
+    : NavigationCard("Kalender", NavigationIcons::calendar, false, parent) {
     connect(this, &NavigationCard::activated,
             this, &CalendarNavigationSection::openRequested);
     connect(this, &NavigationCard::contextMenuRequested, this,
@@ -288,7 +292,7 @@ IdeasNavigationSection::IdeasNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 ) : NavigationCard(
-        "Ideeninkubator", ":/assets/icons/idea.png", false, parent
+        "Ideeninkubator", NavigationIcons::ideas, false, parent
     ) {
     setSubtext("Ideen werden geladen …");
     connect(&apiClient, &ApiClient::ideasReceived, this,
@@ -319,7 +323,7 @@ LearningNavigationSection::LearningNavigationSection(
     QWidget *parent
 )
     : NavigationCard(
-        "Lernkarten", ":/assets/icons/flashcards-white.png", false, parent
+        "Lernkarten", NavigationIcons::learning, false, parent
     ) {
     setSubtext("Lernkarten werden geladen …");
     connect(&apiClient, &ApiClient::dueFlashcardCountReceived, this,
@@ -339,15 +343,19 @@ LearningNavigationSection::LearningNavigationSection(
     connect(this, &NavigationCard::contextMenuRequested, this,
             [this](const QPoint &position) {
                 QMenu menu(this);
+                QAction *createSetAction = menu.addAction("Lernsatz erstellen");
                 QAction *refreshAction = menu.addAction("Aktualisieren");
-                if (menu.exec(position) == refreshAction) {
+                QAction *selected = menu.exec(position);
+                if (selected == createSetAction) {
+                    emit createSetRequested();
+                } else if (selected == refreshAction) {
                     emit refreshRequested();
                 }
             });
 }
 
 RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent)
-    : NavigationCard("RSS", ":/assets/icons/rss.png", false, parent) {
+    : NavigationCard("RSS", NavigationIcons::rss, false, parent) {
     setSubtext("Beiträge werden geladen …");
     connect(&apiClient, &ApiClient::rssEntriesReceived, this,
             [this](const std::vector<RssEntry> &entries) {
@@ -382,7 +390,7 @@ RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent
 
 MediaNavigationSection::MediaNavigationSection(QWidget *parent)
     : NavigationCard("Filme und Serien",
-                     ":/assets/icons/video-camera.png", false, parent) {
+                     NavigationIcons::media, false, parent) {
     connect(this, &NavigationCard::activated, this, &MediaNavigationSection::openRequested);
     connect(this, &NavigationCard::contextMenuRequested, this, [this](const QPoint &position) {
         QMenu menu(this);
@@ -397,7 +405,7 @@ ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 ) : NavigationCard(
-        "Aufschriebe", ":/assets/icons/quill-pen.png", true, parent
+        "Aufschriebe", NavigationIcons::notes, true, parent
     ) {
     domainNavigation = new DomainView(apiClient, this);
     domainNavigation->setNodeOpenHandler(
@@ -441,7 +449,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
     auto *rssSection = new RssNavigationSection(apiClient, cardContainer);
     auto *sourcesSection = new NavigationCard(
-        "Quellen", ":/assets/icons/books.png", false, cardContainer
+        "Quellen", NavigationIcons::sources, false, cardContainer
     );
     auto *mediaSection = new MediaNavigationSection(cardContainer);
     actualizationSection = new ActualizationNavigationSection(
@@ -468,6 +476,8 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openIdeasRequested);
     connect(learningSection, &LearningNavigationSection::openRequested,
             this, &NavigationSidebar::openLearningRequested);
+    connect(learningSection, &LearningNavigationSection::createSetRequested,
+            this, &NavigationSidebar::createLearningSetRequested);
     connect(rssSection, &RssNavigationSection::openRequested,
             this, &NavigationSidebar::openRssRequested);
     connect(sourcesSection, &NavigationCard::activated,

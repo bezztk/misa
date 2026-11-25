@@ -8,7 +8,9 @@
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
+#include <QFontMetrics>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QHideEvent>
@@ -19,26 +21,38 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QShowEvent>
 #include <QStackedWidget>
+#include <QStyle>
 #include <QTableWidget>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <limits>
 
 namespace {
 
 using State = ShortTermLearningState;
 using Rating = ShortTermLearningRating;
+
+constexpr QSize setCardSize(320, 152);
+constexpr int setCardSpacing = 12;
+constexpr int setGridMargin = 16;
+constexpr int forwardStateColumn = 3;
+constexpr int reverseStateColumn = 4;
 
 QString stateName(const State state) {
     switch (state) {
@@ -56,6 +70,20 @@ QTableWidget *makeTable(const QStringList &columns, QWidget *parent) {
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setAlternatingRowColors(true);
+    table->setShowGrid(false);
+    table->setStyleSheet(R"(
+        QTableWidget {
+            outline: 0;
+            selection-background-color: #373737;
+            selection-color: #EAEAEA;
+        }
+        QTableWidget::item:selected {
+            background: #373737;
+            color: #EAEAEA;
+            border: none;
+            border-radius: 0;
+        }
+    )");
     table->verticalHeader()->hide();
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     return table;
@@ -91,6 +119,94 @@ QPushButton *addDialogButtons(QDialog &dialog, QVBoxLayout &layout, const QStrin
     return accept;
 }
 
+QWidget *makeSetCard(const ShortTermLearningSet &set, QWidget *parent) {
+    auto *card = new QFrame(parent);
+    card->setObjectName("shortTermSetCard");
+    card->setFixedSize(setCardSize);
+    card->setAttribute(Qt::WA_StyledBackground);
+    card->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(12, 10, 12, 10);
+    layout->setSpacing(4);
+
+    auto *title = plainLabel(card);
+    title->setWordWrap(false);
+    auto font = title->font();
+    font.setPixelSize(17);
+    font.setBold(true);
+    title->setFont(font);
+    title->setText(QFontMetrics(font).elidedText(set.title, Qt::ElideRight,
+        setCardSize.width() - layout->contentsMargins().left() - layout->contentsMargins().right()));
+    layout->addWidget(title);
+
+    auto *description = new QLabel(card);
+    description->setText(QString("%1 · %2")
+        .arg(set.cardCount == 1 ? "1 Karte" : QString("%1 Karten").arg(set.cardCount))
+        .arg(set.bidirectional ? "Beide Richtungen" : "Vorne → Hinten"));
+    layout->addWidget(description);
+
+    auto *counts = new QGridLayout;
+    counts->setHorizontalSpacing(4);
+    const QStringList labels{"Neu", "Im Lernen", "Abgeschlossen"};
+    const std::array values{set.newCount, set.learningCount, set.completedCount};
+    for (int index = 0; index < labels.size(); ++index) {
+        auto *count = new QLabel(QString("%1\n%2").arg(values[index]).arg(labels[index]), card);
+        count->setAlignment(Qt::AlignCenter);
+        counts->setColumnStretch(index, 1);
+        counts->addWidget(count, 0, index);
+    }
+    layout->addLayout(counts, 1);
+
+    const qint64 total = set.newCount + set.learningCount + set.completedCount;
+    const int percentage = total > 0 ? static_cast<int>(set.completedCount * 100 / total) : 0;
+    auto *progressRow = new QHBoxLayout;
+    progressRow->setSpacing(8);
+    auto *progress = new QProgressBar(card);
+    progress->setObjectName("shortTermSetProgress");
+    progress->setAccessibleName("Lernfortschritt");
+    progress->setRange(0, 100);
+    progress->setValue(percentage);
+    progress->setTextVisible(false);
+    progress->setFixedHeight(4);
+    progressRow->addWidget(progress, 1);
+    progressRow->addWidget(new QLabel(QString("%1 %").arg(percentage), card));
+    layout->addLayout(progressRow);
+    return card;
+}
+
+bool editCardText(QWidget *parent, ShortTermLearningCard &card, const bool creating) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(creating ? "Lernkarte erstellen" : "Lernkarte bearbeiten");
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout;
+    auto *front = new QPlainTextEdit(card.front, &dialog);
+    auto *cardHint = new QPlainTextEdit(card.hint, &dialog);
+    auto *back = new QPlainTextEdit(card.back, &dialog);
+    for (auto *edit : {front, cardHint, back}) {
+        edit->setFixedHeight(72);
+    }
+    form->addRow("Vorderseite", front);
+    form->addRow("Hinweis", cardHint);
+    form->addRow("Rückseite", back);
+    layout->addLayout(form);
+    auto *accept = addDialogButtons(dialog, *layout, creating ? "Erstellen" : "Speichern");
+    const auto updateAccept = [accept, front, back] {
+        accept->setEnabled(!front->toPlainText().trimmed().isEmpty() &&
+                           !back->toPlainText().trimmed().isEmpty());
+    };
+    QObject::connect(front, &QPlainTextEdit::textChanged, &dialog, updateAccept);
+    QObject::connect(back, &QPlainTextEdit::textChanged, &dialog, updateAccept);
+    updateAccept();
+    prepareDialog(dialog);
+    if (execDialog(dialog) != QDialog::Accepted) {
+        return false;
+    }
+    card.front = front->toPlainText();
+    card.hint = cardHint->toPlainText();
+    card.back = back->toPlainText();
+    return true;
+}
+
 } // namespace
 
 ShortTermLearningView::ShortTermLearningView(ApiClient &client, QWidget *parent)
@@ -110,62 +226,97 @@ ShortTermLearningView::ShortTermLearningView(ApiClient &client, QWidget *parent)
 QWidget *ShortTermLearningView::createOverview() {
     auto *page = new QWidget(screens);
     auto *layout = new QVBoxLayout(page);
-    auto *actions = new QHBoxLayout;
-    auto *create = new QPushButton("Lernsatz erstellen", page);
-    auto *open = new QPushButton("Öffnen", page);
-    auto *reset = new QPushButton("Fortschritt zurücksetzen", page);
-    auto *remove = new QPushButton("Lernsatz löschen", page);
-    actions->addWidget(create);
-    actions->addWidget(open);
-    actions->addWidget(reset);
-    actions->addWidget(remove);
-    actions->addStretch();
-    layout->addLayout(actions);
+    layout->setContentsMargins(setGridMargin, 12, setGridMargin, 0);
+    setsGrid = new QListWidget(page);
+    setsGrid->setObjectName("shortTermSetsGrid");
+    setsGrid->setAccessibleName("Lernsätze");
+    setsGrid->setFrameShape(QFrame::NoFrame);
+    setsGrid->setViewMode(QListView::IconMode);
+    setsGrid->setFlow(QListView::LeftToRight);
+    setsGrid->setWrapping(true);
+    setsGrid->setResizeMode(QListView::Adjust);
+    setsGrid->setMovement(QListView::Static);
+    setsGrid->setGridSize(setCardSize + QSize(setCardSpacing, setCardSpacing));
+    setsGrid->setMinimumWidth(setCardSize.width()
+        + style()->pixelMetric(QStyle::PM_ScrollBarExtent));
+    setsGrid->setUniformItemSizes(true);
+    setsGrid->setSelectionMode(QAbstractItemView::NoSelection);
+    setsGrid->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    setsGrid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setsGrid->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    setsGrid->setStyleSheet(R"(
+        QListWidget#shortTermSetsGrid { background: palette(window); }
+        QFrame#shortTermSetCard {
+            background: transparent;
+            border: 1px solid #424242;
+            border-radius: 0;
+        }
+        QProgressBar#shortTermSetProgress {
+            background: #353535;
+            border: none;
+            border-radius: 0;
+        }
+        QProgressBar#shortTermSetProgress::chunk {
+            background: #737373;
+            border-radius: 0;
+        }
+    )");
+    auto *gridRow = new QHBoxLayout;
+    gridRow->addStretch();
+    gridRow->addWidget(setsGrid, 1);
+    gridRow->addStretch();
+    layout->addLayout(gridRow, 1);
 
-    setsTable = makeTable(
-        {"Titel", "Karten", "Abfragerichtung", "Neu", "Im Lernen", "Abgeschlossen", "Fortschritt"},
-        page
-    );
-    setsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    layout->addWidget(setsTable);
-
-    const auto updateActions = [this, open, reset, remove] {
-        const bool selected = setsTable->currentRow() >= 0;
-        open->setEnabled(selected);
-        reset->setEnabled(selected);
-        remove->setEnabled(selected);
-    };
-    connect(setsTable, &QTableWidget::currentCellChanged, this, updateActions);
-    updateActions();
-
-    connect(create, &QPushButton::clicked, this, &ShortTermLearningView::createSet);
-    connect(open, &QPushButton::clicked, this, &ShortTermLearningView::openSet);
-    connect(setsTable, &QTableWidget::cellDoubleClicked, this, &ShortTermLearningView::openSet);
-    connect(reset, &QPushButton::clicked, this, &ShortTermLearningView::resetSet);
-    connect(remove, &QPushButton::clicked, this, &ShortTermLearningView::deleteSet);
+    connect(setsGrid->verticalScrollBar(), &QScrollBar::rangeChanged, this, [this] {
+        centerSetGrid();
+    });
+    connect(setsGrid, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
+        openSet(sets[setsGrid->row(item)]);
+    });
+    setsGrid->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(setsGrid, &QListWidget::customContextMenuRequested, this, [this](const QPoint &position) {
+        if (auto *item = setsGrid->itemAt(position)) {
+            showSetMenu(sets[setsGrid->row(item)].id, setsGrid->viewport()->mapToGlobal(position));
+        }
+    });
     return page;
 }
 
 QWidget *ShortTermLearningView::createDetails() {
     auto *page = new QWidget(screens);
     auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(16, 12, 16, 12);
+    layout->setSpacing(10);
+    auto *header = new QHBoxLayout;
+    header->setSpacing(10);
+    auto *back = new QToolButton(page);
+    back->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+    back->setToolTip("Zur Übersicht");
+    back->setAccessibleName("Zur Übersicht");
+    back->setAutoRaise(true);
+    back->setFixedSize(32, 32);
     setTitle = plainLabel(page);
-    layout->addWidget(setTitle);
-
-    auto *actions = new QHBoxLayout;
-    auto *back = new QPushButton("Zur Übersicht", page);
-    auto *import = new QPushButton("JSON importieren", page);
-    auto *edit = new QPushButton("Karte bearbeiten", page);
-    auto *remove = new QPushButton("Karte löschen", page);
+    setTitle->setStyleSheet("font-size: 20px; font-weight: 600;");
+    setTitle->setContextMenuPolicy(Qt::CustomContextMenu);
     startButton = new QPushButton("Lernsession starten", page);
+    startButton->setMinimumSize(178, 42);
+    startButton->setStyleSheet(R"(
+        QPushButton { font-size: 15px; }
+        QPushButton:enabled {
+            background: palette(highlight);
+            color: palette(highlighted-text);
+            border: 1px solid transparent;
+            border-radius: 6px;
+        }
+        QPushButton:hover:enabled, QPushButton:focus:enabled {
+            border-color: palette(highlighted-text);
+        }
+    )");
     startButton->setEnabled(false);
-    actions->addWidget(back);
-    actions->addWidget(import);
-    actions->addWidget(edit);
-    actions->addWidget(remove);
-    actions->addStretch();
-    actions->addWidget(startButton);
-    layout->addLayout(actions);
+    header->addWidget(back);
+    header->addWidget(setTitle, 1);
+    header->addWidget(startButton);
+    layout->addLayout(header);
 
     cardsTable = makeTable(
         {"Vorderseite", "Hinweis", "Rückseite", "Vorne → Hinten", "Hinten → Vorne"}, page
@@ -175,22 +326,28 @@ QWidget *ShortTermLearningView::createDetails() {
     }
     layout->addWidget(cardsTable);
 
-    const auto updateActions = [this, edit, remove] {
-        const bool selected = cardsTable->currentRow() >= 0;
-        edit->setEnabled(selected);
-        remove->setEnabled(selected);
-    };
-    connect(cardsTable, &QTableWidget::currentCellChanged, this, updateActions);
-    updateActions();
-
-    connect(back, &QPushButton::clicked, this, [this] {
-        screens->setCurrentWidget(overview);
-        loadSets();
+    connect(back, &QToolButton::clicked, this, &ShortTermLearningView::showOverview);
+    connect(setTitle, &QLabel::customContextMenuRequested, this, [this](const QPoint &position) {
+        showSetMenu(selectedSet.id, setTitle->mapToGlobal(position));
     });
-    connect(import, &QPushButton::clicked, this, &ShortTermLearningView::importCards);
-    connect(edit, &QPushButton::clicked, this, &ShortTermLearningView::editCard);
     connect(cardsTable, &QTableWidget::cellDoubleClicked, this, &ShortTermLearningView::editCard);
-    connect(remove, &QPushButton::clicked, this, &ShortTermLearningView::deleteCard);
+    cardsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(cardsTable, &QTableWidget::customContextMenuRequested, this, [this](const QPoint &position) {
+        auto *item = cardsTable->itemAt(position);
+        if (!item) {
+            return;
+        }
+        const int row = item->row();
+        QMenu menu(this);
+        auto *edit = menu.addAction("Karte bearbeiten");
+        auto *remove = menu.addAction("Karte löschen");
+        const auto *selected = menu.exec(cardsTable->viewport()->mapToGlobal(position));
+        if (selected == edit) {
+            editCard(row);
+        } else if (selected == remove) {
+            deleteCard(row);
+        }
+    });
     connect(startButton, &QPushButton::clicked, this, &ShortTermLearningView::startSession);
     return page;
 }
@@ -357,11 +514,24 @@ void ShortTermLearningView::hideEvent(QHideEvent *event) {
     QWidget::hideEvent(event);
 }
 
+void ShortTermLearningView::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    centerSetGrid();
+}
+
 void ShortTermLearningView::setBusy(const bool pending) {
     busy = pending;
     overview->setEnabled(!busy);
     details->setEnabled(!busy);
     updateSessionActions();
+    if (!busy && createSetPending) {
+        createSetPending = false;
+        QTimer::singleShot(0, this, [this] {
+            if (isVisible()) {
+                openCreateSetDialog();
+            }
+        });
+    }
 }
 
 void ShortTermLearningView::updateSessionActions() {
@@ -384,23 +554,26 @@ void ShortTermLearningView::loadSets() {
             return;
         }
         sets = std::move(*loaded);
-        setsTable->setRowCount(0);
-        setsTable->setRowCount(static_cast<int>(sets.size()));
-        int row = 0;
+        setsGrid->clear();
         for (const auto &set : sets) {
-            const qint64 total = set.newCount + set.learningCount + set.completedCount;
-            const qint64 progress = total > 0 ? set.completedCount * 100 / total : 0;
-            setRow(*setsTable, row++, {
-                set.title,
-                QString::number(set.cardCount),
-                set.bidirectional ? "Beide Richtungen" : "Vorne → Hinten",
-                QString::number(set.newCount),
-                QString::number(set.learningCount),
-                QString::number(set.completedCount),
-                QString("%1 %").arg(progress),
-            });
+            auto *item = new QListWidgetItem(setsGrid);
+            item->setSizeHint(setCardSize);
+            item->setData(Qt::AccessibleTextRole, set.title);
+            item->setToolTip(set.title);
+            setsGrid->setItemWidget(item, makeSetCard(set, setsGrid->viewport()));
         }
+        centerSetGrid();
     });
+}
+
+void ShortTermLearningView::centerSetGrid() {
+    const int availableWidth = width() - 2 * setGridMargin;
+    const int columnWidth = setsGrid->gridSize().width();
+    const int scrollBarWidth = setsGrid->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int columnsThatFit = qMax(1, (availableWidth - scrollBarWidth) / columnWidth);
+    const int columns = qBound(1, setsGrid->count(), columnsThatFit);
+    const int scrollSpace = setsGrid->verticalScrollBar()->maximum() > 0 ? scrollBarWidth : 0;
+    setsGrid->setMaximumWidth(columns * columnWidth + scrollSpace);
 }
 
 void ShortTermLearningView::loadCards() {
@@ -416,30 +589,35 @@ void ShortTermLearningView::loadCards() {
         cards = std::move(loaded->cards);
         ratingOptions = std::move(loaded->ratings);
         renderCards();
-        if (screens->currentWidget() == session) {
-            advanceSession(true);
-        }
+        advanceSession(true);
     });
 }
 
 void ShortTermLearningView::renderCards() {
     cardsTable->setRowCount(0);
     cardsTable->setRowCount(static_cast<int>(cards.size()));
-    startButton->setEnabled(false);
     int row = 0;
     for (const auto &card : cards) {
         setRow(*cardsTable, row++, {
             card.front, card.hint, card.back, stateName(card.frontToBack.state),
             card.backToFront ? stateName(card.backToFront->state) : QString{},
         });
-        if (card.frontToBack.state != State::Completed ||
-            (card.backToFront && card.backToFront->state != State::Completed)) {
-            startButton->setEnabled(true);
-        }
     }
+    updateStartButton();
 }
 
-void ShortTermLearningView::createSet() {
+void ShortTermLearningView::updateStartButton() {
+    startButton->setEnabled(std::ranges::any_of(cards, [](const auto &card) {
+        return card.frontToBack.state != State::Completed ||
+            (card.backToFront && card.backToFront->state != State::Completed);
+    }));
+}
+
+void ShortTermLearningView::openCreateSetDialog() {
+    if (busy) {
+        createSetPending = true;
+        return;
+    }
     QDialog dialog(this);
     dialog.setWindowTitle("Lernsatz erstellen");
     auto *layout = new QVBoxLayout(&dialog);
@@ -458,48 +636,80 @@ void ShortTermLearningView::createSet() {
     if (execDialog(dialog) != QDialog::Accepted) {
         return;
     }
+    if (screens->currentWidget() == session) {
+        endSession();
+    }
+    screens->setCurrentWidget(overview);
     setBusy(true);
     apiClient.createShortTermLearningSet(title->text().trimmed(), bidirectional->isChecked(), *this,
         [this](const bool saved) { saved ? loadSets() : setBusy(false); });
 }
 
-void ShortTermLearningView::openSet() {
-    const int row = setsTable->currentRow();
-    if (row < 0) {
-        return;
-    }
-    selectedSet = sets[row];
+void ShortTermLearningView::showOverview() {
+    screens->setCurrentWidget(overview);
+    loadSets();
+}
+
+void ShortTermLearningView::openSet(const ShortTermLearningSet &set) {
+    selectedSet = set;
     setTitle->setText(selectedSet.title);
-    cardsTable->setColumnHidden(4, !selectedSet.bidirectional);
+    cardsTable->setColumnHidden(reverseStateColumn, !selectedSet.bidirectional);
     cards.clear();
     renderCards();
     screens->setCurrentWidget(details);
     loadCards();
 }
 
-void ShortTermLearningView::resetSet() {
-    const int id = sets[setsTable->currentRow()].id;
+void ShortTermLearningView::showSetMenu(const int setId, const QPoint &globalPosition) {
+    QMenu menu(this);
+    auto *create = menu.addAction("Lernkarte erstellen");
+    auto *import = menu.addAction("JSON importieren");
+    menu.addSeparator();
+    auto *reset = menu.addAction("Fortschritt zurücksetzen");
+    auto *remove = menu.addAction("Lernsatz löschen");
+    const auto *selected = menu.exec(globalPosition);
+    if (selected == create) {
+        createCard(setId);
+    } else if (selected == import) {
+        importCards(setId);
+    } else if (selected == reset) {
+        resetSet(setId);
+    } else if (selected == remove) {
+        deleteSet(setId);
+    }
+}
+
+void ShortTermLearningView::refreshAfterSetChange(const bool saved) {
+    if (!saved) {
+        setBusy(false);
+    } else if (screens->currentWidget() == details) {
+        loadCards();
+    } else {
+        loadSets();
+    }
+}
+
+void ShortTermLearningView::resetSet(const int setId) {
     if (QMessageBox::question(this, "Fortschritt zurücksetzen",
             "Alle Abfragen dieses Lernsatzes auf „Neu“ setzen?") != QMessageBox::Yes) {
         return;
     }
     setBusy(true);
-    apiClient.resetShortTermLearningSet(id, *this,
-        [this](const bool saved) { saved ? loadSets() : setBusy(false); });
+    apiClient.resetShortTermLearningSet(setId, *this,
+        [this](const bool saved) { refreshAfterSetChange(saved); });
 }
 
-void ShortTermLearningView::deleteSet() {
-    const int id = sets[setsTable->currentRow()].id;
+void ShortTermLearningView::deleteSet(const int setId) {
     if (QMessageBox::question(this, "Lernsatz löschen",
             "Diesen Lernsatz mit allen Karten löschen?") != QMessageBox::Yes) {
         return;
     }
     setBusy(true);
-    apiClient.deleteShortTermLearningSet(id, *this,
-        [this](const bool saved) { saved ? loadSets() : setBusy(false); });
+    apiClient.deleteShortTermLearningSet(setId, *this,
+        [this](const bool saved) { saved ? showOverview() : setBusy(false); });
 }
 
-void ShortTermLearningView::importCards() {
+void ShortTermLearningView::importCards(const int setId) {
     const QString path = QFileDialog::getOpenFileName(this, "Lernkarten importieren", {}, "JSON (*.json)");
     if (path.isEmpty()) {
         return;
@@ -527,53 +737,38 @@ void ShortTermLearningView::importCards() {
             return;
         }
     }
-    setBusy(true);
-    apiClient.importShortTermLearningCards(selectedSet.id, entries, *this,
-        [this](const bool saved) { saved ? loadCards() : setBusy(false); });
+    saveCards(setId, entries);
 }
 
-void ShortTermLearningView::editCard() {
-    const int row = cardsTable->currentRow();
-    if (row < 0) {
-        return;
+void ShortTermLearningView::saveCards(const int setId, const QJsonArray &entries) {
+    setBusy(true);
+    apiClient.importShortTermLearningCards(setId, entries, *this,
+        [this](const bool saved) { refreshAfterSetChange(saved); });
+}
+
+void ShortTermLearningView::createCard(const int setId) {
+    ShortTermLearningCard card{};
+    if (editCardText(this, card, true)) {
+        saveCards(setId, QJsonArray{QJsonObject{
+            {"front", card.front},
+            {"hint", card.hint.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(card.hint)},
+            {"back", card.back},
+        }});
     }
+}
+
+void ShortTermLearningView::editCard(const int row) {
     auto card = cards[row];
-    QDialog dialog(this);
-    dialog.setWindowTitle("Lernkarte bearbeiten");
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout;
-    auto *front = new QPlainTextEdit(card.front, &dialog);
-    auto *cardHint = new QPlainTextEdit(card.hint, &dialog);
-    auto *back = new QPlainTextEdit(card.back, &dialog);
-    for (auto *edit : {front, cardHint, back}) {
-        edit->setFixedHeight(72);
-    }
-    form->addRow("Vorderseite", front);
-    form->addRow("Hinweis", cardHint);
-    form->addRow("Rückseite", back);
-    layout->addLayout(form);
-    auto *accept = addDialogButtons(dialog, *layout, "Speichern");
-    const auto updateAccept = [accept, front, back] {
-        accept->setEnabled(!front->toPlainText().trimmed().isEmpty() &&
-                           !back->toPlainText().trimmed().isEmpty());
-    };
-    connect(front, &QPlainTextEdit::textChanged, &dialog, updateAccept);
-    connect(back, &QPlainTextEdit::textChanged, &dialog, updateAccept);
-    updateAccept();
-    prepareDialog(dialog);
-    if (execDialog(dialog) != QDialog::Accepted) {
+    if (!editCardText(this, card, false)) {
         return;
     }
-    card.front = front->toPlainText();
-    card.hint = cardHint->toPlainText();
-    card.back = back->toPlainText();
     setBusy(true);
     apiClient.updateShortTermLearningCard(card, *this,
         [this](const bool saved) { saved ? loadCards() : setBusy(false); });
 }
 
-void ShortTermLearningView::deleteCard() {
-    const int id = cards[cardsTable->currentRow()].id;
+void ShortTermLearningView::deleteCard(const int row) {
+    const int id = cards[row].id;
     if (QMessageBox::question(this, "Lernkarte löschen",
             "Diese Lernkarte löschen?") != QMessageBox::Yes) {
         return;
@@ -599,10 +794,12 @@ void ShortTermLearningView::endSession() {
     countdownTimer->stop();
     screens->setCurrentWidget(details);
     updateSessionActions();
-    renderCards();
 }
 
 void ShortTermLearningView::advanceSession(const bool starting) {
+    if (screens->currentWidget() != session) {
+        return;
+    }
     std::optional<Question> nextNew;
     std::optional<Question> nextReview;
     qint64 earliestDueAt = std::numeric_limits<qint64>::max();
@@ -705,11 +902,10 @@ void ShortTermLearningView::rateQuestion(const Rating rating) {
             auto &card = cards[current.cardIndex];
             auto &progress = current.reverse ? *card.backToFront : card.frontToBack;
             progress = *saved;
-            if (screens->currentWidget() == session) {
-                advanceSession();
-            } else {
-                renderCards();
-            }
+            const int column = current.reverse ? reverseStateColumn : forwardStateColumn;
+            cardsTable->item(static_cast<int>(current.cardIndex), column)->setText(stateName(progress.state));
+            updateStartButton();
+            advanceSession();
             setBusy(false);
         });
 }

@@ -2,6 +2,7 @@
 #define FRONTEND_WORKSPACEMANAGER_H
 
 #include <QHash>
+#include <QIcon>
 #include <QPointer>
 #include <QWidget>
 
@@ -23,6 +24,7 @@ public:
     QWidget *openView(
         const QString &key,
         const QString &title,
+        const QIcon &icon,
         ViewFactory factory,
         CloseHandler closeHandler = {}
     );
@@ -36,6 +38,7 @@ private:
         QPointer<QWidget> view;
         QPointer<TabGroup> group;
         QString title;
+        QIcon icon;
         CloseHandler closeHandler;
         bool closing = false;
     };

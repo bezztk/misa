@@ -791,6 +791,7 @@ void ApiClient::requestDueFlashcards(const bool includeFlashcards) {
             flashcard.id = object["id"].toInt();
             flashcard.front = object["front"].toString();
             flashcard.back = object["back"].toString();
+            flashcard.hint = object["hint"].toString();
             flashcard.reviewStateId = static_cast<std::int16_t>(object["review_state_id"].toInt());
             flashcard.learningStep = static_cast<std::int16_t>(object["learning_step"].toInt());
             flashcard.retentionClassId = object["retention_class_id"].toInt();

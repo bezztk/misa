@@ -9,9 +9,12 @@
 
 class ApiClient;
 class QHideEvent;
+class QJsonArray;
 class QLabel;
+class QListWidget;
 class QProgressBar;
 class QPushButton;
+class QResizeEvent;
 class QScrollArea;
 class QShortcut;
 class QShowEvent;
@@ -22,10 +25,12 @@ class QTimer;
 class ShortTermLearningView final : public QWidget {
 public:
     explicit ShortTermLearningView(ApiClient &apiClient, QWidget *parent = nullptr);
+    void openCreateSetDialog();
 
 protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     struct Question {
@@ -39,15 +44,21 @@ private:
     void setBusy(bool busy);
     void updateSessionActions();
     void loadSets();
+    void centerSetGrid();
     void loadCards();
     void renderCards();
-    void createSet();
-    void openSet();
-    void resetSet();
-    void deleteSet();
-    void importCards();
-    void editCard();
-    void deleteCard();
+    void updateStartButton();
+    void showOverview();
+    void openSet(const ShortTermLearningSet &set);
+    void showSetMenu(int setId, const QPoint &globalPosition);
+    void refreshAfterSetChange(bool saved);
+    void resetSet(int setId);
+    void deleteSet(int setId);
+    void importCards(int setId);
+    void saveCards(int setId, const QJsonArray &entries);
+    void createCard(int setId);
+    void editCard(int row);
+    void deleteCard(int row);
     void startSession();
     void endSession();
     void advanceSession(bool starting = false);
@@ -59,7 +70,7 @@ private:
     QWidget *overview;
     QWidget *details;
     QWidget *session;
-    QTableWidget *setsTable;
+    QListWidget *setsGrid;
     QTableWidget *cardsTable;
     QLabel *setTitle;
     QPushButton *startButton;
@@ -86,6 +97,7 @@ private:
     std::array<ShortTermLearningRatingOption, 4> ratingOptions;
     Question currentQuestion{};
     bool busy = false;
+    bool createSetPending = false;
 };
 
 #endif // FRONTEND_SHORTTERMLEARNINGVIEW_H

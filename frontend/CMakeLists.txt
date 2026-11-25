@@ -289,6 +289,7 @@ qt_add_resources(frontend "icons"
         assets/icons/version_history.png
         assets/icons/speech-bubble.png
         assets/icons/books.png
+        assets/icons/text-analytics.png
         assets/icons/quill-pen.png
         assets/icons/idea.png
         assets/icons/video-camera.png

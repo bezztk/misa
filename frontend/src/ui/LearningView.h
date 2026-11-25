@@ -14,6 +14,7 @@ class QMenu;
 class QProgressBar;
 class QPushButton;
 class QScrollArea;
+class QShortcut;
 class QStackedWidget;
 
 class LearningView : public QWidget {
@@ -28,7 +29,7 @@ protected:
 private:
     struct RatingControl {
         QPushButton *button;
-        QLabel *interval;
+        QShortcut *shortcut;
     };
 
     std::vector<FlashcardReviewQueueItem> flashcards;
@@ -37,19 +38,20 @@ private:
     QWidget* startScreen;
     QWidget* sessionScreen;
     QLabel* dueCountLabel;
-    QLabel* dueCaption;
     QLabel* dueBreakdown;
-    QLabel* emptyNotice;
     QLabel* remainingLabel;
+    QLabel* stateLabel;
     QProgressBar* progress;
     QScrollArea* cardScrollArea;
     QLabel* front;
+    QLabel* hint;
     QLabel* back;
-    QWidget* answerDivider;
+    QPushButton* revealHint;
+    QPushButton* revealAnswer;
+    QShortcut* hintShortcut;
+    QShortcut* answerShortcut;
     QMenu* metadataMenu;
     std::array<QLabel *, 5> metadataValues;
-    QStackedWidget* actions;
-    QWidget* revealWidget;
     QWidget* ratingWidget;
     std::array<RatingControl, 4> ratingControls;
     QPushButton* startButton;
@@ -60,8 +62,10 @@ private:
     QWidget *createSessionScreen();
     void showStartScreen();
     void showCurrentFlashcard();
+    void showHint();
     void showAnswer();
     void rateFlashcard(FlashcardRating);
+    void updateSessionActions();
     void updateMetadata();
     void showCurrentComments();
     void updateCommentButton();
