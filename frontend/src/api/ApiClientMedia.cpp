@@ -6,7 +6,23 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
+#include <array>
 #include <utility>
+
+namespace {
+constexpr std::array<const char *, 4> MEDIA_RATING_KEYS{
+    "disappointing", "average", "worth_watching", "outstanding"
+};
+
+std::optional<MediaRating> parseMediaRating(const QString &key) {
+    for (std::size_t index = 0; index < MEDIA_RATING_KEYS.size(); ++index) {
+        if (key == QString::fromLatin1(MEDIA_RATING_KEYS[index])) {
+            return static_cast<MediaRating>(index + 1);
+        }
+    }
+    return std::nullopt;
+}
+}
 
 int ApiClient::getMedia() {
     const int requestId = ++mediaRequestSequence;
@@ -19,7 +35,6 @@ int ApiClient::getMedia() {
             std::vector<Media> media;
             for (const QJsonValue &value : response.array()) {
                 const QJsonObject object = value.toObject();
-                const QJsonValue rating = object["personal_rating"];
                 const QJsonValue runtime = object["runtime_minutes"];
                 QStringList genres;
                 for (const QJsonValue &genre : object["genres"].toArray()) {
@@ -34,7 +49,7 @@ int ApiClient::getMedia() {
                     .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
                     .posterPath = object["poster_path"].toString(),
                     .watchStatusId = object["watch_status_id"].toInt(),
-                    .personalRating = rating.isDouble() ? std::optional(rating.toInt()) : std::nullopt,
+                    .personalRating = parseMediaRating(object["personal_rating"].toString()),
                     .backdropPath = object["backdrop_path"].toString(),
                     .description = object["description"].toString(),
                     .genres = std::move(genres),
@@ -60,6 +75,21 @@ void ApiClient::updateMediaWatchStatus(const int entityId, const int watchStatus
         if (requestSucceeded(reply)) {
             emit mediaWatchStatusChanged();
         }
+        reply->deleteLater();
+    });
+}
+
+void ApiClient::updateMediaRating(const int entityId, const std::optional<MediaRating> rating) {
+    const QJsonValue value = rating
+        ? QJsonValue(QString::fromLatin1(MEDIA_RATING_KEYS[static_cast<std::size_t>(*rating) - 1]))
+        : QJsonValue(QJsonValue::Null);
+    QNetworkRequest request(buildUrl(QString("%1/%2").arg(PATH_MEDIA).arg(entityId)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request, "PATCH", QJsonDocument(QJsonObject{{"personal_rating", value}}).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply, entityId, rating] {
+        emit mediaRatingUpdateFinished(entityId, rating, requestSucceeded(reply));
         reply->deleteLater();
     });
 }

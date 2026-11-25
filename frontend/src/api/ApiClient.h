@@ -48,6 +48,7 @@ signals:
     void mediaImported(int requestId);
     void mediaImportFailed(int requestId, const QString &message);
     void mediaWatchStatusChanged();
+    void mediaRatingUpdateFinished(int entityId, std::optional<MediaRating> rating, bool successful);
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void dueFlashcardCountReceived(int count);
     void dueFlashcardsLoadFailed();
@@ -137,6 +138,7 @@ public:
     int getMedia();
     int importMedia(const QString &url);
     void updateMediaWatchStatus(int entityId, int watchStatusId);
+    void updateMediaRating(int entityId, std::optional<MediaRating> rating);
     void getRssFeeds();
     void createRssFeed(const QString& url);
     void updateRssFeed(int id, const QString& url, bool enabled);

@@ -53,6 +53,9 @@ async fn load_metadata(pool: &PgPool) -> Result<Metadata, sqlx::Error> {
              'idea_states',
                  (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
                   FROM (SELECT id, name, display_name, description FROM idea_states) value),
+             'media_ratings',
+                 (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
+                  FROM (SELECT id, name, display_name FROM media_ratings) value),
              'pursuit_requirement_types',
                  (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
                   FROM (SELECT id, name FROM pursuit_requirement_types) value),

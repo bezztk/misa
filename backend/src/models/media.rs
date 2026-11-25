@@ -20,6 +20,18 @@ impl MediaType {
     }
 }
 
+#[repr(i32)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, sqlx::Type,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaRating {
+    Disappointing = 1,
+    Average = 2,
+    WorthWatching = 3,
+    Outstanding = 4,
+}
+
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Media {
     pub entity_id: i32,
@@ -38,7 +50,7 @@ pub struct Media {
     pub release_date: Option<NaiveDate>,
     pub runtime_minutes: Option<i32>,
     pub production_status: Option<String>,
-    pub personal_rating: Option<i32>,
+    pub personal_rating: Option<MediaRating>,
     pub personal_notes: Option<String>,
     pub watch_status_id: i32,
     pub watch_count: i32,
@@ -128,7 +140,7 @@ pub enum ImportMediaRequest {
 #[serde(deny_unknown_fields)]
 pub struct UpdateMediaRequest {
     #[serde(default, deserialize_with = "present_value")]
-    pub personal_rating: Option<Option<i32>>,
+    pub personal_rating: Option<Option<MediaRating>>,
     #[serde(default, deserialize_with = "present_value")]
     pub personal_notes: Option<Option<String>>,
     #[serde(default, deserialize_with = "present_value")]

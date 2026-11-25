@@ -739,6 +739,18 @@ VALUES (1, 'planned'),
        (4, 'paused'),
        (5, 'dropped');
 
+CREATE TABLE media_ratings
+(
+    id           integer PRIMARY KEY,
+    name         varchar(50) NOT NULL UNIQUE,
+    display_name varchar(50) NOT NULL UNIQUE
+);
+INSERT INTO media_ratings (id, name, display_name)
+VALUES (1, 'disappointing', 'Enttäuschend'),
+       (2, 'average', 'Durchschnittlich'),
+       (3, 'worth_watching', 'Sehenswert'),
+       (4, 'outstanding', 'Herausragend');
+
 CREATE TABLE media
 (
     entity_id         integer PRIMARY KEY REFERENCES entities (id) ON DELETE CASCADE,
@@ -752,7 +764,7 @@ CREATE TABLE media
     release_date      date,
     runtime_minutes   integer CHECK (runtime_minutes > 0),
     production_status text,
-    personal_rating   integer CHECK (personal_rating BETWEEN 1 AND 10),
+    personal_rating   integer REFERENCES media_ratings (id),
     personal_notes    text,
     watch_status_id   integer NOT NULL DEFAULT 1 REFERENCES media_watch_statuses (id),
     watch_count       integer NOT NULL DEFAULT 0 CHECK (watch_count >= 0),

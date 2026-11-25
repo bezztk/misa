@@ -25,6 +25,7 @@ lookup_model!(DocumentCompletenessLevel);
 lookup_model!(DocumentFlashcardStatus);
 lookup_model!(DocumentVerificationStatus);
 lookup_model!(DocumentVerificationLevel);
+lookup_model!(MediaRatingLookup);
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct KnowledgeLevel {
@@ -48,6 +49,7 @@ pub struct Metadata {
     pub flashcard_review_states: Vec<FlashcardReviewState>,
     pub idea_phases: Vec<IdeaPhase>,
     pub idea_states: Vec<IdeaState>,
+    pub media_ratings: Vec<MediaRatingLookup>,
     pub pursuit_requirement_types: Vec<PursuitRequirementType>,
     pub systemtask_groups: Vec<SystemTaskGroup>,
     pub systemtask_states: Vec<SystemTaskState>,

@@ -31,7 +31,7 @@
 namespace {
 constexpr int CARD_WIDTH = 180;
 constexpr int POSTER_HEIGHT = CARD_WIDTH * 3 / 2;
-constexpr int CARD_HEIGHT = POSTER_HEIGHT + 78;
+constexpr int CARD_HEIGHT = POSTER_HEIGHT + 98;
 constexpr int CARD_SPACING = 16;
 
 enum MediaRole {
@@ -101,9 +101,10 @@ QString mediaImageFile(
 
 class MediaCardDelegate final : public QStyledItemDelegate {
 public:
-    explicit MediaCardDelegate(QListWidget *grid)
+    MediaCardDelegate(QListWidget *grid, const std::vector<MetadataItem> &ratingOptions)
         : QStyledItemDelegate(grid),
-          placeholder(grid->style()->standardIcon(QStyle::SP_MediaPlay)) {}
+          placeholder(grid->style()->standardIcon(QStyle::SP_MediaPlay)),
+          ratingOptions(ratingOptions) {}
 
     void clearPosters() { posters.clear(); }
 
@@ -173,12 +174,13 @@ public:
             painter->drawText(statusRow.adjusted(11, 0, 0, 0), textFlags, status.text);
         }
 
-        const QVariant rating = index.data(RatingRole);
-        if (rating.isValid()) {
+        const int ratingId = index.data(RatingRole).toInt();
+        const auto rating = std::find_if(ratingOptions.begin(), ratingOptions.end(),
+            [ratingId](const MetadataItem &option) { return option.id == ratingId; });
+        if (rating != ratingOptions.end()) {
             painter->setPen(QColor("#E1BC84"));
             painter->drawText(
-                statusRow, Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine,
-                QString("★ %1").arg(rating.toInt())
+                QRect(left, top + 72, width, 17), textFlags, rating->displayName.value()
             );
         }
         painter->restore();
@@ -208,6 +210,7 @@ private:
     }
 
     QIcon placeholder;
+    const std::vector<MetadataItem> &ratingOptions;
     mutable QCache<QString, QPixmap> posters{32 * 1024};
 };
 }
@@ -274,13 +277,13 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     grid->setEditTriggers(QAbstractItemView::NoEditTriggers);
     grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     grid->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    grid->setItemDelegate(new MediaCardDelegate(grid));
+    grid->setItemDelegate(new MediaCardDelegate(grid, apiClient.metadata().mediaRatings));
     grid->viewport()->setMouseTracking(true);
     grid->viewport()->installEventFilter(this);
     content->addWidget(grid);
     layout->addWidget(content, 1);
 
-    detail = new MediaDetailView(pages);
+    detail = new MediaDetailView(apiClient, pages);
     pages->addWidget(detail);
     connect(detail, &MediaDetailView::backRequested, this, &MediaView::showOverview);
     connect(grid, &QListWidget::itemClicked, this, [this](const QListWidgetItem *item) {
@@ -288,6 +291,9 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     });
     connect(search, &QLineEdit::textChanged, this, &MediaView::applyFilters);
     connect(typeFilter, &QComboBox::currentIndexChanged, this, &MediaView::applyFilters);
+    connect(&apiClient, &ApiClient::metadataReceived, grid, [this] {
+        grid->viewport()->update();
+    });
     connect(grid, &QListWidget::customContextMenuRequested,
             this, &MediaView::showCardContextMenu);
     connect(&apiClient, &ApiClient::mediaReceived, this,
@@ -304,6 +310,12 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     });
     connect(&apiClient, &ApiClient::mediaImported, this, &MediaView::refresh);
     connect(&apiClient, &ApiClient::mediaWatchStatusChanged, this, &MediaView::refresh);
+    connect(&apiClient, &ApiClient::mediaRatingUpdateFinished, this,
+            [this](int, std::optional<MediaRating>, const bool successful) {
+                if (successful) {
+                    refresh();
+                }
+            });
 }
 
 void MediaView::refresh() {
@@ -359,7 +371,7 @@ void MediaView::showMedia(const std::vector<Media> &entries) {
         item->setData(PosterFileRole, mediaImageFile(directory, entry, "poster", entry.posterPath));
         item->setData(WatchStatusRole, entry.watchStatusId);
         if (entry.personalRating) {
-            item->setData(RatingRole, *entry.personalRating);
+            item->setData(RatingRole, static_cast<int>(*entry.personalRating));
         }
         grid->addItem(item);
     }

@@ -414,6 +414,7 @@ void ApiClient::getMetadata() {
         metadata.documentVerificationLevels = parseMetadataItems(object["document_verification_levels"].toArray());
         metadata.ideaPhases = parseMetadataItems(object["idea_phases"].toArray());
         metadata.ideaStates = parseMetadataItems(object["idea_states"].toArray());
+        metadata.mediaRatings = parseMetadataItems(object["media_ratings"].toArray());
         metadata.systemTaskGroups = parseMetadataItems(object["systemtask_groups"].toArray());
         metadata.systemTaskStates = parseMetadataItems(object["systemtask_states"].toArray());
         metadata.systemTaskPriorities = parseMetadataItems(object["systemtask_priorities"].toArray());

@@ -1,7 +1,8 @@
 #include "MediaDetailView.h"
 
-#include "../models/Media.h"
+#include "../api/ApiClient.h"
 
+#include <QComboBox>
 #include <QGraphicsBlurEffect>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
@@ -32,6 +33,14 @@ constexpr auto DETAIL_STYLE = R"(
     }
     QLabel#mediaDetailCover { background: #303030; }
     QLabel#mediaDetailMetadata { color: #B8B8B8; font-size: 14px; }
+    QLabel#mediaDetailRatingLabel { color: #E5E5E5; font-size: 14px; }
+    QComboBox#mediaDetailRating {
+        background: #262626;
+        color: #E5E5E5;
+        border: 1px solid #3A3A3A;
+        border-radius: 4px;
+        padding: 5px 9px;
+    }
     QLabel#mediaDetailDescription { color: #E5E5E5; font-size: 15px; }
     QToolButton#mediaDetailBack {
         background: #262626;
@@ -132,7 +141,7 @@ private:
     QPixmap backdrop;
 };
 
-MediaDetailView::MediaDetailView(QWidget *parent) : QScrollArea(parent) {
+MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrollArea(parent) {
     setFrameShape(QFrame::NoFrame);
     setWidgetResizable(true);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -192,6 +201,55 @@ MediaDetailView::MediaDetailView(QWidget *parent) : QScrollArea(parent) {
     description->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     description->setWordWrap(true);
     body->addWidget(description);
+
+    auto *ratingLayout = new QVBoxLayout();
+    ratingLayout->setSpacing(5);
+    auto *ratingLabel = new QLabel("&Persönliche Bewertung", content);
+    ratingLabel->setObjectName("mediaDetailRatingLabel");
+    ratingLayout->addWidget(ratingLabel);
+    rating = new QComboBox(content);
+    rating->setObjectName("mediaDetailRating");
+    ratingLabel->setBuddy(rating);
+    ratingLayout->addWidget(rating, 0, Qt::AlignLeft);
+    body->addLayout(ratingLayout);
+
+    const auto updateRatingOptions = [this, &apiClient] {
+        rating->clear();
+        rating->addItem("Nicht bewertet");
+        const auto &options = apiClient.metadata().mediaRatings;
+        for (const MetadataItem &option : options) {
+            rating->addItem(option.displayName.value(), option.id);
+        }
+        setRating(savedRating);
+        rating->setEnabled(!options.empty() && ratingUpdateEntityId == 0);
+    };
+    connect(&apiClient, &ApiClient::metadataReceived, this, updateRatingOptions);
+    updateRatingOptions();
+
+    connect(rating, &QComboBox::activated, this, [this, &apiClient](const int index) {
+        const QVariant data = rating->itemData(index);
+        const auto value = data.isValid()
+            ? std::optional(static_cast<MediaRating>(data.toInt()))
+            : std::nullopt;
+        if (value == savedRating) {
+            return;
+        }
+        ratingUpdateEntityId = entityId;
+        rating->setEnabled(false);
+        apiClient.updateMediaRating(entityId, value);
+    });
+    connect(&apiClient, &ApiClient::mediaRatingUpdateFinished, this,
+            [this](const int id, const std::optional<MediaRating> value, const bool successful) {
+                if (id != ratingUpdateEntityId) {
+                    return;
+                }
+                ratingUpdateEntityId = 0;
+                if (id == entityId) {
+                    setRating(successful ? value : savedRating);
+                }
+                rating->setEnabled(true);
+            });
+
     layout->addLayout(body);
     layout->addStretch(1);
     setWidget(content);
@@ -200,6 +258,8 @@ MediaDetailView::MediaDetailView(QWidget *parent) : QScrollArea(parent) {
 void MediaDetailView::setMedia(
     const Media &media, const QString &posterFile, const QString &backdropFile
 ) {
+    entityId = media.entityId;
+    setRating(media.personalRating);
     title->setText(media.displayTitle());
     const QPixmap poster = readImage(posterFile, QSize(384, 576));
     if (poster.isNull()) {
@@ -233,4 +293,9 @@ void MediaDetailView::setMedia(
 
     hero->setBackdrop(blurredBackdrop(backdropFile));
     verticalScrollBar()->setValue(0);
+}
+
+void MediaDetailView::setRating(const std::optional<MediaRating> value) {
+    savedRating = value;
+    rating->setCurrentIndex(value ? rating->findData(static_cast<int>(*value)) : 0);
 }

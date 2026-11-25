@@ -7,6 +7,13 @@
 
 #include <optional>
 
+enum class MediaRating {
+    Disappointing = 1,
+    Average,
+    WorthWatching,
+    Outstanding
+};
+
 struct Media {
     int entityId;
     int tmdbId;
@@ -16,7 +23,7 @@ struct Media {
     QDate releaseDate;
     QString posterPath;
     int watchStatusId;
-    std::optional<int> personalRating;
+    std::optional<MediaRating> personalRating;
     QString backdropPath;
     QString description;
     QStringList genres;

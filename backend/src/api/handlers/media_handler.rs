@@ -42,11 +42,7 @@ pub async fn update_media(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateMediaRequest>,
 ) -> ApiResult<StatusCode> {
-    if payload
-        .personal_rating
-        .flatten()
-        .is_some_and(|rating| !(1..=10).contains(&rating))
-        || payload.watch_count.is_some_and(|count| count < 0)
+    if payload.watch_count.is_some_and(|count| count < 0)
         || payload
             .watch_status_id
             .is_some_and(|status| !valid_watch_status(status))
