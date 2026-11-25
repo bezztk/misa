@@ -14,6 +14,7 @@ pub enum EntityType {
     CalendarEntry = 7,
     Attachment = 8,
     Idea = 9,
+    Media = 10,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]

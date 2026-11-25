@@ -1,0 +1,68 @@
+#include "ApiClient.h"
+
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+
+int ApiClient::getMedia() {
+    const int requestId = ++mediaRequestSequence;
+    QNetworkRequest request(buildUrl(PATH_MEDIA));
+    request.setAttribute(HANDLE_ERROR_LOCALLY, true);
+    QNetworkReply *reply = manager.get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, requestId] {
+        QJsonDocument response;
+        if (readJson(reply, "Medien laden", response) && response.isArray()) {
+            std::vector<Media> media;
+            for (const QJsonValue &value : response.array()) {
+                const QJsonObject object = value.toObject();
+                const QJsonValue rating = object["personal_rating"];
+                media.push_back({
+                    .tmdbId = object["tmdb_id"].toInt(),
+                    .mediaType = object["media_type"].toString(),
+                    .title = object["title"].toString(),
+                    .originalTitle = object["original_title"].toString(),
+                    .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
+                    .posterPath = object["poster_path"].toString(),
+                    .watchStatusId = object["watch_status_id"].toInt(),
+                    .personalRating = rating.isDouble() ? std::optional(rating.toInt()) : std::nullopt
+                });
+            }
+            emit mediaReceived(requestId, media);
+        } else {
+            emit mediaLoadFailed(requestId);
+        }
+        reply->deleteLater();
+    });
+    return requestId;
+}
+
+int ApiClient::importMedia(const QString &url) {
+    QNetworkRequest request(buildUrl(QString(PATH_MEDIA) + "/import"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setAttribute(HANDLE_ERROR_LOCALLY, true);
+
+    const int requestId = ++mediaRequestSequence;
+    QNetworkReply *reply = manager.post(
+        request, QJsonDocument(QJsonObject{{"url", url}}).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply, requestId] {
+        if (requestSucceeded(reply)) {
+            emit mediaImported(requestId);
+        } else {
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            QString message = "Das Medium konnte nicht importiert werden.";
+            if (status == 400) {
+                message = "Die TMDB-Adresse ist ungültig.";
+            } else if (status == 404) {
+                message = "Das Medium wurde bei TMDB nicht gefunden.";
+            } else if (status == 502) {
+                message = "Metadaten oder Bilder konnten bei TMDB nicht geladen werden.";
+            }
+            emit mediaImportFailed(requestId, message);
+        }
+        reply->deleteLater();
+    });
+    return requestId;
+}

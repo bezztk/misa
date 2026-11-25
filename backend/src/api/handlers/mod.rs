@@ -6,6 +6,7 @@ pub mod domain_handler;
 pub mod entity_handler;
 pub mod flashcard_handler;
 pub mod idea_handler;
+pub mod media_handler;
 pub mod metadata_handler;
 pub mod progression_handler;
 pub mod pursuit_handler;

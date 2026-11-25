@@ -9,6 +9,7 @@ class ApiClient;
 class DomainView;
 class QLabel;
 class QContextMenuEvent;
+class QIcon;
 class QMouseEvent;
 class QToolButton;
 class QVBoxLayout;
@@ -23,6 +24,12 @@ public:
         const QString &iconPath,
         bool collapsible = false,
         QWidget *parent = nullptr
+    );
+    explicit NavigationCard(
+        const QString &title,
+        const QIcon &icon,
+        bool collapsible,
+        QWidget *parent
     );
 
 protected:
@@ -107,6 +114,17 @@ signals:
     void refreshAllRequested();
 };
 
+class MediaNavigationSection final : public NavigationCard {
+    Q_OBJECT
+
+public:
+    explicit MediaNavigationSection(QWidget *parent = nullptr);
+
+signals:
+    void openRequested();
+    void importRequested();
+};
+
 class ActualizationNavigationSection final : public NavigationCard {
     Q_OBJECT
 
@@ -144,6 +162,8 @@ signals:
     void openIdeasRequested();
     void openLearningRequested();
     void openRssRequested();
+    void openMediaRequested();
+    void importMediaRequested();
     void createRssFeedRequested();
     void createRssCategoryRequested();
     void refreshAllRssRequested();

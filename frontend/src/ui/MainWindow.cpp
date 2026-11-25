@@ -4,6 +4,7 @@
 #include "DomainView.h"
 #include "IdeaView.h"
 #include "LearningView.h"
+#include "MediaView.h"
 #include "NavigationSidebar.h"
 #include "RssView.h"
 #include "TaskView.h"
@@ -122,6 +123,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openLearning);
     connect(navigation, &NavigationSidebar::openRssRequested,
             this, &MainWindow::openRss);
+    connect(navigation, &NavigationSidebar::openMediaRequested,
+            this, &MainWindow::openMedia);
+    connect(navigation, &NavigationSidebar::importMediaRequested,
+            this, [this] { openMedia()->openImportDialog(); });
     connect(navigation, &NavigationSidebar::createRssFeedRequested,
             this, [this] { openRss()->openCreateFeedDialog(); });
     connect(navigation, &NavigationSidebar::createRssCategoryRequested,
@@ -224,6 +229,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             [this] { showToast("Idee erstellt"); });
     connect(&apiClient, &ApiClient::ideaUpdated, this,
             [this] { showToast("Idee aktualisiert"); });
+    connect(&apiClient, &ApiClient::mediaImported, this,
+            [this] { showToast("Medium importiert"); });
     connect(&apiClient, &ApiClient::flashcardCreated, this,
             [this] { showToast("Lernkarte erstellt"); });
     connect(&apiClient, &ApiClient::flashcardUpdated, this,
@@ -326,6 +333,16 @@ RssView *MainWindow::openRss() {
     if (created) {
         view->refresh();
     }
+    return view;
+}
+
+MediaView *MainWindow::openMedia() {
+    auto *view = static_cast<MediaView *>(workspaceManager->openView(
+        "media", "Film && Serien", [this] {
+            return new MediaView(apiClient);
+        }
+    ));
+    view->refresh();
     return view;
 }
 

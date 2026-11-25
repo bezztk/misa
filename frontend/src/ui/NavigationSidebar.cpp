@@ -2,6 +2,7 @@
 
 #include "DomainView.h"
 
+#include <QApplication>
 #include <QColor>
 #include <QContextMenuEvent>
 #include <QEvent>
@@ -12,6 +13,7 @@
 #include <QMenu>
 #include <QPainter>
 #include <QScrollArea>
+#include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -60,8 +62,8 @@ static constexpr auto NAVIGATION_STYLE = R"(
     }
 )";
 
-static QPixmap navigationIcon(const QString &path) {
-    QPixmap pixmap = QIcon(path).pixmap(18, 18);
+static QPixmap navigationIcon(const QIcon &icon) {
+    QPixmap pixmap = icon.pixmap(18, 18);
     QPainter painter(&pixmap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
     painter.fillRect(pixmap.rect(), QColor("#B5B5B5"));
@@ -71,6 +73,13 @@ static QPixmap navigationIcon(const QString &path) {
 NavigationCard::NavigationCard(
     const QString &title,
     const QString &iconPath,
+    const bool collapsible,
+    QWidget *parent
+) : NavigationCard(title, QIcon(iconPath), collapsible, parent) {}
+
+NavigationCard::NavigationCard(
+    const QString &title,
+    const QIcon &cardIcon,
     const bool collapsible,
     QWidget *parent
 ) : QFrame(parent), collapsible(collapsible) {
@@ -95,7 +104,7 @@ NavigationCard::NavigationCard(
     auto *icon = new QLabel(header);
     icon->setObjectName("navigationCardIcon");
     icon->setFixedSize(18, 18);
-    icon->setPixmap(navigationIcon(iconPath));
+    icon->setPixmap(navigationIcon(cardIcon));
     icon->setAttribute(Qt::WA_TransparentForMouseEvents);
     headerLayout->addWidget(icon, 0, Qt::AlignTop);
 
@@ -371,6 +380,19 @@ RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent
             });
 }
 
+MediaNavigationSection::MediaNavigationSection(QWidget *parent)
+    : NavigationCard("Film & Serien",
+                     ":/assets/icons/video-camera.png", false, parent) {
+    connect(this, &NavigationCard::activated, this, &MediaNavigationSection::openRequested);
+    connect(this, &NavigationCard::contextMenuRequested, this, [this](const QPoint &position) {
+        QMenu menu(this);
+        QAction *importAction = menu.addAction("Film oder Serie importieren");
+        if (menu.exec(position) == importAction) {
+            emit importRequested();
+        }
+    });
+}
+
 ActualizationNavigationSection::ActualizationNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
@@ -418,6 +440,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
     auto *rssSection = new RssNavigationSection(apiClient, cardContainer);
+    auto *mediaSection = new MediaNavigationSection(cardContainer);
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
     );
@@ -427,6 +450,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     cardLayout->addWidget(ideasSection);
     cardLayout->addWidget(learningSection);
     cardLayout->addWidget(rssSection);
+    cardLayout->addWidget(mediaSection);
     cardLayout->addWidget(actualizationSection);
     cardLayout->addStretch();
     scrollArea->setWidget(cardContainer);
@@ -442,6 +466,10 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openLearningRequested);
     connect(rssSection, &RssNavigationSection::openRequested,
             this, &NavigationSidebar::openRssRequested);
+    connect(mediaSection, &MediaNavigationSection::openRequested,
+            this, &NavigationSidebar::openMediaRequested);
+    connect(mediaSection, &MediaNavigationSection::importRequested,
+            this, &NavigationSidebar::importMediaRequested);
     connect(rssSection, &RssNavigationSection::createFeedRequested,
             this, &NavigationSidebar::createRssFeedRequested);
     connect(rssSection, &RssNavigationSection::createCategoryRequested,

@@ -1,13 +1,46 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
-    entity_handler, flashcard_handler, idea_handler, metadata_handler, progression_handler,
-    pursuit_handler, routine_handler, rss_handler, skill_handler, task_handler,
+    entity_handler, flashcard_handler, idea_handler, media_handler, metadata_handler,
+    progression_handler, pursuit_handler, routine_handler, rss_handler, skill_handler,
+    task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route("/media", get(media_handler::get_all))
+        .route(
+            "/media/import",
+            axum::routing::post(media_handler::import_media),
+        )
+        .route(
+            "/media/{id}",
+            get(media_handler::get_media)
+                .patch(media_handler::update_media)
+                .delete(media_handler::delete_media),
+        )
+        .route(
+            "/media/{id}/sync",
+            axum::routing::post(media_handler::sync_media),
+        )
+        .route("/media/{id}/seasons", get(media_handler::get_seasons))
+        .route(
+            "/media/{id}/progress",
+            get(media_handler::get_series_progress),
+        )
+        .route(
+            "/media/{id}/seasons/{season_id}/episodes",
+            get(media_handler::get_episodes),
+        )
+        .route(
+            "/media/{id}/seasons/{season_id}/progress",
+            get(media_handler::get_season_progress),
+        )
+        .route(
+            "/media/{id}/seasons/{season_id}/episodes/{episode_id}",
+            axum::routing::patch(media_handler::update_episode_status),
+        )
         .route(
             "/rss/feeds",
             get(rss_handler::get_feeds).post(rss_handler::create_feed),

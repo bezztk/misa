@@ -9,7 +9,8 @@
 ApiClient::ApiClient(QObject *parent) : QObject(parent) {
     connect(&manager, &QNetworkAccessManager::finished, this,
             [this](QNetworkReply *reply) {
-                if (requestSucceeded(reply)) {
+                if (requestSucceeded(reply)
+                    || reply->request().attribute(HANDLE_ERROR_LOCALLY).toBool()) {
                     return;
                 }
 
@@ -49,7 +50,9 @@ bool ApiClient::readJson(
         return true;
     }
 
-    emit requestFailed(operation + ": Ungültige Serverantwort");
+    if (!reply->request().attribute(HANDLE_ERROR_LOCALLY).toBool()) {
+        emit requestFailed(operation + ": Ungültige Serverantwort");
+    }
     return false;
 }
 

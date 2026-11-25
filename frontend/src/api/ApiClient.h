@@ -13,9 +13,11 @@
 #include "../models/EntityFieldVersion.h"
 #include "../models/Comment.h"
 #include "../models/Idea.h"
+#include "../models/Media.h"
 #include "../models/Rss.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
+#include <QNetworkRequest>
 
 class QJsonDocument;
 class QNetworkReply;
@@ -41,6 +43,10 @@ signals:
     void ideaCreated();
     void ideaUpdated();
     void ideaDeleted();
+    void mediaReceived(int requestId, const std::vector<Media> &media);
+    void mediaLoadFailed(int requestId);
+    void mediaImported(int requestId);
+    void mediaImportFailed(int requestId, const QString &message);
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void dueFlashcardCountReceived(int count);
     void dueFlashcardsLoadFailed();
@@ -127,6 +133,8 @@ public:
     void createIdea(const CreateIdea& idea);
     void updateIdeaField(int id, IdeaField field, const QJsonValue& value);
     void deleteIdea(int id);
+    int getMedia();
+    int importMedia(const QString &url);
     void getRssFeeds();
     void createRssFeed(const QString& url);
     void updateRssFeed(int id, const QString& url, bool enabled);
@@ -189,6 +197,7 @@ public:
     void deleteComment(int id);
 
 private:
+    static constexpr auto HANDLE_ERROR_LOCALLY = QNetworkRequest::User;
     static constexpr auto SCHEME = "http";
     static constexpr auto HOST = "localhost";
     static constexpr int PORT = 3000;
@@ -197,6 +206,7 @@ private:
     static constexpr auto PATH_METADATA = "/metadata";
     static constexpr auto PATH_CALENDAR_ENTRIES = "/calendar-entries";
     static constexpr auto PATH_IDEAS = "/ideas";
+    static constexpr auto PATH_MEDIA = "/media";
     static constexpr auto PATH_FLASHCARDS = "/flashcards/due";
     static constexpr auto PATH_RSS_FEEDS = "/rss/feeds";
     static constexpr auto PATH_RSS_ENTRIES = "/rss/entries";
@@ -211,6 +221,7 @@ private:
     Metadata loadedMetadata;
     bool metadataLoaded = false;
     bool metadataLoading = false;
+    int mediaRequestSequence = 0;
 };
 
 #endif //FRONTEND_APICLIENT_H

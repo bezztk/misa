@@ -143,6 +143,7 @@ add_executable(frontend
         src/api/ApiClient.cpp
         src/api/ApiClientProgression.cpp
         src/api/ApiClientIdeas.cpp
+        src/api/ApiClientMedia.cpp
         src/api/ApiClientRss.cpp
         src/api/ApiClientWork.cpp
         src/api/ApiClient.h
@@ -174,8 +175,13 @@ add_executable(frontend
         src/ui/IdeaView.h
         src/ui/RssView.cpp
         src/ui/RssView.h
+        src/ui/MediaView.cpp
+        src/ui/MediaView.h
+        src/ui/MediaImportDialog.cpp
+        src/ui/MediaImportDialog.h
         src/models/Task.h
         src/models/Idea.h
+        src/models/Media.h
         src/models/Rss.h
         src/models/DomainNode.h
         src/models/Document.h
@@ -270,6 +276,7 @@ qt_add_resources(frontend "icons"
         assets/icons/books.png
         assets/icons/infinity.png
         assets/icons/idea.png
+        assets/icons/video-camera.png
         assets/icons/close.png
         assets/icons/split-right.png
         assets/icons/split-down.png

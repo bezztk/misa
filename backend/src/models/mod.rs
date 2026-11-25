@@ -6,6 +6,7 @@ pub mod domain;
 pub mod entity;
 pub mod flashcard;
 pub mod idea;
+pub mod media;
 pub mod metadata;
 pub mod progression;
 pub mod pursuit;
