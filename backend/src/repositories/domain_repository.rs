@@ -41,11 +41,6 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
              FROM attachments
              GROUP BY domain_node_id
          ),
-         skill_counts AS (
-             SELECT domain_node_id, COUNT(*) AS count
-             FROM skills
-             GROUP BY domain_node_id
-         ),
          pursuit_counts AS (
              SELECT domain_node_id, COUNT(*) AS count
              FROM pursuits
@@ -62,7 +57,6 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
                 d.domain_node_id IS NOT NULL AS has_document,
                 COALESCE(fc.count, 0) AS flashcard_count,
                 COALESCE(ac.count, 0) AS attachment_count,
-                COALESCE(sc.count, 0) AS skill_count,
                 COALESCE(pc.count, 0) AS pursuit_count,
                 COALESCE(tc.count, 0) AS task_count,
                 d.completeness_level_id, d.flashcard_status_id,
@@ -71,7 +65,6 @@ pub async fn get_domain_nodes(pool: &PgPool) -> Result<Vec<DomainNode>, sqlx::Er
          LEFT JOIN documents d ON d.domain_node_id = dn.entity_id
          LEFT JOIN flashcard_counts fc ON fc.domain_node_id = dn.entity_id
          LEFT JOIN attachment_counts ac ON ac.domain_node_id = dn.entity_id
-         LEFT JOIN skill_counts sc ON sc.domain_node_id = dn.entity_id
          LEFT JOIN pursuit_counts pc ON pc.domain_node_id = dn.entity_id
          LEFT JOIN task_counts tc ON tc.domain_node_id = dn.entity_id
          ORDER BY dn.domain_id, dn.entity_id",
@@ -112,7 +105,6 @@ pub async fn create_domain_node(
          RETURNING entity_id AS id, domain_id, parent_id, knowledge_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
                    0::BIGINT AS attachment_count,
-                   0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
                    0::BIGINT AS task_count,
                    NULL::INTEGER AS completeness_level_id,
@@ -152,7 +144,6 @@ pub async fn create_root_domain_node(
          RETURNING entity_id AS id, domain_id, parent_id, knowledge_level_id, name, is_system_value,
                    last_reviewed_at, FALSE AS has_document, 0::BIGINT AS flashcard_count,
                    0::BIGINT AS attachment_count,
-                   0::BIGINT AS skill_count,
                    0::BIGINT AS pursuit_count,
                    0::BIGINT AS task_count,
                    NULL::INTEGER AS completeness_level_id,
@@ -220,10 +211,6 @@ pub async fn delete_domain_node(pool: &PgPool, id: i32) -> Result<bool, sqlx::Er
              SELECT flashcard.entity_id
              FROM flashcards flashcard
              JOIN node_tree node ON node.entity_id = flashcard.domain_node_id
-             UNION
-             SELECT skill.entity_id
-             FROM skills skill
-             JOIN node_tree node ON node.entity_id = skill.domain_node_id
              UNION
              SELECT pursuit.entity_id
              FROM pursuits pursuit

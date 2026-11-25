@@ -21,8 +21,7 @@ pub async fn get_pursuits(
     .await?;
 
     let requirements = sqlx::query_as::<_, PursuitRequirement>(
-        "SELECT pr.id, pr.pursuit_id, pr.requirement_type_id, pr.skill_id,
-                pr.knowledge_level_id, pr.psychomotor_level_id,
+        "SELECT pr.id, pr.pursuit_id, pr.requirement_type_id, pr.knowledge_level_id,
                 pr.completeness_level_id, pr.flashcard_status_id,
                 pr.verification_status_id, pr.verification_level_id
          FROM pursuit_requirements pr
@@ -184,20 +183,6 @@ pub async fn update_requirements(
             .execute(&mut *transaction)
             .await?;
         }
-    }
-
-    for skill in &requirements.skills {
-        sqlx::query(
-            "INSERT INTO pursuit_requirements
-                (pursuit_id, requirement_type_id, skill_id, psychomotor_level_id)
-             VALUES ($1, $2, $3, $4)",
-        )
-        .bind(pursuit_id)
-        .bind(PursuitRequirementTypeId::PsychomotorLevel as i32)
-        .bind(skill.skill_id)
-        .bind(skill.psychomotor_level_id)
-        .execute(&mut *transaction)
-        .await?;
     }
 
     sqlx::query("UPDATE entities SET version = version + 1, updated_at = NOW() WHERE id = $1")

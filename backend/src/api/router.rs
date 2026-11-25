@@ -1,8 +1,7 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
     entity_handler, flashcard_handler, idea_handler, media_handler, metadata_handler,
-    progression_handler, pursuit_handler, routine_handler, rss_handler, skill_handler,
-    task_handler,
+    progression_handler, pursuit_handler, routine_handler, rss_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -182,10 +181,6 @@ pub fn create_router(pool: PgPool) -> Router {
             axum::routing::delete(attachment_handler::delete_attachment),
         )
         .route(
-            "/domain-nodes/{node_id}/skills",
-            get(skill_handler::get_skills).post(skill_handler::create_skill),
-        )
-        .route(
             "/domain-nodes/{node_id}/pursuits",
             get(pursuit_handler::get_pursuits).post(pursuit_handler::create_pursuit),
         )
@@ -213,10 +208,6 @@ pub fn create_router(pool: PgPool) -> Router {
         .route(
             "/progression-stages/{id}/pursuits",
             axum::routing::post(progression_handler::assign_pursuit),
-        )
-        .route(
-            "/skills/{id}/fields/{field_id}",
-            axum::routing::patch(skill_handler::update_skill_field),
         )
         .route("/metadata", get(metadata_handler::get_metadata))
         .route(

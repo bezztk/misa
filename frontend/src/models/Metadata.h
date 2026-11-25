@@ -33,7 +33,6 @@ struct Metadata {
     std::vector<MetadataItem> personalRelevanceLevels;
     std::vector<MetadataItem> lastingImpacts;
     std::vector<KnowledgeLevel> knowledgeLevels;
-    std::vector<MetadataItem> psychomotorLevels;
     std::vector<MetadataItem> documentCompletenessLevels;
     std::vector<MetadataItem> documentFlashcardStatuses;
     std::vector<MetadataItem> documentVerificationStatuses;

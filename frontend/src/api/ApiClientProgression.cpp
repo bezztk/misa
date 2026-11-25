@@ -6,103 +6,6 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
-static Skill parseSkill(const QJsonObject &object) {
-    Skill skill{
-        .id = object["id"].toInt(),
-        .domainNodeId = object["domain_node_id"].toInt(),
-        .name = object["name"].toString()
-    };
-    skill.comments = parseComments(object["comments"].toArray());
-
-    if (!object["parent_skill_id"].isNull()) {
-        skill.parentSkillId = object["parent_skill_id"].toInt();
-    }
-    if (!object["psychomotor_level_id"].isNull()) {
-        skill.psychomotorLevelId = object["psychomotor_level_id"].toInt();
-    }
-
-    return skill;
-}
-
-void ApiClient::getNodeSkills(const int nodeId) {
-    const QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/skills"
-    ));
-    QNetworkReply *reply = manager.get(request);
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        QJsonDocument response;
-        if (!readJson(reply, "Skills laden", response) || !response.isArray()) {
-            if (!response.isNull() && !response.isArray()) {
-                emit requestFailed("Skills laden: Unerwartetes Datenformat");
-            }
-            reply->deleteLater();
-            return;
-        }
-        std::vector<Skill> skills;
-        for (const QJsonValue &value : response.array()) {
-            skills.push_back(parseSkill(value.toObject()));
-        }
-        emit nodeSkillsReceived(nodeId, skills);
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::createSkill(
-    const int nodeId,
-    const std::optional<int> parentSkillId,
-    const QString &name,
-    const std::optional<int> psychomotorLevelId
-) {
-    QNetworkRequest request(buildUrl(
-        "/domain-nodes/" + QString::number(nodeId) + "/skills"
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["parent_skill_id"] = parentSkillId.has_value()
-        ? QJsonValue(*parentSkillId) : QJsonValue(QJsonValue::Null);
-    json["name"] = name;
-    json["psychomotor_level_id"] = psychomotorLevelId.has_value()
-        ? QJsonValue(*psychomotorLevelId) : QJsonValue(QJsonValue::Null);
-    QNetworkReply *reply = manager.post(request, QJsonDocument(json).toJson());
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (requestSucceeded(reply)) {
-            emit nodeSkillsChanged(nodeId);
-            emit skillCreated();
-        }
-        reply->deleteLater();
-    });
-}
-
-void ApiClient::updateSkillField(
-    const int nodeId,
-    const int id,
-    const SkillField field,
-    const QJsonValue &value
-) {
-    QNetworkRequest request(buildUrl(
-        "/skills/" + QString::number(id)
-        + "/fields/" + QString::number(static_cast<int>(field))
-    ));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QJsonObject json;
-    json["value"] = value;
-    QNetworkReply *reply = manager.sendCustomRequest(
-        request,
-        "PATCH",
-        QJsonDocument(json).toJson()
-    );
-
-    connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {
-        if (requestSucceeded(reply)) {
-            emit nodeSkillsChanged(nodeId);
-            emit skillUpdated();
-        }
-        reply->deleteLater();
-    });
-}
-
 static std::optional<int> optionalJsonInt(
     const QJsonObject &object,
     const QString &name
@@ -125,9 +28,7 @@ static Pursuit parsePursuit(const QJsonObject &object) {
         pursuit.requirements.push_back({
             .id = requirement["id"].toInt(),
             .requirementTypeId = requirement["requirement_type_id"].toInt(),
-            .skillId = optionalJsonInt(requirement, "skill_id"),
             .knowledgeLevelId = optionalJsonInt(requirement, "knowledge_level_id"),
-            .psychomotorLevelId = optionalJsonInt(requirement, "psychomotor_level_id"),
             .completenessLevelId = optionalJsonInt(requirement, "completeness_level_id"),
             .flashcardStatusId = optionalJsonInt(requirement, "flashcard_status_id"),
             .verificationStatusId = optionalJsonInt(requirement, "verification_status_id"),
@@ -200,14 +101,6 @@ void ApiClient::updatePursuitRequirements(
         ? QJsonValue(*requirements.verificationStatusId) : QJsonValue(QJsonValue::Null);
     json["verification_level_id"] = requirements.verificationLevelId.has_value()
         ? QJsonValue(*requirements.verificationLevelId) : QJsonValue(QJsonValue::Null);
-    QJsonArray skills;
-    for (const PursuitSkillRequirement &skill : requirements.skills) {
-        skills.append(QJsonObject{
-            {"skill_id", skill.skillId},
-            {"psychomotor_level_id", skill.psychomotorLevelId}
-        });
-    }
-    json["skills"] = skills;
     QNetworkReply *reply = manager.put(request, QJsonDocument(json).toJson());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nodeId] {

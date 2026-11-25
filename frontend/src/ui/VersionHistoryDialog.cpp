@@ -56,7 +56,6 @@ static QString fieldName(const QString &name, const bool idea) {
     if (name == "verification_level_id") return "Verifizierungsniveau";
     if (name == "state_id") return idea ? "Ideenstatus" : "Status";
     if (name == "priority_id") return "Priorität";
-    if (name == "psychomotor_level_id") return "Psychomotorisches Niveau";
     if (name == "front") return "Vorderseite";
     if (name == "back") return "Rückseite";
     if (name == "personal_relevance_id") return "Persönliche Relevanz";
@@ -96,9 +95,6 @@ static QString fieldValue(
     }
     if (field == "priority_id") {
         return metadataName(metadata.systemTaskPriorities, value);
-    }
-    if (field == "psychomotor_level_id") {
-        return metadataName(metadata.psychomotorLevels, value);
     }
     if (field == "personal_relevance_id") {
         return metadataName(metadata.personalRelevanceLevels, value);

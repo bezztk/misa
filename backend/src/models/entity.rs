@@ -9,7 +9,6 @@ pub enum EntityType {
     SystemTask = 2,
     Progression = 3,
     Pursuit = 4,
-    Skill = 5,
     Flashcard = 6,
     CalendarEntry = 7,
     Attachment = 8,

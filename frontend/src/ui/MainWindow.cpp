@@ -235,10 +235,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             [this] { showToast("Lernkarte erstellt"); });
     connect(&apiClient, &ApiClient::flashcardUpdated, this,
             [this] { showToast("Lernkarte aktualisiert"); });
-    connect(&apiClient, &ApiClient::skillCreated, this,
-            [this] { showToast("Skill erstellt"); });
-    connect(&apiClient, &ApiClient::skillUpdated, this,
-            [this] { showToast("Skill aktualisiert"); });
     connect(&apiClient, &ApiClient::pursuitCreated, this,
             [this] { showToast("Bestrebung erstellt"); });
     connect(&apiClient, &ApiClient::pursuitUpdated, this,
@@ -338,7 +334,7 @@ RssView *MainWindow::openRss() {
 
 MediaView *MainWindow::openMedia() {
     auto *view = static_cast<MediaView *>(workspaceManager->openView(
-        "media", "Film && Serien", [this] {
+        "media", "Filme und Serien", [this] {
             return new MediaView(apiClient);
         }
     ));

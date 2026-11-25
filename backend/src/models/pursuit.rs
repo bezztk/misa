@@ -13,7 +13,6 @@ pub struct PursuitRequirementType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PursuitRequirementTypeId {
     KnowledgeLevel = 1,
-    PsychomotorLevel = 2,
     CompletenessLevel = 3,
     FlashcardStatus = 4,
     VerificationStatus = 5,
@@ -34,9 +33,7 @@ pub struct PursuitRequirement {
     pub id: i32,
     pub pursuit_id: i32,
     pub requirement_type_id: i32,
-    pub skill_id: Option<i32>,
     pub knowledge_level_id: Option<i32>,
-    pub psychomotor_level_id: Option<i32>,
     pub completeness_level_id: Option<i32>,
     pub flashcard_status_id: Option<i32>,
     pub verification_status_id: Option<i32>,
@@ -58,17 +55,10 @@ pub struct PursuitDetails {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SkillRequirementRequest {
-    pub skill_id: i32,
-    pub psychomotor_level_id: i32,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct UpdatePursuitRequirementsRequest {
     pub knowledge_level_id: Option<i32>,
     pub completeness_level_id: Option<i32>,
     pub flashcard_status_id: Option<i32>,
     pub verification_status_id: Option<i32>,
     pub verification_level_id: Option<i32>,
-    pub skills: Vec<SkillRequirementRequest>,
 }

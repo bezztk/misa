@@ -24,9 +24,6 @@ async fn load_metadata(pool: &PgPool) -> Result<Metadata, sqlx::Error> {
              'knowledge_levels',
                  (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
                   FROM (SELECT id, name, display_name, description FROM knowledge_levels) value),
-             'psychomotor_levels',
-                 (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
-                  FROM (SELECT id, name, display_name FROM psychomotor_levels) value),
              'document_completeness_levels',
                  (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
                   FROM (SELECT id, name, display_name FROM document_completeness_levels) value),

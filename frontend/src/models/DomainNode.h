@@ -26,7 +26,6 @@ struct DomainNode {
     bool hasDocument;
     int flashcardCount;
     int attachmentCount;
-    int skillCount;
     int pursuitCount;
     int taskCount;
     std::optional<int> completenessLevelId{};

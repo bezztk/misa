@@ -11,9 +11,7 @@
 struct PursuitRequirement {
     int id;
     int requirementTypeId;
-    std::optional<int> skillId;
     std::optional<int> knowledgeLevelId;
-    std::optional<int> psychomotorLevelId;
     std::optional<int> completenessLevelId;
     std::optional<int> flashcardStatusId;
     std::optional<int> verificationStatusId;
@@ -28,18 +26,12 @@ struct Pursuit {
     std::vector<Comment> comments;
 };
 
-struct PursuitSkillRequirement {
-    int skillId;
-    int psychomotorLevelId;
-};
-
 struct UpdatePursuitRequirements {
     std::optional<int> knowledgeLevelId;
     std::optional<int> completenessLevelId;
     std::optional<int> flashcardStatusId;
     std::optional<int> verificationStatusId;
     std::optional<int> verificationLevelId;
-    std::vector<PursuitSkillRequirement> skills;
 };
 
 #endif // FRONTEND_PURSUIT_H

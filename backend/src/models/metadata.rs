@@ -20,7 +20,6 @@ macro_rules! lookup_model {
 
 lookup_model!(PersonalRelevanceLevel);
 lookup_model!(LastingImpact);
-lookup_model!(PsychomotorLevel);
 lookup_model!(DocumentCompletenessLevel);
 lookup_model!(DocumentFlashcardStatus);
 lookup_model!(DocumentVerificationStatus);
@@ -40,7 +39,6 @@ pub struct Metadata {
     pub personal_relevance_levels: Vec<PersonalRelevanceLevel>,
     pub lasting_impacts: Vec<LastingImpact>,
     pub knowledge_levels: Vec<KnowledgeLevel>,
-    pub psychomotor_levels: Vec<PsychomotorLevel>,
     pub document_completeness_levels: Vec<DocumentCompletenessLevel>,
     pub document_flashcard_statuses: Vec<DocumentFlashcardStatus>,
     pub document_verification_statuses: Vec<DocumentVerificationStatus>,

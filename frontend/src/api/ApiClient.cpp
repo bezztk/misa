@@ -150,7 +150,6 @@ static DomainNode parseDomainNode(const QJsonObject &object) {
         .hasDocument = object["has_document"].toBool(),
         .flashcardCount = object["flashcard_count"].toInt(),
         .attachmentCount = object["attachment_count"].toInt(),
-        .skillCount = object["skill_count"].toInt(),
         .pursuitCount = object["pursuit_count"].toInt(),
         .taskCount = object["task_count"].toInt()
     };
@@ -407,7 +406,6 @@ void ApiClient::getMetadata() {
                 .description = level["description"].toString()
             });
         }
-        metadata.psychomotorLevels = parseMetadataItems(object["psychomotor_levels"].toArray());
         metadata.documentCompletenessLevels = parseMetadataItems(object["document_completeness_levels"].toArray());
         metadata.documentFlashcardStatuses = parseMetadataItems(object["document_flashcard_statuses"].toArray());
         metadata.documentVerificationStatuses = parseMetadataItems(object["document_verification_statuses"].toArray());

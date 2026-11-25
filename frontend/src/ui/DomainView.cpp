@@ -60,7 +60,6 @@ static constexpr int FLASHCARD_STATUS_ROLE = Qt::UserRole + 6;
 static constexpr int VERIFICATION_STATUS_ROLE = Qt::UserRole + 7;
 static constexpr int VERIFICATION_LEVEL_ROLE = Qt::UserRole + 8;
 static constexpr int NODE_NAME_ROLE = Qt::UserRole + 9;
-static constexpr int SKILL_COUNT_ROLE = Qt::UserRole + 10;
 static constexpr int PURSUIT_COUNT_ROLE = Qt::UserRole + 11;
 static constexpr int TASK_COUNT_ROLE = Qt::UserRole + 13;
 static constexpr int ATTACHMENT_COUNT_ROLE = Qt::UserRole + 14;
@@ -145,9 +144,6 @@ public:
         );
         addIconIndicator(
             PURSUIT_COUNT_ROLE, ":/assets/icons/pursuit.png", QColor("#81C784")
-        );
-        addIconIndicator(
-            SKILL_COUNT_ROLE, ":/assets/icons/star.png", QColor("#FFD54F")
         );
         addIconIndicator(
             FLASHCARD_COUNT_ROLE, ":/assets/icons/flashcards-white.png", QColor("#64B5F6")
@@ -312,19 +308,6 @@ private:
 
 static QString metadataName(const MetadataItem &item) {
     return item.displayName.value_or(item.name);
-}
-
-static QString skillText(const Metadata &metadata, const Skill &skill) {
-    QString text = skill.name;
-    if (skill.psychomotorLevelId.has_value()) {
-        for (const MetadataItem &level : metadata.psychomotorLevels) {
-            if (level.id == *skill.psychomotorLevelId) {
-                text += "  ·  " + metadataName(level);
-                break;
-            }
-        }
-    }
-    return text;
 }
 
 static QString metadataText(const std::vector<MetadataItem> &items, const int id) {
@@ -521,7 +504,6 @@ static void setDomainNodeRoles(QStandardItem *item, const DomainNode &node) {
     item->setData(node.name, NODE_NAME_ROLE);
     item->setData(node.flashcardCount, FLASHCARD_COUNT_ROLE);
     item->setData(node.attachmentCount, ATTACHMENT_COUNT_ROLE);
-    item->setData(node.skillCount, SKILL_COUNT_ROLE);
     item->setData(node.pursuitCount, PURSUIT_COUNT_ROLE);
     item->setData(node.taskCount, TASK_COUNT_ROLE);
     item->setData(static_cast<int>(node.comments.size()), COMMENT_COUNT_ROLE);
@@ -537,7 +519,6 @@ static void refreshDomainNodeText(QStandardItem *item) {
     item->setText(name);
     const int flashcardCount = item->data(FLASHCARD_COUNT_ROLE).toInt();
     const int attachmentCount = item->data(ATTACHMENT_COUNT_ROLE).toInt();
-    const int skillCount = item->data(SKILL_COUNT_ROLE).toInt();
     const int pursuitCount = item->data(PURSUIT_COUNT_ROLE).toInt();
     const int taskCount = item->data(TASK_COUNT_ROLE).toInt();
 
@@ -547,9 +528,6 @@ static void refreshDomainNodeText(QStandardItem *item) {
     }
     if (pursuitCount > 0) {
         details.append("Bestrebungen: " + QString::number(pursuitCount));
-    }
-    if (skillCount > 0) {
-        details.append("Skills: " + QString::number(skillCount));
     }
     if (flashcardCount > 0) {
         details.append("Flashcards: " + QString::number(flashcardCount));
@@ -757,95 +735,10 @@ static void showFlashcardEditDialog(
     }
 }
 
-static bool showSkillDialog(
-    QWidget *parent,
-    const Metadata &metadata,
-    const QString &title,
-    QString &name,
-    std::optional<int> &psychomotorLevelId
-) {
-    QDialog dialog(parent);
-    dialog.setWindowTitle(title);
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
-    auto *nameEdit = new QLineEdit(name, &dialog);
-    auto *levelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(levelCombo, metadata.psychomotorLevels);
-    selectMetadata(levelCombo, psychomotorLevelId);
-    form->addRow("Name", nameEdit);
-    form->addRow("Psychomotorisches Niveau", levelCombo);
-    layout->addLayout(form);
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
-    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addWidget(buttons);
-    prepareDialog(dialog);
-
-    if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return false;
-    }
-
-    name = nameEdit->text().trimmed();
-    psychomotorLevelId = selectedMetadata(levelCombo);
-    return true;
-}
-
-static void showSkillEditDialog(
-    QWidget *parent,
-    ApiClient &apiClient,
-    const Skill &skill
-) {
-    QDialog dialog(parent);
-    dialog.setWindowTitle("Skill bearbeiten");
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
-    auto *nameEdit = new QLineEdit(skill.name, &dialog);
-    auto *levelCombo = new QComboBox(&dialog);
-    fillMetadataCombo(levelCombo, apiClient.metadata().psychomotorLevels);
-    selectMetadata(levelCombo, skill.psychomotorLevelId);
-    form->addRow("Name", nameEdit);
-    form->addRow("Psychomotorisches Niveau", levelCombo);
-    layout->addLayout(form);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
-    buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-    prepareDialog(dialog);
-    execDialog(dialog, true);
-
-    const QString name = nameEdit->text().trimmed();
-    if (!name.isEmpty() && name != skill.name) {
-        apiClient.updateSkillField(
-            skill.domainNodeId,
-            skill.id,
-            SkillField::Name,
-            name
-        );
-    }
-
-    const std::optional<int> psychomotorLevelId = selectedMetadata(levelCombo);
-    if (psychomotorLevelId != skill.psychomotorLevelId) {
-        apiClient.updateSkillField(
-            skill.domainNodeId,
-            skill.id,
-            SkillField::PsychomotorLevelId,
-            jsonValue(psychomotorLevelId)
-        );
-    }
-}
-
 static bool showPursuitDialog(
     QWidget *parent,
     const Metadata &metadata,
     const Pursuit &pursuit,
-    const std::vector<Skill> &skills,
     UpdatePursuitRequirements &result
 ) {
     for (const PursuitRequirement &requirement : pursuit.requirements) {
@@ -895,52 +788,6 @@ static bool showPursuitDialog(
     nodeForm->addRow("Verifizierungsniveau", verificationLevelCombo);
     layout->addLayout(nodeForm);
 
-    auto *separator = new QFrame(&dialog);
-    separator->setFrameShape(QFrame::HLine);
-    separator->setFrameShadow(QFrame::Sunken);
-    layout->addWidget(separator);
-    auto *skillTitle = new QLabel("Skill-Anforderungen", &dialog);
-    skillTitle->setFont(sectionFont);
-    layout->addWidget(skillTitle);
-
-    auto *skillArea = new QScrollArea(&dialog);
-    skillArea->setWidgetResizable(true);
-    skillArea->setFrameShape(QFrame::NoFrame);
-    auto *skillContent = new QWidget(skillArea);
-    auto *skillForm = new QFormLayout(skillContent);
-    std::vector<std::pair<int, QComboBox *>> skillCombos;
-    std::function<void(std::optional<int>, int)> addSkillRows;
-    addSkillRows = [&](const std::optional<int> parentId, const int depth) {
-        for (const Skill &skill : skills) {
-            if (skill.parentSkillId != parentId) {
-                continue;
-            }
-
-            auto *combo = new QComboBox(skillContent);
-            fillMetadataCombo(combo, metadata.psychomotorLevels);
-            std::optional<int> selectedLevel;
-            for (const PursuitRequirement &requirement : pursuit.requirements) {
-                if (requirement.requirementTypeId == 2
-                    && requirement.skillId == std::optional<int>(skill.id)) {
-                    selectedLevel = requirement.psychomotorLevelId;
-                    break;
-                }
-            }
-            selectMetadata(combo, selectedLevel);
-            auto *skillLabel = new QLabel(skill.name, skillContent);
-            skillLabel->setContentsMargins(depth * 16, 0, 0, 0);
-            skillForm->addRow(skillLabel, combo);
-            skillCombos.emplace_back(skill.id, combo);
-            addSkillRows(skill.id, depth + 1);
-        }
-    };
-    addSkillRows(std::nullopt, 0);
-    if (skills.empty()) {
-        skillForm->addRow(new QLabel("Noch keine Skills angelegt.", skillContent));
-    }
-    skillArea->setWidget(skillContent);
-    layout->addWidget(skillArea, 1);
-
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
@@ -956,15 +803,6 @@ static bool showPursuitDialog(
     result.flashcardStatusId = selectedMetadata(flashcardStatusCombo);
     result.verificationStatusId = selectedMetadata(verificationStatusCombo);
     result.verificationLevelId = selectedMetadata(verificationLevelCombo);
-    result.skills.clear();
-    for (const auto &[skillId, combo] : skillCombos) {
-        if (const std::optional<int> levelId = selectedMetadata(combo)) {
-            result.skills.push_back({
-                .skillId = skillId,
-                .psychomotorLevelId = *levelId
-            });
-        }
-    }
     return true;
 }
 
@@ -979,7 +817,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QWidget#domainView[navigationMode="true"] QTreeView#domainTree {
             background: transparent;
         }
-        QTreeView#domainTree, QTreeView#pursuitTree, QTreeView#skillTree {
+        QTreeView#domainTree, QTreeView#pursuitTree {
             background: palette(base);
             border: none;
             outline: none;
@@ -1091,12 +929,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     editorLayout->addWidget(documentMetadataWidget);
     editorWidget->hide();
 
-    skillWidget = new QWidget(splitter);
-    skillWidget->setObjectName("skillPanel");
-    skillWidget->setFixedWidth(300);
-    skillWidget->setStyleSheet(R"(
-        QWidget#skillPanel, QWidget#sidebarContent,
-        QWidget#taskPanel, QWidget#pursuitPanel, QWidget#skillsPanel, QWidget#flashcardsPanel,
+    sidebarWidget = new QWidget(splitter);
+    sidebarWidget->setObjectName("sidebarPanel");
+    sidebarWidget->setFixedWidth(300);
+    sidebarWidget->setStyleSheet(R"(
+        QWidget#sidebarPanel, QWidget#sidebarContent,
+        QWidget#taskPanel, QWidget#pursuitPanel, QWidget#flashcardsPanel,
         QWidget#attachmentsPanel,
         QScrollArea#sidebarScrollArea {
             background: #1C1C1C;
@@ -1108,7 +946,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QPushButton#taskSectionButton,
         QPushButton#pursuitSectionButton,
-        QPushButton#skillSectionButton,
         QPushButton#flashcardSectionButton,
         QPushButton#attachmentSectionButton {
             min-height: 31px;
@@ -1138,24 +975,22 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QPushButton#taskSectionButton:hover,
         QPushButton#pursuitSectionButton:hover,
-        QPushButton#skillSectionButton:hover,
         QPushButton#attachmentSectionButton:hover,
         QPushButton#flashcardSectionButton:hover {
             background: #303030;
         }
         QPushButton#taskSectionButton:focus,
         QPushButton#pursuitSectionButton:focus,
-        QPushButton#skillSectionButton:focus,
         QPushButton#attachmentSectionButton:focus,
         QPushButton#flashcardSectionButton:focus {
             border-left: 2px solid #708FA6;
         }
-        QTreeView#pursuitTree, QTreeView#skillTree {
+        QTreeView#pursuitTree {
             background: #1C1C1C;
             border: none;
             outline: none;
         }
-        QTreeView#pursuitTree::item, QTreeView#skillTree::item {
+        QTreeView#pursuitTree::item {
             border: none;
             padding: 2px 3px;
         }
@@ -1169,12 +1004,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             border: none;
             padding: 2px 3px;
         }
-        QTreeView#pursuitTree::item:hover, QTreeView#skillTree::item:hover,
+        QTreeView#pursuitTree::item:hover,
         QListView#taskList::item:hover, QListView#flashcardList::item:hover,
         QListView#attachmentList::item:hover {
             background: #303030;
         }
-        QTreeView#pursuitTree::item:selected, QTreeView#skillTree::item:selected,
+        QTreeView#pursuitTree::item:selected,
         QListView#taskList::item:selected, QListView#flashcardList::item:selected,
         QListView#attachmentList::item:selected {
             background: #394650;
@@ -1200,11 +1035,11 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: transparent;
         }
     )");
-    auto *skillLayout = new QVBoxLayout(skillWidget);
-    skillLayout->setContentsMargins(0, 0, 0, 0);
-    skillLayout->setSpacing(0);
+    auto *sidebarLayout = new QVBoxLayout(sidebarWidget);
+    sidebarLayout->setContentsMargins(0, 0, 0, 0);
+    sidebarLayout->setSpacing(0);
 
-    auto *sidebarScrollArea = new QScrollArea(skillWidget);
+    auto *sidebarScrollArea = new QScrollArea(sidebarWidget);
     sidebarScrollArea->setObjectName("sidebarScrollArea");
     sidebarScrollArea->setWidgetResizable(true);
     sidebarScrollArea->setFrameShape(QFrame::NoFrame);
@@ -1294,41 +1129,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     ));
     pursuitLayout->addWidget(pursuitTreeView);
 
-    auto *skillPanel = new QWidget(sidebarList);
-    skillPanel->setObjectName("skillsPanel");
-    skillPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-    auto *skillPanelLayout = new QVBoxLayout(skillPanel);
-    skillPanelLayout->setContentsMargins(8, 4, 8, 5);
-    skillPanelLayout->setSpacing(2);
-
-    auto *skillSectionButton = new QPushButton("▾  Skillansicht", sidebarList);
-    skillSectionButton->setObjectName("skillSectionButton");
-    skillSectionButton->setCheckable(true);
-    skillSectionButton->setChecked(true);
-
-    noSkillsLabel = new QLabel("Noch keine Skills angelegt.", skillPanel);
-    noSkillsLabel->setWordWrap(true);
-    noSkillsLabel->setStyleSheet("color: palette(mid);");
-    skillPanelLayout->addWidget(noSkillsLabel);
-
-    skillTreeView = new QTreeView(skillPanel);
-    skillTreeView->setObjectName("skillTree");
-    skillTreeView->setHeaderHidden(true);
-    skillTreeView->setFrameShape(QFrame::NoFrame);
-    skillTreeView->setIndentation(14);
-    skillTreeView->setUniformRowHeights(true);
-    skillTreeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    skillTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    skillTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
-    skillModel = new QStandardItemModel(skillTreeView);
-    skillTreeView->setModel(skillModel);
-    skillTreeView->setItemDelegate(new CommentIndicatorDelegate(
-        [this](const int skillId) { showSkillComments(skillId); },
-        {},
-        skillTreeView
-    ));
-    skillPanelLayout->addWidget(skillTreeView);
-
     auto *flashcardPanel = new QWidget(sidebarList);
     flashcardPanel->setObjectName("flashcardsPanel");
     flashcardPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
@@ -1410,8 +1210,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarListLayout->addWidget(taskPanel);
     sidebarListLayout->addWidget(pursuitSectionButton);
     sidebarListLayout->addWidget(pursuitPanel);
-    sidebarListLayout->addWidget(skillSectionButton);
-    sidebarListLayout->addWidget(skillPanel);
     sidebarListLayout->addWidget(flashcardSectionHeader);
     sidebarListLayout->addWidget(flashcardPanel);
     sidebarListLayout->addWidget(attachmentSectionButton);
@@ -1419,8 +1217,8 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
     sidebarContentLayout->addWidget(sidebarList);
     sidebarContentLayout->addStretch();
     sidebarScrollArea->setWidget(sidebarContent);
-    skillLayout->addWidget(sidebarScrollArea);
-    skillWidget->hide();
+    sidebarLayout->addWidget(sidebarScrollArea);
+    sidebarWidget->hide();
 
     connect(taskSectionButton, &QPushButton::toggled, this,
             [taskSectionButton, taskPanel](const bool expanded) {
@@ -1435,13 +1233,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     expanded ? "▾  Bestrebungen" : "▸  Bestrebungen"
                 );
                 pursuitPanel->setVisible(expanded);
-            });
-    connect(skillSectionButton, &QPushButton::toggled, this,
-            [skillSectionButton, skillPanel](const bool expanded) {
-                skillSectionButton->setText(
-                    expanded ? "▾  Skillansicht" : "▸  Skillansicht"
-                );
-                skillPanel->setVisible(expanded);
             });
     connect(flashcardSectionButton, &QPushButton::toggled, this,
             [flashcardSectionButton, flashcardPanel](const bool expanded) {
@@ -1460,7 +1251,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
     splitter->addWidget(treeView);
     splitter->addWidget(editorWidget);
-    splitter->addWidget(skillWidget);
+    splitter->addWidget(sidebarWidget);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     splitter->setStretchFactor(2, 0);
@@ -1834,19 +1625,6 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     renderAttachments(attachments);
                 }
             });
-    connect(skillTreeView, &QTreeView::customContextMenuRequested, this,
-            [this](const QPoint &position) { showSkillContextMenu(position); });
-    connect(skillTreeView, &QTreeView::doubleClicked, this,
-            [this](const QModelIndex &index) { editSkill(index); });
-    connect(&apiClient, &ApiClient::nodeSkillsChanged, this,
-            [this](const int nodeId) { apiClient.getNodeSkills(nodeId); });
-    connect(&apiClient, &ApiClient::nodeSkillsReceived, this,
-            [this](const int nodeId, const std::vector<Skill> &skills) {
-                updateSkillCount(nodeId, static_cast<int>(skills.size()));
-                if (nodeId == currentNodeId) {
-                    renderSkills(skills);
-                }
-            });
     connect(pursuitTreeView, &QTreeView::clicked, this,
             [this](const QModelIndex &index) {
                 if (commentIndicatorPressed) {
@@ -1947,7 +1725,7 @@ void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     treeView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     editorWidget->hide();
-    skillWidget->hide();
+    sidebarWidget->hide();
 
     connect(treeView, &QTreeView::expanded, this,
             [this] { updateNavigationTreeHeight(); });
@@ -2011,19 +1789,15 @@ void DomainView::continueDocumentChange() {
     flashcardModel->removeRows(0, flashcardModel->rowCount());
     attachmentModel->removeRows(0, attachmentModel->rowCount());
     taskModel->removeRows(0, taskModel->rowCount());
-    skillModel->removeRows(0, skillModel->rowCount());
     pursuitModel->removeRows(0, pursuitModel->rowCount());
-    currentSkills.clear();
     currentPursuits.clear();
     currentFlashcards.clear();
     renderTasks();
-    noSkillsLabel->show();
-    skillTreeView->hide();
     noPursuitsLabel->show();
     pursuitTreeView->hide();
     documentMetadataWidget->hide();
     editorWidget->setVisible(nodeId != -1);
-    skillWidget->setVisible(nodeId != -1);
+    sidebarWidget->setVisible(nodeId != -1);
     documentWidget->setVisible(hasDocument);
     updateFlashcardView();
     renderAttachments({});
@@ -2034,7 +1808,6 @@ void DomainView::continueDocumentChange() {
         ));
         apiClient.getNodeFlashcards(nodeId);
         apiClient.getNodeAttachments(nodeId);
-        apiClient.getNodeSkills(nodeId);
         apiClient.getNodePursuits(nodeId);
         if (hasDocument) {
             apiClient.getDocument(nodeId);
@@ -2250,10 +2023,6 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         QIcon(":/assets/icons/pursuit.png"),
         "Bestrebung"
     );
-    QAction *createSkillAction = addMenu->addAction(
-        QIcon(":/assets/icons/star.png"),
-        "Skill"
-    );
     QAction *createFlashcardAction = addMenu->addAction(
         QIcon(":/assets/icons/flashcards-white.png"),
         "Lernkarte"
@@ -2360,8 +2129,6 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         createTask(nodeId);
     } else if (selectedAction == createPursuitAction) {
         createPursuit(nodeId);
-    } else if (selectedAction == createSkillAction) {
-        createSkill(nodeId);
     } else if (selectedAction == createFlashcardAction) {
         createFlashcard(nodeId);
     } else if (selectedAction == createAttachmentAction) {
@@ -2459,24 +2226,6 @@ void DomainView::showFlashcardComments(const int flashcardId) {
     }
 }
 
-void DomainView::showSkillComments(const int skillId) {
-    const auto skill = std::find_if(
-        currentSkills.begin(), currentSkills.end(),
-        [skillId](const Skill &item) { return item.id == skillId; }
-    );
-    if (skill == currentSkills.end()) {
-        return;
-    }
-    showCommentsDialog(
-        skillTreeView,
-        apiClient,
-        skill->id,
-        "Kommentare – " + skill->name,
-        skill->comments
-    );
-    renderSkills(currentSkills);
-}
-
 void DomainView::showPursuitComments(const int pursuitId) {
     const auto pursuit = std::find_if(
         currentPursuits.begin(), currentPursuits.end(),
@@ -2547,144 +2296,6 @@ void DomainView::editFlashcard(const int row) {
     });
 }
 
-void DomainView::renderSkills(const std::vector<Skill> &skills) {
-    currentSkills = skills;
-    skillModel->clear();
-    skillModel->setColumnCount(1);
-
-    std::function<void(std::optional<int>, QStandardItem *)> addSkills;
-    addSkills = [&](const std::optional<int> parentId, QStandardItem *parentItem) {
-        for (const Skill &skill : skills) {
-            if (skill.parentSkillId != parentId) {
-                continue;
-            }
-
-            auto *item = new QStandardItem(skillText(apiClient.metadata(), skill));
-            item->setData(skill.id, Qt::UserRole);
-            item->setData(skill.id, COMMENT_ENTITY_ID_ROLE);
-            item->setData(
-                static_cast<int>(skill.comments.size()),
-                COMMENT_COUNT_ROLE
-            );
-            if (!parentItem) {
-                item->setIcon(QIcon(":/assets/icons/star.png"));
-                item->setSizeHint(QSize(0, 24));
-            }
-            if (parentItem) {
-                parentItem->appendRow(item);
-            } else {
-                skillModel->appendRow(item);
-            }
-            addSkills(skill.id, item);
-        }
-    };
-    addSkills(std::nullopt, nullptr);
-
-    noSkillsLabel->setVisible(skills.empty());
-    skillTreeView->setVisible(!skills.empty());
-    skillTreeView->expandAll();
-    skillTreeView->setFixedHeight(
-        qMax(
-            40,
-            itemCount(skillModel->invisibleRootItem())
-                * skillTreeView->sizeHintForRow(0) + 6
-        )
-    );
-    renderPursuits();
-}
-
-void DomainView::showSkillContextMenu(const QPoint &position) {
-    const QModelIndex index = skillTreeView->indexAt(position);
-    if (!index.isValid()) {
-        return;
-    }
-
-    QMenu menu(skillTreeView);
-    QAction *createAction = menu.addAction(
-        QIcon(":/assets/icons/add.png"),
-        "Unter-Skill hinzufügen"
-    );
-    QAction *editAction = menu.addAction(
-        QIcon(":/assets/icons/edit.png"),
-        "Bearbeiten"
-    );
-    QAction *commentsAction = menu.addAction(
-        QIcon(":/assets/icons/speech-bubble.png"),
-        "Kommentare anzeigen"
-    );
-    menu.addSeparator();
-    QAction *historyAction = menu.addAction(
-        QIcon(":/assets/icons/version_history.png"),
-        "Versionshistorie"
-    );
-    QAction *selectedAction = menu.exec(
-        skillTreeView->viewport()->mapToGlobal(position)
-    );
-
-    if (selectedAction == createAction) {
-        createSkill(currentNodeId, index.data(Qt::UserRole).toInt());
-    } else if (selectedAction == editAction) {
-        editSkill(index);
-    } else if (selectedAction == commentsAction) {
-        showSkillComments(index.data(Qt::UserRole).toInt());
-    } else if (selectedAction == historyAction) {
-        const int skillId = index.data(Qt::UserRole).toInt();
-        const auto skill = std::find_if(
-            currentSkills.begin(),
-            currentSkills.end(),
-            [skillId](const Skill &item) { return item.id == skillId; }
-        );
-        showVersionHistoryDialog(
-            skillTreeView,
-            apiClient,
-            skillId,
-            skill == currentSkills.end()
-                ? "Versionshistorie"
-                : "Versionshistorie – " + skill->name
-        );
-    }
-}
-
-void DomainView::createSkill(
-    const int nodeId,
-    const std::optional<int> parentSkillId
-) {
-    QString name;
-    std::optional<int> psychomotorLevelId;
-    if (showSkillDialog(
-            this,
-            apiClient.metadata(),
-            parentSkillId.has_value() ? "Unter-Skill hinzufügen" : "Skill hinzufügen",
-            name,
-            psychomotorLevelId
-        )) {
-        apiClient.createSkill(
-            nodeId,
-            parentSkillId,
-            name,
-            psychomotorLevelId
-        );
-    }
-}
-
-void DomainView::editSkill(const QModelIndex &index) {
-    if (!index.isValid() || currentNodeId == -1) {
-        return;
-    }
-
-    const int skillId = index.data(Qt::UserRole).toInt();
-    const auto skill = std::find_if(
-        currentSkills.begin(),
-        currentSkills.end(),
-        [skillId](const Skill &item) { return item.id == skillId; }
-    );
-    if (skill == currentSkills.end()) {
-        return;
-    }
-
-    showSkillEditDialog(this, apiClient, *skill);
-}
-
 void DomainView::renderTasks() {
     taskModel->clear();
 
@@ -2732,7 +2343,6 @@ void DomainView::renderPursuits() {
                         *requirement.knowledgeLevelId
                     );
                     break;
-                case 2: break;
                 case 3:
                     text = "Vollständigkeit: " + metadataText(
                         apiClient.metadata().documentCompletenessLevels,
@@ -2762,52 +2372,6 @@ void DomainView::renderPursuits() {
             }
             if (!text.isEmpty()) {
                 pursuitItem->appendRow(new QStandardItem(text));
-            }
-        }
-
-        std::function<QStandardItem *(const Skill &)> skillRequirementItem;
-        skillRequirementItem = [&](const Skill &skill) -> QStandardItem * {
-            const PursuitRequirement *skillRequirement = nullptr;
-            for (const PursuitRequirement &requirement : pursuit.requirements) {
-                if (requirement.requirementTypeId == 2
-                    && requirement.skillId == std::optional<int>(skill.id)) {
-                    skillRequirement = &requirement;
-                    break;
-                }
-            }
-
-            std::vector<QStandardItem *> childItems;
-            for (const Skill &child : currentSkills) {
-                if (child.parentSkillId == std::optional<int>(skill.id)) {
-                    if (QStandardItem *childItem = skillRequirementItem(child)) {
-                        childItems.push_back(childItem);
-                    }
-                }
-            }
-
-            if (!skillRequirement && childItems.empty()) {
-                return nullptr;
-            }
-
-            QString text = skill.name;
-            if (skillRequirement) {
-                text += ": " + metadataText(
-                    apiClient.metadata().psychomotorLevels,
-                    *skillRequirement->psychomotorLevelId
-                );
-            }
-            auto *item = new QStandardItem(text);
-            for (QStandardItem *childItem : childItems) {
-                item->appendRow(childItem);
-            }
-            return item;
-        };
-
-        for (const Skill &skill : currentSkills) {
-            if (!skill.parentSkillId.has_value()) {
-                if (QStandardItem *skillItem = skillRequirementItem(skill)) {
-                    pursuitItem->appendRow(skillItem);
-                }
             }
         }
 
@@ -2900,7 +2464,7 @@ void DomainView::editPursuit(const QModelIndex &index) {
 
         UpdatePursuitRequirements requirements;
         if (showPursuitDialog(
-            this, apiClient.metadata(), pursuit, currentSkills, requirements
+            this, apiClient.metadata(), pursuit, requirements
         )) {
             apiClient.updatePursuitRequirements(
                 currentNodeId,
@@ -2930,12 +2494,6 @@ void DomainView::updateCurrentTaskCount() {
     ));
     QStandardItem *item = findDomainNodeItem(currentNodeId);
     item->setData(count, TASK_COUNT_ROLE);
-    refreshDomainNodeText(item);
-}
-
-void DomainView::updateSkillCount(const int nodeId, const int count) {
-    QStandardItem *item = findDomainNodeItem(nodeId);
-    item->setData(count, SKILL_COUNT_ROLE);
     refreshDomainNodeText(item);
 }
 

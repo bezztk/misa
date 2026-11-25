@@ -202,7 +202,6 @@ add_executable(frontend
         src/models/Flashcard.h
         src/models/Attachment.h
         src/models/Metadata.h
-        src/models/Skill.h
         src/models/Pursuit.h
         src/models/Progression.h
         src/models/CalendarEntry.h
@@ -264,7 +263,6 @@ qt_add_resources(frontend "icons"
         FILES
         assets/icons/task-white.png
         assets/icons/attach-file.png
-        assets/icons/star.png
         assets/icons/incubator.png
         assets/icons/pursuit.png
         assets/icons/flashcards-white.png
@@ -283,7 +281,7 @@ qt_add_resources(frontend "icons"
         assets/icons/version_history.png
         assets/icons/speech-bubble.png
         assets/icons/books.png
-        assets/icons/infinity.png
+        assets/icons/quill-pen.png
         assets/icons/idea.png
         assets/icons/video-camera.png
         assets/icons/close.png

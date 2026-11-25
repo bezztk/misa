@@ -66,12 +66,6 @@ private:
         std::optional<int> verificationStatusId,
         std::optional<int> verificationLevelId
     );
-    void renderSkills(const std::vector<Skill> &skills);
-    void showSkillContextMenu(const QPoint &position);
-    void showSkillComments(int skillId);
-    void createSkill(int nodeId, std::optional<int> parentSkillId = std::nullopt);
-    void editSkill(const QModelIndex &index);
-    void updateSkillCount(int nodeId, int count);
     void renderTasks();
     void renderPursuits();
     void createPursuit(int nodeId);
@@ -100,17 +94,13 @@ private:
     QLabel *noAttachmentsLabel;
     QListView *attachmentListView;
     QStandardItemModel *attachmentModel;
-    QWidget *skillWidget;
+    QWidget *sidebarWidget;
     QLabel *noTasksLabel;
     QListView *taskListView;
     QStandardItemModel *taskModel;
     QLabel *noPursuitsLabel;
     QTreeView *pursuitTreeView;
     QStandardItemModel *pursuitModel;
-    QLabel *noSkillsLabel;
-    QTreeView *skillTreeView;
-    QStandardItemModel *skillModel;
-    std::vector<Skill> currentSkills;
     std::vector<Pursuit> currentPursuits;
     std::vector<Task> currentTasks;
     std::vector<Flashcard> currentFlashcards;

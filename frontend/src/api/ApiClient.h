@@ -6,7 +6,6 @@
 #include "../models/Metadata.h"
 #include "../models/DomainNode.h"
 #include "../models/Document.h"
-#include "../models/Skill.h"
 #include "../models/Pursuit.h"
 #include "../models/Progression.h"
 #include "../models/CalendarEntry.h"
@@ -68,10 +67,6 @@ signals:
     void flashcardUpdated();
     void nodeAttachmentsReceived(int nodeId, const std::vector<Attachment>& attachments);
     void nodeAttachmentsChanged(int nodeId);
-    void nodeSkillsReceived(int nodeId, const std::vector<Skill>& skills);
-    void nodeSkillsChanged(int nodeId);
-    void skillCreated();
-    void skillUpdated();
     void nodePursuitsReceived(int nodeId, const std::vector<Pursuit>& pursuits);
     void nodePursuitsChanged(int nodeId);
     void pursuitCreated();
@@ -181,10 +176,6 @@ public:
     void createAttachment(int nodeId, const QString& originalName,
                           const QString& storageName, qint64 sizeBytes);
     void deleteAttachment(int nodeId, int id);
-    void getNodeSkills(int nodeId);
-    void createSkill(int nodeId, std::optional<int> parentSkillId,
-                     const QString& name, std::optional<int> psychomotorLevelId);
-    void updateSkillField(int nodeId, int id, SkillField field, const QJsonValue& value);
     void getNodePursuits(int nodeId);
     void createPursuit(int nodeId, const QString& name);
     void updatePursuitRequirements(int nodeId, int pursuitId,

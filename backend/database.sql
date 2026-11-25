@@ -9,7 +9,6 @@ VALUES (1, 'domain_node'),
        (2, 'systemtask'),
        (3, 'progression'),
        (4, 'pursuit'),
-       (5, 'skill'),
        (6, 'flashcard'),
        (7, 'calendar_entry'),
        (8, 'attachment'),
@@ -45,8 +44,6 @@ VALUES (1, 1, 1, 'name'),
        (7, 2, 1, 'name'),
        (8, 2, 2, 'state_id'),
        (9, 2, 3, 'priority_id'),
-       (10, 5, 1, 'name'),
-       (11, 5, 2, 'psychomotor_level_id'),
        (12, 6, 1, 'front'),
        (13, 6, 2, 'back'),
        (14, 3, 1, 'name'),
@@ -148,7 +145,7 @@ VALUES (1, 'negligible', 'Vernachlässigbar'),
 
 --region Verwirklichung
 
---region Knowledge and Psychomotor Level
+--region Knowledge Level
 CREATE TABLE knowledge_levels
 (
     id           integer PRIMARY KEY,
@@ -166,18 +163,6 @@ VALUES (0, 'none', 'Keine Kenntnisse', 'Kein relevantes Wissen vorhanden.'),
        (6, 'in_depth', 'Vertieft', 'Fortgeschrittenes Wissen und kritisches Verständnis von Theorien und Prinzipien.'),
        (7, 'highly_specialized', 'Hoch spezialisiert', 'Hoch spezialisiertes Wissen und kritisches Bewusstsein für Wissensgrenzen und fachübergreifende Zusammenhänge.'),
        (8, 'research_frontier', 'Wissenschaftlich führend', 'Wissen an den äußersten Grenzen eines Fachgebietes und an Schnittstellen zwischen Fachgebieten.');
-CREATE TABLE psychomotor_levels
-(
-    id           integer PRIMARY KEY,
-    name         varchar(50) NOT NULL UNIQUE,
-    display_name varchar(50) NOT NULL UNIQUE
-);
-INSERT INTO psychomotor_levels (id, name, display_name)
-VALUES (1, 'imitation', 'Nachahmen'),
-       (2, 'manipulation', 'Ausführen'),
-       (3, 'precision', 'Präzision'),
-       (4, 'articulation', 'Koordination'),
-       (5, 'naturalization', 'Automatisierung');
 --endregion
 
 --region Metadaten des Dokumentes
@@ -302,18 +287,6 @@ CREATE TABLE document_versions
 
     PRIMARY KEY (domain_node_id, version)
 );
-CREATE TABLE skills
-(
-    entity_id            integer PRIMARY KEY REFERENCES entities (id) ON DELETE CASCADE,
-
-    domain_node_id       integer      NOT NULL REFERENCES domain_nodes (entity_id) ON DELETE CASCADE,
-    parent_skill_id      integer REFERENCES skills (entity_id) ON DELETE CASCADE,
-
-    name                 varchar(150) NOT NULL,
-    psychomotor_level_id integer REFERENCES psychomotor_levels (id),
-
-    CHECK (entity_id <> parent_skill_id)
-);
 --endregion
 
 --region Lernkarten
@@ -437,7 +410,6 @@ CREATE TABLE pursuit_requirement_types
 );
 INSERT INTO pursuit_requirement_types (id, name)
 VALUES (1, 'knowledge_level'),
-       (2, 'psychomotor_level'),
        (3, 'completeness_level'),
        (4, 'flashcard_status'),
        (5, 'verification_status'),
@@ -458,28 +430,22 @@ CREATE TABLE pursuit_requirements
     pursuit_id             integer NOT NULL REFERENCES pursuits (entity_id) ON DELETE CASCADE,
 
     requirement_type_id    integer NOT NULL REFERENCES pursuit_requirement_types (id),
-    skill_id               integer REFERENCES skills (entity_id),
 
     knowledge_level_id     integer REFERENCES knowledge_levels (id),
-    psychomotor_level_id   integer,
     completeness_level_id  integer,
     flashcard_status_id    integer,
     verification_status_id integer,
     verification_level_id  integer,
 
-    CHECK ((requirement_type_id = 2) = (skill_id IS NOT NULL)),
-
-    CHECK (
+    CONSTRAINT pursuit_requirements_type_check CHECK (
         num_nonnulls(
                 knowledge_level_id,
-                psychomotor_level_id,
                 completeness_level_id,
                 flashcard_status_id,
                 verification_status_id,
                 verification_level_id
         ) = 1
             AND ((requirement_type_id = 1 AND knowledge_level_id IS NOT NULL)
-            OR (requirement_type_id = 2 AND psychomotor_level_id IS NOT NULL)
             OR (requirement_type_id = 3 AND completeness_level_id IS NOT NULL)
             OR (requirement_type_id = 4 AND flashcard_status_id IS NOT NULL)
             OR (requirement_type_id = 5 AND verification_status_id IS NOT NULL)
@@ -487,7 +453,7 @@ CREATE TABLE pursuit_requirements
             )
         ),
 
-    UNIQUE NULLS NOT DISTINCT (pursuit_id, requirement_type_id, skill_id)
+    UNIQUE (pursuit_id, requirement_type_id)
 );
 --endregion
 
