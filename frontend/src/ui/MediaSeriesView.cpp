@@ -29,29 +29,38 @@ public:
                     const MediaEpisode &episode, QWidget *parent)
         : QFrame(parent), episodeId(episode.id) {
         setObjectName("mediaEpisode");
-        auto *layout = new QVBoxLayout(this);
+        auto *layout = new QHBoxLayout(this);
         layout->setContentsMargins(10, 10, 10, 10);
-        layout->setSpacing(7);
-        auto *heading = new QHBoxLayout();
-        heading->setSpacing(12);
-        auto *picture = new MediaImage(this);
-        picture->setFixedSize(128, 72);
+        layout->setSpacing(12);
+        picture = new MediaImage(this);
+        picture->setFixedSize(180, 101);
         picture->setFocusPolicy(Qt::NoFocus);
         picture->setAttribute(Qt::WA_TransparentForMouseEvents);
         const QString imageName = QString("seasons/%1/episodes/%2/still").arg(season.number).arg(episode.number);
         picture->setFile(mediaImageFile(mediaImagePath(media, imageName, episode.stillPath)),
-                         QSize(256, 144));
-        heading->addWidget(picture, 0, Qt::AlignTop);
+                         QSize(360, 202));
+        layout->addWidget(picture, 0, Qt::AlignTop);
 
-        auto *text = new QVBoxLayout();
+        auto *details = new QWidget(this);
+        auto *text = new QVBoxLayout(details);
+        text->setContentsMargins(0, 0, 0, 0);
         text->setSpacing(5);
+        layout->addWidget(details, 1);
+        auto *heading = new QHBoxLayout();
+        heading->setSpacing(8);
         QString title = QString("E%1").arg(episode.number, 2, 10, QChar('0'));
         if (!episode.title.isEmpty()) {
             title += " · " + episode.title;
         }
         auto *titleLabel = mediaText(title, this);
         titleLabel->setObjectName("mediaEpisodeTitle");
-        text->addWidget(titleLabel);
+        heading->addWidget(titleLabel, 1);
+        markWatched = new QPushButton(this);
+        markWatched->setObjectName("mediaEpisodeWatchedButton");
+        markWatched->setCheckable(true);
+        markWatched->setCursor(Qt::PointingHandCursor);
+        heading->addWidget(markWatched, 0, Qt::AlignTop);
+        text->addLayout(heading);
         QStringList facts;
         if (episode.runtimeMinutes) {
             facts.append(QString("%1 Min.").arg(*episode.runtimeMinutes));
@@ -64,57 +73,32 @@ public:
             factsLabel->setObjectName("mediaMutedText");
             text->addWidget(factsLabel);
         }
-        heading->addLayout(text, 1);
-        layout->addLayout(heading);
-
         auto *description = new MediaDescription(260, this);
         description->setText(episode.description);
-        layout->addWidget(description);
-
-        auto *controls = new QHBoxLayout();
-        controls->setSpacing(8);
-        status = new QComboBox(this);
-        status->setAccessibleName("Sichtungsstatus der Episode");
-        addMediaWatchStatuses(*status);
-        markWatched = new QPushButton("Als gesehen markieren", this);
-        markWatched->setCursor(Qt::PointingHandCursor);
+        text->addWidget(description);
         watchedAt = mediaText({}, this);
         watchedAt->setObjectName("mediaWatchedAt");
-        controls->addWidget(status);
-        controls->addStretch(1);
-        layout->addLayout(controls);
-        layout->addWidget(markWatched, 0, Qt::AlignLeft);
-        layout->addWidget(watchedAt);
+        text->addWidget(watchedAt);
+        text->addStretch(1);
         setWatchState(episode);
 
-        const auto chooseStatus = [this, &apiClient, mediaId = media.entityId,
-                                   seasonId = season.id](const int selectedStatus) {
-            if (selectedStatus == savedStatus) {
-                return;
-            }
-            status->setCurrentIndex(status->findData(selectedStatus));
-            requestId = apiClient.updateMediaEpisodeStatus(mediaId, seasonId, episodeId, selectedStatus);
-            status->setEnabled(false);
-            markWatched->setEnabled(false);
-        };
-        connect(status, &QComboBox::activated, this, [this, chooseStatus](const int index) {
-            chooseStatus(status->itemData(index).toInt());
-        });
-        connect(markWatched, &QPushButton::clicked, this, [chooseStatus] { chooseStatus(3); });
-        connect(&apiClient, &ApiClient::mediaEpisodeStatusUpdateFinished, this,
+        connect(markWatched, &QPushButton::clicked, this,
+                [this, &apiClient, mediaId = media.entityId, seasonId = season.id](const bool watched) {
+                    markWatched->setChecked(isWatched);
+                    markWatched->setEnabled(false);
+                    requestId = apiClient.updateMediaEpisodeWatched(mediaId, seasonId, episodeId, watched);
+                });
+        connect(&apiClient, &ApiClient::mediaEpisodeWatchedUpdateFinished, this,
                 [this](const int id, int, int, const bool successful) {
                     if (id != requestId) {
                         return;
                     }
                     requestId = 0;
                     if (successful) {
-                        savedStatus = status->currentData().toInt();
+                        isWatched = !isWatched;
+                        updateWatchButton();
                         watchedAt->hide();
-                    } else {
-                        status->setCurrentIndex(status->findData(savedStatus));
                     }
-                    status->setEnabled(true);
-                    markWatched->setVisible(savedStatus != 3);
                     markWatched->setEnabled(true);
                 });
     }
@@ -125,19 +109,33 @@ public:
         if (requestId != 0) {
             return;
         }
-        savedStatus = episode.watchStatusId;
-        status->setCurrentIndex(status->findData(savedStatus));
-        markWatched->setVisible(savedStatus != 3);
-        watchedAt->setVisible(episode.watchedAt.isValid());
-        watchedAt->setText(QString("Abgeschlossen am %1")
-            .arg(episode.watchedAt.toLocalTime().toString("dd.MM.yyyy · HH:mm")));
+        isWatched = episode.isWatched;
+        updateWatchButton();
+        watchedAt->setVisible(isWatched && episode.watchedAt.isValid());
+        watchedAt->setText(QString("Gesehen am %1")
+            .arg(episode.watchedAt.toLocalTime().toString("dd.MM.yyyy 'um' HH:mm")));
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QFrame::resizeEvent(event);
+        const int imageWidth = width() < 430 ? 92 : width() < 520 ? 112 : 180;
+        picture->setFixedSize(imageWidth, imageWidth * 9 / 16);
     }
 
 private:
+    void updateWatchButton() {
+        const QString label = isWatched ? QStringLiteral("✓ Gesehen") : QStringLiteral("Als gesehen markieren");
+        markWatched->setChecked(isWatched);
+        markWatched->setText(label);
+        markWatched->setAccessibleName(isWatched ? "Markierung als gesehen aufheben" : label);
+        markWatched->setToolTip(markWatched->accessibleName());
+    }
+
     int episodeId;
-    int savedStatus = 0;
+    bool isWatched = false;
     int requestId = 0;
-    QComboBox *status;
+    MediaImage *picture;
     QPushButton *markWatched;
     QLabel *watchedAt;
 };
@@ -163,17 +161,21 @@ public:
                         QSize(128, 192));
         header->addWidget(poster, 0, Qt::AlignTop);
 
-        auto *text = new QVBoxLayout();
+        auto *details = new QWidget(this);
+        auto *text = new QVBoxLayout(details);
+        text->setContentsMargins(0, 0, 0, 0);
         text->setSpacing(5);
+        const QString name = season.number == 0 ? QStringLiteral("Sonderfolgen")
+                                                : QString("Staffel %1").arg(season.number);
+        auto *nameLabel = mediaText(name, details);
+        nameLabel->setObjectName("mediaSeasonTitle");
+        text->addWidget(nameLabel);
         toggle = new QToolButton(this);
         toggle->setObjectName("mediaSeasonToggle");
-        toggle->setText(season.number == 0 ? QStringLiteral("Sonderfolgen")
-                                        : QString("Staffel %1").arg(season.number));
+        toggle->setAccessibleName(name + " ein- oder ausklappen");
         toggle->setCheckable(true);
         toggle->setArrowType(Qt::RightArrow);
-        toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         toggle->setCursor(Qt::PointingHandCursor);
-        text->addWidget(toggle, 0, Qt::AlignLeft);
         if (!season.title.isEmpty()) {
             text->addWidget(mediaText(season.title, this));
         }
@@ -184,15 +186,13 @@ public:
         }
         count = mediaText({}, this);
         count->setObjectName("mediaMutedText");
-        bar = progressBar(this);
         text->addWidget(count);
-        text->addWidget(bar);
-        header->addLayout(text, 1);
-        layout->addLayout(header);
-
         auto *description = new MediaDescription(300, this);
         description->setText(season.description);
-        layout->addWidget(description);
+        text->addWidget(description);
+        header->addWidget(details, 1, Qt::AlignTop);
+        header->addWidget(toggle, 0, Qt::AlignTop);
+        layout->addLayout(header);
 
         auto *episodes = new QWidget(this);
         episodeLayout = new QVBoxLayout(episodes);
@@ -212,12 +212,14 @@ public:
 
     void setCounts(const MediaSeason &updated) {
         season.episodeCount = updated.episodeCount;
-        season.completedEpisodeCount = updated.completedEpisodeCount;
-        count->setText(QString("%1 von %2 Episoden abgeschlossen")
-            .arg(season.completedEpisodeCount).arg(season.episodeCount));
-        bar->setVisible(season.episodeCount > 0);
-        if (season.episodeCount > 0) {
-            setProgressBar(*bar, 100.0 * season.completedEpisodeCount / season.episodeCount);
+        season.watchedEpisodeCount = updated.watchedEpisodeCount;
+        if (season.episodeCount == 0 || season.watchedEpisodeCount == 0) {
+            count->setText("Ausstehend");
+        } else if (season.watchedEpisodeCount == season.episodeCount) {
+            count->setText("Vollständig gesehen");
+        } else {
+            count->setText(QString("%1 von %2 Episoden gesehen")
+                .arg(season.watchedEpisodeCount).arg(season.episodeCount));
         }
     }
 
@@ -255,7 +257,6 @@ public:
 
 private:
     QLabel *count;
-    QProgressBar *bar;
     QVBoxLayout *episodeLayout;
     std::vector<MediaEpisodeRow *> rows;
 };
@@ -273,12 +274,15 @@ MediaSeriesView::MediaSeriesView(ApiClient &apiClient, QWidget *parent)
     layout->addWidget(progressNotice);
     regularLabel = mediaText({}, this);
     regularProgress = progressBar(this);
+    regularProgress->setMaximumWidth(360);
     specialsLabel = mediaText({}, this);
-    specialsProgress = progressBar(this);
+    specialsLabel->setObjectName("mediaMutedText");
     layout->addWidget(regularLabel);
-    layout->addWidget(regularProgress);
+    auto *progressRow = new QHBoxLayout();
+    progressRow->addWidget(regularProgress, 1);
+    progressRow->addStretch(1);
+    layout->addLayout(progressRow);
     layout->addWidget(specialsLabel);
-    layout->addWidget(specialsProgress);
 
     auto *seasonsTitle = mediaText("Staffeln und Episoden", this);
     seasonsTitle->setObjectName("mediaSectionTitle");
@@ -315,7 +319,7 @@ MediaSeriesView::MediaSeriesView(ApiClient &apiClient, QWidget *parent)
                     }
                 }
             });
-    connect(&apiClient, &ApiClient::mediaEpisodeStatusUpdateFinished, this,
+    connect(&apiClient, &ApiClient::mediaEpisodeWatchedUpdateFinished, this,
             [this](int, const int entityId, const int seasonId, const bool successful) {
                 if (!successful || entityId != series.entityId) {
                     return;
@@ -410,7 +414,7 @@ void MediaSeriesView::showSeasons(const std::vector<MediaSeason> &seasons) {
                 loadEpisodes(card);
             }
         });
-        if (!firstUnfinished && season.number != 0 && season.episodeCount > season.completedEpisodeCount) {
+        if (!firstUnfinished && season.number != 0 && season.episodeCount > season.watchedEpisodeCount) {
             firstUnfinished = card;
         }
     }
@@ -420,18 +424,14 @@ void MediaSeriesView::showSeasons(const std::vector<MediaSeason> &seasons) {
 }
 
 void MediaSeriesView::showProgress(const MediaSeriesProgress &progress) {
-    const auto show = [](const MediaEpisodeProgress &value, const QString &text,
-                         QLabel *label, QProgressBar *bar) {
-        const bool available = value.episodeCount > 0;
-        label->setVisible(available);
-        bar->setVisible(available);
-        if (available) {
-            label->setText(text.arg(value.completedEpisodeCount).arg(value.episodeCount));
-            setProgressBar(*bar, value.percentage);
-        }
-    };
-    show(progress.regular, "%1 von %2 regulären Episoden abgeschlossen", regularLabel, regularProgress);
-    show(progress.specials, "%1 von %2 Sonderfolgen abgeschlossen", specialsLabel, specialsProgress);
+    regularLabel->setVisible(progress.regular.episodeCount > 0);
+    regularProgress->setVisible(progress.regular.episodeCount > 0);
+    regularLabel->setText(QString("%1 von %2 regulären Episoden gesehen")
+        .arg(progress.regular.watchedEpisodeCount).arg(progress.regular.episodeCount));
+    setProgressBar(*regularProgress, progress.regular.percentage);
+    specialsLabel->setVisible(progress.specials.episodeCount > 0);
+    specialsLabel->setText(QString("Sonderfolgen · %1 von %2 gesehen")
+        .arg(progress.specials.watchedEpisodeCount).arg(progress.specials.episodeCount));
     progressNotice->setText("Keine Episoden für die Fortschrittsanzeige vorhanden.");
     progressNotice->setVisible(progress.regular.episodeCount == 0 && progress.specials.episodeCount == 0);
 }

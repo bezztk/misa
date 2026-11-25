@@ -350,7 +350,6 @@ void MediaView::showMedia(const std::vector<Media> &entries) {
             item->setData(RatingRole, static_cast<int>(*entry.personalRating));
         }
         grid->addItem(item);
-        detail->updateCompletionDate(entry.entityId, entry.completedAt);
     }
     applyFilters();
     grid->doItemsLayout();

@@ -121,20 +121,17 @@ pub async fn get_episodes(
     ))
 }
 
-pub async fn update_episode_status(
+pub async fn update_episode_watched(
     State(pool): State<PgPool>,
     Path((media_id, season_id, episode_id)): Path<(i32, i32, i32)>,
     Json(payload): Json<UpdateEpisodeRequest>,
 ) -> ApiResult<StatusCode> {
-    if !valid_watch_status(payload.watch_status_id) {
-        return Err(ApiError::BadRequest);
-    }
-    if !media_repository::update_episode_status(
+    if !media_repository::update_episode_watched(
         &pool,
         media_id,
         season_id,
         episode_id,
-        payload.watch_status_id,
+        payload.is_watched,
     )
     .await?
     {
@@ -150,13 +147,13 @@ pub async fn get_series_progress(
     let mut regular = (0, 0);
     let mut specials = (0, 0);
     for season in get_series_seasons(&pool, id).await? {
-        let (total, completed) = if season.season_number == 0 {
+        let (total, watched) = if season.season_number == 0 {
             &mut specials
         } else {
             &mut regular
         };
         *total += season.episode_count;
-        *completed += season.completed_episode_count;
+        *watched += season.watched_episode_count;
     }
     Ok(Json(SeriesProgress {
         regular: EpisodeProgress::new(regular.0, regular.1),
@@ -171,7 +168,7 @@ pub async fn get_season_progress(
     let season = get_season(&pool, media_id, season_id).await?;
     Ok(Json(EpisodeProgress::new(
         season.episode_count,
-        season.completed_episode_count,
+        season.watched_episode_count,
     )))
 }
 

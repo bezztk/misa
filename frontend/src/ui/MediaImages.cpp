@@ -8,10 +8,8 @@
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QGridLayout>
-#include <QHBoxLayout>
 #include <QImage>
 #include <QImageReader>
-#include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmapCache>
@@ -75,8 +73,7 @@ void loadMediaPixmap(
         }
         const QImage image = reader.read();
         if (soften && image.width() >= 4 && image.height() >= 4) {
-            return image.scaled(image.size() / 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-                .scaled(image.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            return image.scaled(image.size() / 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         }
         return image;
     }));
@@ -84,7 +81,7 @@ void loadMediaPixmap(
 
 MediaImage::MediaImage(QWidget *parent, const Qt::AspectRatioMode mode)
     : QAbstractButton(parent), mode(mode) {
-    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 }
 
 void MediaImage::setFile(const QString &file, const QSize &maximumSize) {
@@ -124,46 +121,21 @@ void MediaImage::paintEvent(QPaintEvent *) {
     }
 }
 
-void showMediaImages(QWidget *parent, const QStringList &files, int index) {
-    if (files.isEmpty()) {
-        return;
-    }
-
+void showMediaImage(QWidget *parent, const QString &file) {
     QDialog dialog(parent);
     dialog.setWindowTitle("Bildansicht");
     auto *layout = new QVBoxLayout(&dialog);
     auto *picture = new MediaImage(&dialog, Qt::KeepAspectRatio);
     picture->setFocusPolicy(Qt::NoFocus);
+    picture->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     layout->addWidget(picture, 1);
-
-    auto *buttons = new QHBoxLayout();
-    auto *previous = new QPushButton("Zurück", &dialog);
-    auto *next = new QPushButton("Weiter", &dialog);
-    auto *position = new QLabel(&dialog);
     auto *close = new QPushButton("Schließen", &dialog);
-    buttons->addWidget(previous);
-    buttons->addWidget(position);
-    buttons->addWidget(next);
-    buttons->addStretch(1);
-    buttons->addWidget(close);
-    layout->addLayout(buttons);
-    previous->setVisible(files.size() > 1);
-    next->setVisible(files.size() > 1);
-    position->setVisible(files.size() > 1);
-
-    const auto showImage = [&] {
-        picture->setFile(files[index], QSize(1800, 1400));
-        previous->setEnabled(index > 0);
-        next->setEnabled(index + 1 < files.size());
-        position->setText(QString("%1 / %2").arg(index + 1).arg(files.size()));
-    };
-    QObject::connect(previous, &QPushButton::clicked, &dialog, [&] { --index; showImage(); });
-    QObject::connect(next, &QPushButton::clicked, &dialog, [&] { ++index; showImage(); });
+    layout->addWidget(close, 0, Qt::AlignRight);
     QObject::connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
     prepareDialog(dialog);
     const QSize available = dialog.screen()->availableGeometry().size();
     dialog.resize(qMin(1040, available.width() * 9 / 10), qMin(740, available.height() * 9 / 10));
-    showImage();
+    picture->setFile(file, QSize(1800, 1400));
     dialog.exec();
 }
 
@@ -183,12 +155,12 @@ void MediaGallery::setFiles(const QStringList &newFiles) {
     files = newFiles;
     columns = 0;
     for (int index = 0; index < files.size(); ++index) {
-        auto *image = new MediaImage(this);
+        auto *image = new MediaImage(this, Qt::KeepAspectRatio);
         image->setAccessibleName(QString("Galeriebild %1 öffnen").arg(index + 1));
         image->setCursor(Qt::PointingHandCursor);
-        image->setFile(files[index], QSize(560, 360));
+        image->setFile(files[index], QSize(1100, 720));
         connect(image, &MediaImage::clicked, this, [this, index] {
-            showMediaImages(this, files, index);
+            showMediaImage(this, files[index]);
         });
         images.push_back(image);
     }
@@ -205,8 +177,8 @@ void MediaGallery::arrangeImages() {
         return;
     }
     const int spacing = layout->spacing();
-    const int newColumns = qBound(1, (width() + spacing) / (180 + spacing), 4);
-    const int imageWidth = qBound(1, (width() - spacing * (newColumns - 1)) / newColumns, 420);
+    const int newColumns = width() >= 610 && images.size() > 1 ? 2 : 1;
+    const int imageWidth = qMax(1, (width() - spacing * (newColumns - 1)) / newColumns);
     if (columns != newColumns) {
         columns = newColumns;
         for (int index = 0; index < static_cast<int>(images.size()); ++index) {

@@ -30,7 +30,6 @@ private:
     QLabel *regularLabel;
     QLabel *specialsLabel;
     QProgressBar *regularProgress;
-    QProgressBar *specialsProgress;
     QLabel *seasonNotice;
     QVBoxLayout *seasonLayout;
     std::vector<MediaSeasonCard *> cards;

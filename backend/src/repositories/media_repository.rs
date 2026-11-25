@@ -295,8 +295,7 @@ pub async fn get_seasons(
 ) -> Result<Vec<MediaSeason>, sqlx::Error> {
     sqlx::query_as(
         "SELECT season.*, COUNT(episode.id) AS episode_count,
-                COUNT(episode.id) FILTER (WHERE episode.watch_status_id = $3)
-                    AS completed_episode_count
+                COUNT(episode.id) FILTER (WHERE episode.is_watched) AS watched_episode_count
          FROM media_seasons season
          LEFT JOIN media_episodes episode ON episode.season_id = season.id
          WHERE season.media_id = $1 AND ($2::integer IS NULL OR season.id = $2)
@@ -305,7 +304,6 @@ pub async fn get_seasons(
     )
     .bind(media_id)
     .bind(season_id)
-    .bind(COMPLETED_WATCH_STATUS)
     .fetch_all(pool)
     .await
 }
@@ -317,21 +315,20 @@ pub async fn get_episodes(pool: &PgPool, season_id: i32) -> Result<Vec<MediaEpis
         .await
 }
 
-pub async fn update_episode_status(
+pub async fn update_episode_watched(
     pool: &PgPool,
     media_id: i32,
     season_id: i32,
     episode_id: i32,
-    watch_status_id: i32,
+    is_watched: bool,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE media_episodes episode
          SET watched_at = CASE
-                 WHEN $4::integer <> $5 THEN NULL
-                 WHEN episode.watch_status_id = $5 THEN episode.watched_at
-                 ELSE NOW()
+                 WHEN $4 THEN COALESCE(episode.watched_at, NOW())
+                 ELSE NULL
              END,
-             watch_status_id = $4
+             is_watched = $4
          FROM media_seasons season
          WHERE episode.id = $3 AND episode.season_id = season.id
            AND season.id = $2 AND season.media_id = $1",
@@ -339,8 +336,7 @@ pub async fn update_episode_status(
     .bind(media_id)
     .bind(season_id)
     .bind(episode_id)
-    .bind(watch_status_id)
-    .bind(COMPLETED_WATCH_STATUS)
+    .bind(is_watched)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)

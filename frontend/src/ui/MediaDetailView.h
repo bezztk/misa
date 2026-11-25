@@ -14,10 +14,9 @@ class QBoxLayout;
 class QComboBox;
 class QFormLayout;
 class QLabel;
+class QLayout;
 class MediaDetailHero;
-class QPlainTextEdit;
 class QPushButton;
-class QSpinBox;
 class QToolButton;
 class QWidget;
 
@@ -27,7 +26,6 @@ class MediaDetailView final : public QScrollArea {
 public:
     explicit MediaDetailView(ApiClient &apiClient, QWidget *parent = nullptr);
     void setMedia(const Media &media);
-    void updateCompletionDate(int entityId, const QDateTime &completedAt);
 
 signals:
     void backRequested();
@@ -38,7 +36,8 @@ private:
     void updateHeaderLayout();
     void updateKeywords();
     void setTechnicalDetails();
-    void updatePersonalSaveButton();
+    void updateNote();
+    void openNoteDialog(ApiClient &apiClient);
 
     Media media{};
     MediaDetailHero *hero;
@@ -55,16 +54,15 @@ private:
     QComboBox *watchStatus;
     QComboBox *rating;
     QPushButton *trailer;
+    QPushButton *noteButton;
     MediaSeriesView *series;
-    QSpinBox *watchCount;
-    QLabel *completionDate;
-    QPlainTextEdit *notes;
-    QPushButton *savePersonal;
+    QWidget *noteSection;
+    QLabel *noteText;
     QWidget *gallerySection;
     MediaGallery *gallery;
     QLabel *releaseDate;
     QWidget *keywordSection;
-    QLabel *keywords;
+    QLayout *keywords;
     QToolButton *moreKeywords;
     QToolButton *technicalToggle;
     QFormLayout *technicalDetails;
@@ -74,7 +72,6 @@ private:
     int pendingWatchStatus = 0;
     int personalRequestId = 0;
     int personalEntityId = 0;
-    int pendingWatchCount = 0;
     QString pendingNotes;
     int ratingUpdateEntityId = 0;
     std::optional<MediaRating> savedRating;

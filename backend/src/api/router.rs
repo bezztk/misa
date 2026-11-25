@@ -39,7 +39,7 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/media/{id}/seasons/{season_id}/episodes/{episode_id}",
-            axum::routing::patch(media_handler::update_episode_status),
+            axum::routing::patch(media_handler::update_episode_watched),
         )
         .route(
             "/rss/feeds",

@@ -55,7 +55,7 @@ signals:
     void mediaSeriesProgressReceived(int requestId, const MediaSeriesProgress &progress);
     void mediaDetailsLoadFailed(int requestId);
     void mediaPersonalDataUpdateFinished(int requestId, bool successful);
-    void mediaEpisodeStatusUpdateFinished(int requestId, int entityId, int seasonId, bool successful);
+    void mediaEpisodeWatchedUpdateFinished(int requestId, int entityId, int seasonId, bool successful);
     void mediaRatingUpdateFinished(int entityId, std::optional<MediaRating> rating, bool successful);
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void dueFlashcardCountReceived(int count);
@@ -149,7 +149,7 @@ public:
     int getMediaEpisodes(int entityId, int seasonId);
     int getMediaSeriesProgress(int entityId);
     int updateMediaPersonalData(int entityId, const QJsonObject &fields);
-    int updateMediaEpisodeStatus(int entityId, int seasonId, int episodeId, int watchStatusId);
+    int updateMediaEpisodeWatched(int entityId, int seasonId, int episodeId, bool isWatched);
     void updateMediaWatchStatus(int entityId, int watchStatusId);
     void updateMediaRating(int entityId, std::optional<MediaRating> rating);
     void getRssFeeds();

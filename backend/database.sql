@@ -805,10 +805,10 @@ CREATE TABLE media_episodes
     still_path      text,
     runtime_minutes integer CHECK (runtime_minutes > 0),
     release_date    date,
-    watch_status_id integer NOT NULL DEFAULT 1 REFERENCES media_watch_statuses (id),
+    is_watched      boolean NOT NULL DEFAULT FALSE,
     watched_at      timestamptz,
 
-    CHECK ((watch_status_id = 3) = (watched_at IS NOT NULL))
+    CONSTRAINT media_episodes_watched_at_check CHECK (is_watched = (watched_at IS NOT NULL))
 );
 CREATE INDEX idx_media_episodes_season_number ON media_episodes (season_id, episode_number);
 

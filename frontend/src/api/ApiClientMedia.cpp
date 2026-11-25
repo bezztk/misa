@@ -34,7 +34,7 @@ QStringList parseMediaStrings(const QJsonValue &value) {
 MediaEpisodeProgress parseMediaProgress(const QJsonObject &object) {
     return {
         .episodeCount = object["episode_count"].toInt(),
-        .completedEpisodeCount = object["completed_episode_count"].toInt(),
+        .watchedEpisodeCount = object["watched_episode_count"].toInt(),
         .percentage = object["percentage"].toDouble()
     };
 }
@@ -133,7 +133,7 @@ int ApiClient::getMediaSeasons(const int entityId) {
                     .posterPath = object["poster_path"].toString(),
                     .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
                     .episodeCount = object["episode_count"].toInt(),
-                    .completedEpisodeCount = object["completed_episode_count"].toInt()
+                    .watchedEpisodeCount = object["watched_episode_count"].toInt()
                 });
             }
             emit mediaSeasonsReceived(requestId, seasons);
@@ -159,7 +159,7 @@ int ApiClient::getMediaEpisodes(const int entityId, const int seasonId) {
                     .stillPath = object["still_path"].toString(),
                     .runtimeMinutes = runtime.isDouble() ? std::optional(runtime.toInt()) : std::nullopt,
                     .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
-                    .watchStatusId = object["watch_status_id"].toInt(),
+                    .isWatched = object["is_watched"].toBool(),
                     .watchedAt = QDateTime::fromString(object["watched_at"].toString(), Qt::ISODate)
                 });
             }
@@ -205,13 +205,13 @@ int ApiClient::updateMediaPersonalData(const int entityId, const QJsonObject &fi
         });
 }
 
-int ApiClient::updateMediaEpisodeStatus(
-    const int entityId, const int seasonId, const int episodeId, const int watchStatusId
+int ApiClient::updateMediaEpisodeWatched(
+    const int entityId, const int seasonId, const int episodeId, const bool isWatched
 ) {
     return patchMediaJson(QString("%1/%2/seasons/%3/episodes/%4")
-        .arg(PATH_MEDIA).arg(entityId).arg(seasonId).arg(episodeId), {{"watch_status_id", watchStatusId}},
+        .arg(PATH_MEDIA).arg(entityId).arg(seasonId).arg(episodeId), {{"is_watched", isWatched}},
         [this, entityId, seasonId](const int requestId, const bool successful) {
-            emit mediaEpisodeStatusUpdateFinished(requestId, entityId, seasonId, successful);
+            emit mediaEpisodeWatchedUpdateFinished(requestId, entityId, seasonId, successful);
         });
 }
 

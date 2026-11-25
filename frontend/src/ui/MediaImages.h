@@ -15,7 +15,7 @@ QString mediaImagePath(const Media &media, const QString &name, const QString &t
 QString mediaImageFile(const QString &relativePath);
 void loadMediaPixmap(QObject &owner, const QString &file, const QSize &maximumSize,
                      std::function<void(const QPixmap &)> ready, bool soften = false);
-void showMediaImages(QWidget *parent, const QStringList &files, int index = 0);
+void showMediaImage(QWidget *parent, const QString &file);
 
 class MediaImage final : public QAbstractButton {
 public:

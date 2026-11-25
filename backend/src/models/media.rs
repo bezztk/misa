@@ -87,7 +87,7 @@ pub struct MediaSeason {
     pub poster_url: Option<String>,
     pub release_date: Option<NaiveDate>,
     pub episode_count: i64,
-    pub completed_episode_count: i64,
+    pub watched_episode_count: i64,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -101,26 +101,26 @@ pub struct MediaEpisode {
     pub still_path: Option<String>,
     pub runtime_minutes: Option<i32>,
     pub release_date: Option<NaiveDate>,
-    pub watch_status_id: i32,
+    pub is_watched: bool,
     pub watched_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct EpisodeProgress {
     pub episode_count: i64,
-    pub completed_episode_count: i64,
+    pub watched_episode_count: i64,
     pub percentage: f64,
 }
 
 impl EpisodeProgress {
-    pub fn new(episode_count: i64, completed_episode_count: i64) -> Self {
+    pub fn new(episode_count: i64, watched_episode_count: i64) -> Self {
         Self {
             episode_count,
-            completed_episode_count,
+            watched_episode_count,
             percentage: if episode_count == 0 {
                 0.0
             } else {
-                completed_episode_count as f64 * 100.0 / episode_count as f64
+                watched_episode_count as f64 * 100.0 / episode_count as f64
             },
         }
     }
@@ -168,7 +168,7 @@ where
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateEpisodeRequest {
-    pub watch_status_id: i32,
+    pub is_watched: bool,
 }
 
 pub struct MediaMetadata {

@@ -60,7 +60,7 @@ struct MediaSeason {
     QString posterPath;
     QDate releaseDate;
     int episodeCount;
-    int completedEpisodeCount;
+    int watchedEpisodeCount;
 };
 
 struct MediaEpisode {
@@ -71,13 +71,13 @@ struct MediaEpisode {
     QString stillPath;
     std::optional<int> runtimeMinutes;
     QDate releaseDate;
-    int watchStatusId;
+    bool isWatched;
     QDateTime watchedAt;
 };
 
 struct MediaEpisodeProgress {
     int episodeCount;
-    int completedEpisodeCount;
+    int watchedEpisodeCount;
     double percentage;
 };
 

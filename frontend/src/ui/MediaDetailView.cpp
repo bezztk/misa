@@ -1,14 +1,18 @@
 #include "MediaDetailView.h"
 
 #include "../api/ApiClient.h"
+#include "DialogUtils.h"
 #include "MediaImages.h"
 #include "MediaSeriesView.h"
 #include "MediaUi.h"
 
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QJsonObject>
 #include <QLinearGradient>
 #include <QLocale>
@@ -16,41 +20,55 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
-#include <QSpinBox>
 #include <QStyle>
 #include <QUrl>
 
-#include <limits>
 #include <utility>
 
 namespace {
 const QColor BACKGROUND(30, 30, 30);
-constexpr int FADE_HEIGHT = 80;
+constexpr int FADE_HEIGHT = 90;
 constexpr int KEYWORD_PREVIEW = 12;
 
 constexpr auto DETAIL_STYLE = R"(
     QWidget#mediaDetailContent { background: #1E1E1E; }
     QLabel#mediaDetailTitle { color: #F5F5F5; font-size: 34px; font-weight: 600; }
     QLabel#mediaSectionTitle { color: #E5E5E5; font-size: 18px; font-weight: 600; }
+    QLabel#mediaSeasonTitle { color: #E5E5E5; font-size: 15px; font-weight: 600; }
     QLabel#mediaEpisodeTitle { color: #E5E5E5; font-weight: 600; }
     QLabel#mediaMutedText { color: #B8B8B8; }
     QLabel#mediaTmdbRating { color: #E1BC84; font-weight: 600; }
     QLabel#mediaWatchedAt { color: #9DCCAE; }
+    QLabel#mediaKeyword {
+        background: #303030;
+        color: #E5E5E5;
+        border-radius: 4px;
+        padding: 3px 8px;
+    }
     QFrame#mediaSeason { background: #262626; border: 1px solid #383838; border-radius: 4px; }
     QFrame#mediaEpisode { background: #222222; border-radius: 4px; }
-    QWidget#mediaDetailContent QComboBox, QWidget#mediaDetailContent QSpinBox,
-    QWidget#mediaDetailContent QPlainTextEdit, QWidget#mediaDetailContent QPushButton,
-    QToolButton#mediaDetailBack, QToolButton#mediaSeasonToggle, QToolButton#mediaTechnicalToggle {
+    QWidget#mediaDetailContent QComboBox, QWidget#mediaDetailContent QPushButton,
+    QToolButton#mediaSeasonToggle, QToolButton#mediaTechnicalToggle {
         background: #262626;
         color: #E5E5E5;
         border: 1px solid #454545;
         border-radius: 4px;
         padding: 5px 8px;
     }
-    QWidget#mediaDetailContent QPushButton:hover, QToolButton#mediaDetailBack:hover,
+    QWidget#mediaDetailContent QPushButton:hover,
     QToolButton#mediaSeasonToggle:hover, QToolButton#mediaTechnicalToggle:hover { background: #383838; }
     QWidget#mediaDetailContent QPushButton:disabled,
     QWidget#mediaDetailContent QComboBox:disabled { color: #888888; }
+    QWidget#mediaDetailContent QPushButton#mediaEpisodeWatchedButton:checked {
+        background: #293831;
+        color: #B8D9C1;
+        border-color: #3F5949;
+    }
+    QToolButton#mediaDetailBack { background: transparent; border: none; padding: 6px; }
+    QToolButton#mediaDetailBack:hover, QToolButton#mediaDetailBack:focus {
+        background: rgba(25, 25, 25, 110);
+        border-radius: 4px;
+    }
     QProgressBar {
         background: #1E1E1E;
         color: #E5E5E5;
@@ -98,6 +116,74 @@ QString tmdbRatingText(const Media &media) {
 bool isTrailerUrl(const QUrl &url) {
     return url.scheme() == "https" && url.host() == "www.youtube.com" && url.path() == "/watch";
 }
+
+class KeywordLayout final : public QLayout {
+public:
+    explicit KeywordLayout(QWidget *parent) : QLayout(parent) {
+        setContentsMargins(0, 0, 0, 0);
+        setSpacing(6);
+    }
+
+    ~KeywordLayout() override {
+        qDeleteAll(items);
+    }
+
+    void addItem(QLayoutItem *item) override {
+        items.append(item);
+        invalidate();
+    }
+
+    int count() const override { return static_cast<int>(items.size()); }
+    QLayoutItem *itemAt(int index) const override { return items.value(index); }
+    QLayoutItem *takeAt(int index) override {
+        if (index < 0 || index >= count()) {
+            return nullptr;
+        }
+        auto *item = items.takeAt(index);
+        invalidate();
+        return item;
+    }
+
+    QSize sizeHint() const override {
+        QSize hint(0, 0);
+        for (const auto *item : items) {
+            hint = hint.expandedTo(item->sizeHint());
+        }
+        return hint;
+    }
+
+    bool hasHeightForWidth() const override { return true; }
+    int heightForWidth(int width) const override { return arrange(QRect(0, 0, width, 0), false); }
+    void setGeometry(const QRect &bounds) override {
+        QLayout::setGeometry(bounds);
+        arrange(bounds, true);
+    }
+
+private:
+    int arrange(const QRect &bounds, const bool placeItems) const {
+        int x = 0;
+        int y = 0;
+        int rowHeight = 0;
+        for (auto *item : items) {
+            const QSize hint = item->sizeHint();
+            const int width = qBound(1, hint.width(), qMax(1, bounds.width()));
+            const int height = qMax(hint.height(), item->heightForWidth(width));
+            if (x > 0 && x + width > bounds.width()) {
+                x = 0;
+                y += rowHeight + spacing();
+                rowHeight = 0;
+            }
+            if (placeItems) {
+                item->setGeometry(QRect(bounds.topLeft() + QPoint(x, y), QSize(width, height)));
+            }
+            x += width + spacing();
+            rowHeight = qMax(rowHeight, height);
+        }
+        return y + rowHeight;
+    }
+
+    QList<QLayoutItem *> items;
+};
 }
 
 class MediaDetailHero final : public QWidget {
@@ -108,50 +194,89 @@ public:
         setSizePolicy(policy);
     }
 
-    void setBackdrop(const QPixmap &image) {
+    void setBackdrop(const QPixmap &image, const QPixmap &softImage = {}) {
         backdrop = image;
-        updateGeometry();
+        softenedBackdrop = softImage;
+        overlay = {};
         update();
     }
 
+    void setTextPanel(QWidget *panel) { textPanel = panel; }
+
     int heightForWidth(const int width) const override {
-        const int contentHeight = qMax(minimumSizeHint().height(), QWidget::heightForWidth(width));
-        return qMax(backdropHeight(width), contentHeight);
+        return qMax(minimumHeight(), QWidget::heightForWidth(width));
     }
 
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
-        painter.fillRect(rect(), BACKGROUND);
-        const int imageHeight = backdrop.isNull() ? height() : backdropHeight(width());
-        const QRect bounds(0, 0, width(), imageHeight);
+        const QRect bounds = rect();
         if (backdrop.isNull()) {
-            QLinearGradient background(0, 0, 0, imageHeight);
+            QLinearGradient background(0, 0, 0, height());
             background.setColorAt(0, QColor("#303030"));
             background.setColorAt(1, BACKGROUND);
             painter.fillRect(bounds, background);
             return;
         }
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.drawPixmap(bounds, backdrop);
+        QRect source(QPoint(), size().scaled(backdrop.size(), Qt::KeepAspectRatio));
+        source.moveCenter(backdrop.rect().center());
+        painter.drawPixmap(bounds, backdrop, source);
 
-        QLinearGradient shade(0, 0, width(), 0);
-        shade.setColorAt(0, QColor(0, 0, 0, 48));
-        shade.setColorAt(1, QColor(0, 0, 0, 190));
-        painter.fillRect(bounds, shade);
-        const int fadeStart = qMax(0, imageHeight - FADE_HEIGHT);
-        QLinearGradient fade(0, fadeStart, 0, imageHeight);
+        const QRect panel(textPanel->mapTo(this, QPoint()), textPanel->size());
+        const QRect shadeBounds = panel.adjusted(-30, -24, 30, 24).intersected(bounds);
+        if (!shadeBounds.isEmpty()) {
+            if (overlay.isNull() || overlayBounds != shadeBounds || overlayHeroSize != size()) {
+                updateOverlay(shadeBounds);
+            }
+            painter.drawImage(shadeBounds.topLeft(), overlay);
+        }
+
+        const int fadeStart = height() - FADE_HEIGHT;
+        QLinearGradient fade(0, fadeStart, 0, height() - 1);
         fade.setColorAt(0, QColor(30, 30, 30, 0));
         fade.setColorAt(1, BACKGROUND);
-        painter.fillRect(QRect(0, fadeStart, width(), imageHeight - fadeStart), fade);
+        painter.fillRect(QRect(0, fadeStart, width(), FADE_HEIGHT), fade);
     }
 
 private:
-    int backdropHeight(const int width) const {
-        return backdrop.isNull() ? 0 : qRound(qreal(width) * backdrop.height() / backdrop.width());
+    void updateOverlay(const QRect &bounds) {
+        overlayBounds = bounds;
+        overlayHeroSize = size();
+        overlay = QImage(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+        overlay.fill(Qt::transparent);
+        QPainter painter(&overlay);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        if (!softenedBackdrop.isNull()) {
+            QRect softSource(QPoint(), size().scaled(softenedBackdrop.size(), Qt::KeepAspectRatio));
+            softSource.moveCenter(softenedBackdrop.rect().center());
+            painter.drawPixmap(rect().translated(-bounds.topLeft()), softenedBackdrop, softSource);
+        }
+        painter.fillRect(overlay.rect(), QColor(0, 0, 0, 150));
+        painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+        QLinearGradient horizontal(0, 0, bounds.width(), 0);
+        const qreal side = qMin(0.5, 30.0 / bounds.width());
+        horizontal.setColorAt(0, Qt::transparent);
+        horizontal.setColorAt(side, Qt::white);
+        horizontal.setColorAt(1 - side, Qt::white);
+        horizontal.setColorAt(1, Qt::transparent);
+        painter.fillRect(overlay.rect(), horizontal);
+
+        QLinearGradient vertical(0, 0, 0, bounds.height());
+        const qreal edge = qMin(0.5, 24.0 / bounds.height());
+        vertical.setColorAt(0, Qt::transparent);
+        vertical.setColorAt(edge, Qt::white);
+        vertical.setColorAt(1 - edge, Qt::white);
+        vertical.setColorAt(1, Qt::transparent);
+        painter.fillRect(overlay.rect(), vertical);
     }
 
+    QWidget *textPanel = nullptr;
     QPixmap backdrop;
+    QPixmap softenedBackdrop;
+    QImage overlay;
+    QRect overlayBounds;
+    QSize overlayHeroSize;
 };
 
 MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrollArea(parent) {
@@ -169,31 +294,34 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
 
     hero = new MediaDetailHero(content);
     auto *heroLayout = new QVBoxLayout(hero);
-    heroLayout->setContentsMargins(20, 16, 20, 18);
+    heroLayout->setContentsMargins(36, 18, 36, FADE_HEIGHT + 6);
     heroLayout->setSpacing(12);
     auto *back = new QToolButton(hero);
     back->setObjectName("mediaDetailBack");
     back->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
-    back->setText("Zurück zur Liste");
-    back->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    back->setAccessibleName("Zurück zur Liste");
+    back->setToolTip("Zurück zur Liste");
     back->setCursor(Qt::PointingHandCursor);
     heroLayout->addWidget(back, 0, Qt::AlignLeft);
     heroLayout->addStretch(1);
     connect(back, &QToolButton::clicked, this, &MediaDetailView::backRequested);
 
     heading = new QHBoxLayout();
-    heading->setSpacing(18);
+    heading->setSpacing(32);
     cover = new MediaImage(hero, Qt::KeepAspectRatio);
     cover->setAccessibleName("Poster vergrößern");
     cover->setCursor(Qt::PointingHandCursor);
     heading->addWidget(cover, 0, Qt::AlignLeft | Qt::AlignBottom);
     connect(cover, &MediaImage::clicked, this, [this] {
-        showMediaImages(this, {mediaImageFile(mediaImagePath(media, "poster", media.posterPath))});
+        showMediaImage(this, mediaImageFile(mediaImagePath(media, "poster", media.posterPath)));
     });
 
-    auto *intro = new QVBoxLayout();
-    intro->setSpacing(6);
-    intro->addStretch(1);
+    auto *introPanel = new QWidget(hero);
+    introPanel->setMaximumWidth(790);
+    hero->setTextPanel(introPanel);
+    auto *intro = new QVBoxLayout(introPanel);
+    intro->setContentsMargins(0, 0, 0, 0);
+    intro->setSpacing(7);
     mediaTypeLabel = mediaText({}, hero);
     mediaTypeLabel->setObjectName("mediaMutedText");
     intro->addWidget(mediaTypeLabel);
@@ -237,41 +365,36 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
     trailer = new QPushButton("Trailer ansehen", hero);
     trailer->setCursor(Qt::PointingHandCursor);
     actions->addWidget(trailer, 0, Qt::AlignBottom | Qt::AlignLeft);
+    noteButton = new QPushButton("Notiz hinzufügen", hero);
+    noteButton->setCursor(Qt::PointingHandCursor);
+    actions->addWidget(noteButton, 0, Qt::AlignBottom | Qt::AlignLeft);
     actions->addStretch(1);
     intro->addLayout(actions);
-    heading->addLayout(intro, 1);
+    heading->addWidget(introPanel, 1, Qt::AlignBottom);
     heroLayout->addLayout(heading);
     layout->addWidget(hero);
 
     auto *body = new QVBoxLayout();
-    body->setContentsMargins(20, 0, 20, 28);
-    body->setSpacing(12);
+    body->setContentsMargins(36, 0, 36, 28);
+    body->setSpacing(18);
+    noteSection = new QWidget(content);
+    auto *noteLayout = new QVBoxLayout(noteSection);
+    noteLayout->setContentsMargins(0, 0, 0, 0);
+    noteLayout->setSpacing(6);
+    noteLayout->addWidget(sectionTitle("Persönliche Notiz", noteSection));
+    noteText = mediaText({}, noteSection);
+    noteText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    noteLayout->addWidget(noteText);
+    noteSection->hide();
+    body->addWidget(noteSection);
+
     series = new MediaSeriesView(apiClient, content);
     body->addWidget(series);
-
-    body->addWidget(sectionTitle("Persönliche Informationen", content));
-    auto *personalFields = new QFormLayout();
-    personalFields->setRowWrapPolicy(QFormLayout::WrapLongRows);
-    watchCount = new QSpinBox(content);
-    watchCount->setRange(0, std::numeric_limits<int>::max());
-    personalFields->addRow("Sichtungsanzahl", watchCount);
-    completionDate = mediaText({}, content);
-    completionDate->setToolTip("Wird durch den Sichtungsstatus gesetzt.");
-    personalFields->addRow("Abschlussdatum", completionDate);
-    body->addLayout(personalFields);
-    auto *notesLabel = new QLabel("Persönliche &Notizen", content);
-    notes = new QPlainTextEdit(content);
-    notes->setFixedHeight(98);
-    notesLabel->setBuddy(notes);
-    body->addWidget(notesLabel);
-    body->addWidget(notes);
-    savePersonal = new QPushButton("Speichern", content);
-    body->addWidget(savePersonal, 0, Qt::AlignLeft);
 
     gallerySection = new QWidget(content);
     auto *galleryLayout = new QVBoxLayout(gallerySection);
     galleryLayout->setContentsMargins(0, 0, 0, 0);
-    galleryLayout->addWidget(sectionTitle("Bildergalerie", gallerySection));
+    galleryLayout->addWidget(sectionTitle("Weitere Bilder", gallerySection));
     gallery = new MediaGallery(gallerySection);
     galleryLayout->addWidget(gallery);
     body->addWidget(gallerySection);
@@ -283,9 +406,9 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
     auto *keywordLayout = new QVBoxLayout(keywordSection);
     keywordLayout->setContentsMargins(0, 0, 0, 0);
     keywordLayout->addWidget(sectionTitle("Keywords", keywordSection));
-    keywords = mediaText({}, keywordSection);
-    keywords->setTextFormat(Qt::RichText);
-    keywordLayout->addWidget(keywords);
+    auto *keywordTags = new QWidget(keywordSection);
+    keywords = new KeywordLayout(keywordTags);
+    keywordLayout->addWidget(keywordTags);
     moreKeywords = new QToolButton(keywordSection);
     moreKeywords->setAutoRaise(true);
     moreKeywords->setCheckable(true);
@@ -362,19 +485,8 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
             watchStatus->setEnabled(false);
         }
     });
-    connect(watchCount, &QSpinBox::valueChanged, this, &MediaDetailView::updatePersonalSaveButton);
-    connect(notes, &QPlainTextEdit::textChanged, this, &MediaDetailView::updatePersonalSaveButton);
-    connect(savePersonal, &QPushButton::clicked, this, [this, &apiClient] {
-        personalEntityId = media.entityId;
-        pendingWatchCount = watchCount->value();
-        pendingNotes = notes->toPlainText();
-        const QJsonValue value = pendingNotes.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(pendingNotes);
-        personalRequestId = apiClient.updateMediaPersonalData(media.entityId, {
-            {"watch_count", pendingWatchCount}, {"personal_notes", value}
-        });
-        watchCount->setEnabled(false);
-        notes->setEnabled(false);
-        updatePersonalSaveButton();
+    connect(noteButton, &QPushButton::clicked, this, [this, &apiClient] {
+        openNoteDialog(apiClient);
     });
     connect(&apiClient, &ApiClient::mediaPersonalDataUpdateFinished, this,
             [this](const int id, const bool successful) {
@@ -390,12 +502,10 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
                 } else if (id == personalRequestId) {
                     personalRequestId = 0;
                     if (successful && media.entityId == personalEntityId) {
-                        media.watchCount = pendingWatchCount;
                         media.personalNotes = pendingNotes;
                     }
-                    watchCount->setEnabled(true);
-                    notes->setEnabled(true);
-                    updatePersonalSaveButton();
+                    noteButton->setEnabled(true);
+                    updateNote();
                 }
             });
 
@@ -444,28 +554,30 @@ void MediaDetailView::setMedia(const Media &entry) {
     const QString backdropFile = mediaImageFile(mediaImagePath(media, "backdrop", media.backdropPath));
     const int imageRequest = ++backdropRequestId;
     hero->setBackdrop({});
-    loadMediaPixmap(*this, backdropFile, QSize(1440, 900), [this, imageRequest](const QPixmap &image) {
-        if (imageRequest == backdropRequestId) {
-            hero->setBackdrop(image);
+    const QSize backdropSize(1920, 1440);
+    loadMediaPixmap(*this, backdropFile, backdropSize, [this, imageRequest, backdropFile, backdropSize](const QPixmap &image) {
+        if (imageRequest != backdropRequestId || image.isNull()) {
+            return;
         }
-    }, true);
+        hero->setBackdrop(image);
+        loadMediaPixmap(*this, backdropFile, backdropSize, [this, imageRequest, image](const QPixmap &softImage) {
+            if (imageRequest == backdropRequestId) {
+                hero->setBackdrop(image, softImage);
+            }
+        }, true);
+    });
 
     const bool statusPending = statusRequestId != 0 && media.entityId == statusEntityId;
     watchStatus->setEnabled(statusRequestId == 0);
     watchStatus->setCurrentIndex(watchStatus->findData(statusPending ? pendingWatchStatus : media.watchStatusId));
-    const bool personalPending = personalRequestId != 0 && media.entityId == personalEntityId;
-    watchCount->setEnabled(personalRequestId == 0);
-    notes->setEnabled(personalRequestId == 0);
-    watchCount->setValue(personalPending ? pendingWatchCount : media.watchCount);
-    notes->setPlainText(personalPending ? pendingNotes : media.personalNotes);
-    updatePersonalSaveButton();
-    updateCompletionDate(media.entityId, media.completedAt);
+    noteButton->setEnabled(personalRequestId == 0);
+    updateNote();
 
     QStringList galleryFiles;
-    if (QFileInfo(backdropFile).isFile()) {
-        galleryFiles.append(backdropFile);
-    }
-    for (int index = 0; index < media.additionalBackdropPaths.size(); ++index) {
+    for (int index = 0; index < qMin<qsizetype>(media.additionalBackdropPaths.size(), 4); ++index) {
+        if (media.additionalBackdropPaths[index] == media.backdropPath) {
+            continue;
+        }
         const QString file = mediaImageFile(mediaImagePath(media, QString("backdrops/%1").arg(index + 1),
                                                           media.additionalBackdropPaths[index]));
         if (QFileInfo(file).isFile()) {
@@ -498,10 +610,13 @@ void MediaDetailView::updateHeaderLayout() {
         return;
     }
     const int width = viewport()->width();
-    heading->setDirection(width < 620 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
-    const int posterWidth = width >= 950 ? 200 : width >= 620 ? 156 : 112;
+    const bool narrow = width < 620;
+    hero->setMinimumHeight(narrow ? 460 : 550);
+    heading->setDirection(narrow ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    heading->setSpacing(narrow ? 18 : 32);
+    const int posterWidth = width >= 950 ? 200 : narrow ? 112 : 156;
     cover->setFixedSize(posterWidth, posterWidth * 3 / 2);
-    actions->setDirection(width < 740 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    actions->setDirection(width < 820 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
 }
 
 void MediaDetailView::setRating(const std::optional<MediaRating> value) {
@@ -509,28 +624,61 @@ void MediaDetailView::setRating(const std::optional<MediaRating> value) {
     rating->setCurrentIndex(value ? rating->findData(static_cast<int>(*value)) : 0);
 }
 
-void MediaDetailView::updateCompletionDate(const int entityId, const QDateTime &completedAt) {
-    if (media.entityId == entityId) {
-        completionDate->setText(completedAt.isValid()
-            ? completedAt.toLocalTime().toString("dd.MM.yyyy · HH:mm") : QStringLiteral("–"));
-    }
+void MediaDetailView::updateNote() {
+    const bool hasNote = !media.personalNotes.isEmpty();
+    noteText->setText(media.personalNotes);
+    noteSection->setVisible(hasNote);
+    noteButton->setText(hasNote ? "Notiz bearbeiten" : "Notiz hinzufügen");
 }
 
-void MediaDetailView::updatePersonalSaveButton() {
-    savePersonal->setEnabled(personalRequestId == 0
-        && (watchCount->value() != media.watchCount || notes->toPlainText() != media.personalNotes));
+void MediaDetailView::openNoteDialog(ApiClient &apiClient) {
+    QDialog dialog(this);
+    dialog.setWindowTitle(noteButton->text());
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *editor = new QPlainTextEdit(media.personalNotes, &dialog);
+    editor->setAccessibleName("Persönliche Notiz");
+    layout->addWidget(editor);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Save)->setText("Speichern");
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (!media.personalNotes.isEmpty()) {
+        auto *remove = buttons->addButton("Notiz entfernen", QDialogButtonBox::DestructiveRole);
+        connect(remove, &QPushButton::clicked, &dialog, [editor, &dialog] {
+            editor->clear();
+            dialog.accept();
+        });
+    }
+    prepareDialog(dialog);
+    editor->setFocus();
+    if (dialog.exec() != QDialog::Accepted || editor->toPlainText() == media.personalNotes) {
+        return;
+    }
+
+    personalEntityId = media.entityId;
+    pendingNotes = editor->toPlainText();
+    const QJsonValue value = pendingNotes.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(pendingNotes);
+    personalRequestId = apiClient.updateMediaPersonalData(media.entityId, {{"personal_notes", value}});
+    noteButton->setEnabled(false);
 }
 
 void MediaDetailView::updateKeywords() {
     const bool showAll = moreKeywords->isChecked();
     const qsizetype count = showAll ? media.keywords.size()
         : qMin<qsizetype>(media.keywords.size(), KEYWORD_PREVIEW);
-    QStringList tags;
-    for (qsizetype index = 0; index < count; ++index) {
-        tags.append(QString("<span style=\"background-color:#303030; color:#e5e5e5\">&nbsp;%1&nbsp;</span>")
-            .arg(media.keywords[index].toHtmlEscaped()));
+    while (auto *item = keywords->takeAt(0)) {
+        delete item->widget();
+        delete item;
     }
-    keywords->setText(tags.join(" "));
+    for (qsizetype index = 0; index < count; ++index) {
+        auto *tag = new QLabel(media.keywords[index], keywords->parentWidget());
+        tag->setObjectName("mediaKeyword");
+        tag->setTextFormat(Qt::PlainText);
+        tag->setWordWrap(true);
+        keywords->addWidget(tag);
+    }
     moreKeywords->setVisible(media.keywords.size() > KEYWORD_PREVIEW);
     moreKeywords->setText(showAll ? "Weniger Keywords anzeigen"
         : QString("Alle %1 Keywords anzeigen").arg(media.keywords.size()));
