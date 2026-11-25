@@ -174,7 +174,8 @@ async fn save_season(
     for episodes in season.episodes.chunks(1000) {
         let mut query = QueryBuilder::<Postgres>::new(
             "INSERT INTO media_episodes
-                 (season_id, tmdb_id, episode_number, title, description, runtime_minutes, release_date) ",
+                 (season_id, tmdb_id, episode_number, title, description, still_path,
+                  runtime_minutes, release_date) ",
         );
         query.push_values(episodes, |mut row, episode| {
             row.push_bind(season_id)
@@ -182,6 +183,7 @@ async fn save_season(
                 .push_bind(episode.episode_number)
                 .push_bind(episode.title.as_deref())
                 .push_bind(episode.description.as_deref())
+                .push_bind(episode.still_path.as_deref())
                 .push_bind(episode.runtime_minutes)
                 .push_bind(episode.release_date);
         });
@@ -189,6 +191,7 @@ async fn save_season(
             " ON CONFLICT (tmdb_id) DO UPDATE SET
                  season_id = EXCLUDED.season_id, episode_number = EXCLUDED.episode_number,
                  title = EXCLUDED.title, description = EXCLUDED.description,
+                 still_path = EXCLUDED.still_path,
                  runtime_minutes = EXCLUDED.runtime_minutes, release_date = EXCLUDED.release_date",
         );
         query.build().execute(&mut **transaction).await?;

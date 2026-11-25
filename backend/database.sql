@@ -797,6 +797,7 @@ CREATE TABLE media_episodes
     episode_number  integer NOT NULL CHECK (episode_number >= 0),
     title           text,
     description     text,
+    still_path      text,
     runtime_minutes integer CHECK (runtime_minutes > 0),
     release_date    date,
     watch_status_id integer NOT NULL DEFAULT 1 REFERENCES media_watch_statuses (id),

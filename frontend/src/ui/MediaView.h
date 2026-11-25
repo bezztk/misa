@@ -37,6 +37,7 @@ private:
     MediaDetailView *detail;
     QLineEdit *search;
     QComboBox *typeFilter;
+    QComboBox *watchStatusFilter;
     QStackedWidget *content;
     QListWidget *grid;
     QLabel *notice;

@@ -53,6 +53,14 @@ async fn download_images(
             .join(season.season_number.to_string());
         let url = image_url(season.poster_path.as_deref());
         images.extend(download_image(client, &season_directory, "poster", url.as_deref()).await?);
+
+        let episodes_directory = season_directory.join("episodes");
+        for episode in &season.episodes {
+            let episode_directory = episodes_directory.join(episode.episode_number.to_string());
+            let url = image_url(episode.still_path.as_deref());
+            images
+                .extend(download_image(client, &episode_directory, "still", url.as_deref()).await?);
+        }
     }
     Ok(images)
 }

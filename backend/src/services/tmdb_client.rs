@@ -242,6 +242,7 @@ impl SeasonResponse {
                     episode_number: episode.episode_number,
                     title: nonempty(episode.name),
                     description: nonempty(episode.overview),
+                    still_path: nonempty(episode.still_path),
                     runtime_minutes: episode.runtime.filter(|&runtime| runtime > 0),
                     release_date: parse_date(episode.air_date),
                 })
@@ -256,6 +257,7 @@ struct EpisodeResponse {
     episode_number: i32,
     name: Option<String>,
     overview: Option<String>,
+    still_path: Option<String>,
     runtime: Option<i32>,
     air_date: Option<String>,
 }

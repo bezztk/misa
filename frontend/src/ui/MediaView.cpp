@@ -49,14 +49,14 @@ constexpr auto MEDIA_STYLE = R"(
         background: #1E1E1E;
         border: none;
     }
-    QLineEdit#mediaSearch, QComboBox#mediaFilter {
+    QLineEdit#mediaSearch, QComboBox#mediaFilter, QComboBox#mediaWatchStatusFilter {
         background: #262626;
         color: #E5E5E5;
         border: 1px solid #3A3A3A;
         border-radius: 4px;
         padding: 5px 9px;
     }
-    QLineEdit#mediaSearch:focus, QComboBox#mediaFilter:focus {
+    QLineEdit#mediaSearch:focus, QComboBox#mediaFilter:focus, QComboBox#mediaWatchStatusFilter:focus {
         border-color: #7FA7E2;
     }
     QLabel#mediaNotice {
@@ -253,7 +253,17 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     typeFilter->addItem("Serien", "tv");
     typeFilter->setMinimumWidth(100);
     toolbar->addWidget(typeFilter);
+
+    watchStatusFilter = new QComboBox(overview);
+    watchStatusFilter->setObjectName("mediaWatchStatusFilter");
+    watchStatusFilter->setAccessibleName("Sichtungsstatus");
+    watchStatusFilter->addItem("Alle Status", 0);
+    for (int statusId = 1; statusId <= 5; ++statusId) {
+        watchStatusFilter->addItem(watchStatus(statusId).text, statusId);
+    }
+    toolbar->addWidget(watchStatusFilter);
     layout->addLayout(toolbar);
+    setMinimumWidth(qMax(minimumWidth(), layout->minimumSize().width()));
 
     content = new QStackedWidget(overview);
     notice = new QLabel("Medien werden geladen …", content);
@@ -291,6 +301,7 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     });
     connect(search, &QLineEdit::textChanged, this, &MediaView::applyFilters);
     connect(typeFilter, &QComboBox::currentIndexChanged, this, &MediaView::applyFilters);
+    connect(watchStatusFilter, &QComboBox::currentIndexChanged, this, &MediaView::applyFilters);
     connect(&apiClient, &ApiClient::metadataReceived, grid, [this] {
         grid->viewport()->update();
     });
@@ -430,15 +441,18 @@ void MediaView::applyFilters() {
     }
     const QString term = search->text().trimmed();
     const QString mediaType = typeFilter->currentData().toString();
+    const int watchStatusId = watchStatusFilter->currentData().toInt();
     bool hasMatches = false;
     for (int row = 0; row < grid->count(); ++row) {
         QListWidgetItem *item = grid->item(row);
         const bool matchesType = mediaType.isEmpty()
             || item->data(MediaTypeRole).toString() == mediaType;
+        const bool matchesStatus = watchStatusId == 0
+            || item->data(WatchStatusRole).toInt() == watchStatusId;
         const bool matchesTerm = term.isEmpty()
             || item->text().contains(term, Qt::CaseInsensitive)
             || item->data(OriginalTitleRole).toString().contains(term, Qt::CaseInsensitive);
-        const bool visible = matchesType && matchesTerm;
+        const bool visible = matchesType && matchesStatus && matchesTerm;
         item->setHidden(!visible);
         hasMatches = hasMatches || visible;
     }

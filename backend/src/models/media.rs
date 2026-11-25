@@ -91,6 +91,7 @@ pub struct MediaEpisode {
     pub episode_number: i32,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub still_path: Option<String>,
     pub runtime_minutes: Option<i32>,
     pub release_date: Option<NaiveDate>,
     pub watch_status_id: i32,
@@ -193,6 +194,7 @@ pub struct EpisodeMetadata {
     pub episode_number: i32,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub still_path: Option<String>,
     pub runtime_minutes: Option<i32>,
     pub release_date: Option<NaiveDate>,
 }
