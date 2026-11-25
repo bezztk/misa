@@ -1,6 +1,7 @@
 #include "MediaView.h"
 
 #include "../api/ApiClient.h"
+#include "MediaDetailView.h"
 #include "MediaImportDialog.h"
 
 #include <QActionGroup>
@@ -15,6 +16,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QScrollBar>
@@ -23,6 +25,8 @@
 #include <QStyle>
 #include <QStyledItemDelegate>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace {
 constexpr int CARD_WIDTH = 180;
@@ -76,13 +80,23 @@ WatchStatus watchStatus(const int id) {
     }
 }
 
-QString posterFile(const QDir &mediaDirectory, const Media &media) {
-    const QString extension = QFileInfo(media.posterPath).suffix();
+QDir mediaDirectory() {
+    const QDir appData(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    return QDir(appData.filePath("media"));
+}
+
+QString mediaImageFile(
+    const QDir &directory,
+    const Media &media,
+    const QString &name,
+    const QString &tmdbPath
+) {
+    const QString extension = QFileInfo(tmdbPath).suffix();
     if (extension.isEmpty() || (media.mediaType != "movie" && media.mediaType != "tv")) {
         return {};
     }
-    return mediaDirectory.filePath(QString("%1/%2/poster.%3")
-        .arg(media.mediaType, QString::number(media.tmdbId), extension));
+    return directory.filePath(QString("%1/%2/%3.%4")
+        .arg(media.mediaType, QString::number(media.tmdbId), name, extension));
 }
 
 class MediaCardDelegate final : public QStyledItemDelegate {
@@ -204,7 +218,14 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     setAttribute(Qt::WA_StyledBackground);
     setStyleSheet(MEDIA_STYLE);
 
-    auto *layout = new QVBoxLayout(this);
+    auto *pageLayout = new QVBoxLayout(this);
+    pageLayout->setContentsMargins(0, 0, 0, 0);
+    pages = new QStackedWidget(this);
+    pageLayout->addWidget(pages);
+
+    overview = new QWidget(pages);
+    pages->addWidget(overview);
+    auto *layout = new QVBoxLayout(overview);
     layout->setContentsMargins(18, 16, 4, 0);
     layout->setSpacing(14);
     const QMargins margins = layout->contentsMargins();
@@ -214,14 +235,14 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     auto *toolbar = new QHBoxLayout();
     toolbar->setContentsMargins(0, 0, 14, 0);
     toolbar->setSpacing(10);
-    search = new QLineEdit(this);
+    search = new QLineEdit(overview);
     search->setObjectName("mediaSearch");
     search->setPlaceholderText("Medienbestand durchsuchen");
     search->setAccessibleName("Medienbestand durchsuchen");
     search->setClearButtonEnabled(true);
     toolbar->addWidget(search, 1);
 
-    typeFilter = new QComboBox(this);
+    typeFilter = new QComboBox(overview);
     typeFilter->setObjectName("mediaFilter");
     typeFilter->setAccessibleName("Medientyp");
     typeFilter->addItem("Alle", QString());
@@ -231,7 +252,7 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     toolbar->addWidget(typeFilter);
     layout->addLayout(toolbar);
 
-    content = new QStackedWidget(this);
+    content = new QStackedWidget(overview);
     notice = new QLabel("Medien werden geladen …", content);
     notice->setObjectName("mediaNotice");
     notice->setAlignment(Qt::AlignCenter);
@@ -254,9 +275,17 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     grid->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     grid->setItemDelegate(new MediaCardDelegate(grid));
+    grid->viewport()->setMouseTracking(true);
+    grid->viewport()->installEventFilter(this);
     content->addWidget(grid);
     layout->addWidget(content, 1);
 
+    detail = new MediaDetailView(pages);
+    pages->addWidget(detail);
+    connect(detail, &MediaDetailView::backRequested, this, &MediaView::showOverview);
+    connect(grid, &QListWidget::itemClicked, this, [this](const QListWidgetItem *item) {
+        showDetails(item->data(EntityIdRole).toInt());
+    });
     connect(search, &QLineEdit::textChanged, this, &MediaView::applyFilters);
     connect(typeFilter, &QComboBox::currentIndexChanged, this, &MediaView::applyFilters);
     connect(grid, &QListWidget::customContextMenuRequested,
@@ -289,11 +318,32 @@ void MediaView::openImportDialog() {
     dialog.exec();
 }
 
-void MediaView::showMedia(const std::vector<Media> &media) {
+void MediaView::showOverview() {
+    pages->setCurrentWidget(overview);
+}
+
+bool MediaView::eventFilter(QObject *watched, QEvent *event) {
+    auto *viewport = grid->viewport();
+    if (watched == viewport) {
+        if (event->type() == QEvent::MouseMove) {
+            const auto *mouse = static_cast<QMouseEvent *>(event);
+            if (grid->itemAt(mouse->position().toPoint())) {
+                viewport->setCursor(Qt::PointingHandCursor);
+            } else {
+                viewport->unsetCursor();
+            }
+        } else if (event->type() == QEvent::Leave) {
+            viewport->unsetCursor();
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void MediaView::showMedia(const std::vector<Media> &entries) {
     const int scrollPosition = grid->verticalScrollBar()->value();
     mediaLoaded = true;
-    const QDir appData(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
-    const QDir mediaDirectory(appData.filePath("media"));
+    media = entries;
+    const QDir directory = mediaDirectory();
     static_cast<MediaCardDelegate *>(grid->itemDelegate())->clearPosters();
     grid->clear();
     for (const Media &entry : media) {
@@ -306,7 +356,7 @@ void MediaView::showMedia(const std::vector<Media> &media) {
         if (entry.releaseDate.isValid()) {
             item->setData(YearRole, QString::number(entry.releaseDate.year()));
         }
-        item->setData(PosterFileRole, posterFile(mediaDirectory, entry));
+        item->setData(PosterFileRole, mediaImageFile(directory, entry, "poster", entry.posterPath));
         item->setData(WatchStatusRole, entry.watchStatusId);
         if (entry.personalRating) {
             item->setData(RatingRole, *entry.personalRating);
@@ -316,6 +366,23 @@ void MediaView::showMedia(const std::vector<Media> &media) {
     applyFilters();
     grid->doItemsLayout();
     grid->verticalScrollBar()->setValue(scrollPosition);
+}
+
+void MediaView::showDetails(const int entityId) {
+    const auto entry = std::find_if(media.begin(), media.end(), [entityId](const Media &item) {
+        return item.entityId == entityId;
+    });
+    if (entry == media.end()) {
+        return;
+    }
+
+    const QDir directory = mediaDirectory();
+    detail->setMedia(
+        *entry,
+        mediaImageFile(directory, *entry, "poster", entry->posterPath),
+        mediaImageFile(directory, *entry, "backdrop", entry->backdropPath)
+    );
+    pages->setCurrentWidget(detail);
 }
 
 void MediaView::showCardContextMenu(const QPoint &position) {

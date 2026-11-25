@@ -177,6 +177,8 @@ add_executable(frontend
         src/ui/RssView.h
         src/ui/MediaView.cpp
         src/ui/MediaView.h
+        src/ui/MediaDetailView.cpp
+        src/ui/MediaDetailView.h
         src/ui/MediaImportDialog.cpp
         src/ui/MediaImportDialog.h
         src/models/Task.h

@@ -3,6 +3,7 @@
 
 #include <QDate>
 #include <QString>
+#include <QStringList>
 
 #include <optional>
 
@@ -16,6 +17,10 @@ struct Media {
     QString posterPath;
     int watchStatusId;
     std::optional<int> personalRating;
+    QString backdropPath;
+    QString description;
+    QStringList genres;
+    std::optional<int> runtimeMinutes;
 
     QString displayTitle() const {
         if (!title.isEmpty()) {

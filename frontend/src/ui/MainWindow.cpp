@@ -342,6 +342,7 @@ MediaView *MainWindow::openMedia() {
             return new MediaView(apiClient);
         }
     ));
+    view->showOverview();
     view->refresh();
     return view;
 }

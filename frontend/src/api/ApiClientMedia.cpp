@@ -6,6 +6,8 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
+#include <utility>
+
 int ApiClient::getMedia() {
     const int requestId = ++mediaRequestSequence;
     QNetworkRequest request(buildUrl(PATH_MEDIA));
@@ -18,6 +20,11 @@ int ApiClient::getMedia() {
             for (const QJsonValue &value : response.array()) {
                 const QJsonObject object = value.toObject();
                 const QJsonValue rating = object["personal_rating"];
+                const QJsonValue runtime = object["runtime_minutes"];
+                QStringList genres;
+                for (const QJsonValue &genre : object["genres"].toArray()) {
+                    genres.append(genre.toString());
+                }
                 media.push_back({
                     .entityId = object["entity_id"].toInt(),
                     .tmdbId = object["tmdb_id"].toInt(),
@@ -27,7 +34,11 @@ int ApiClient::getMedia() {
                     .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
                     .posterPath = object["poster_path"].toString(),
                     .watchStatusId = object["watch_status_id"].toInt(),
-                    .personalRating = rating.isDouble() ? std::optional(rating.toInt()) : std::nullopt
+                    .personalRating = rating.isDouble() ? std::optional(rating.toInt()) : std::nullopt,
+                    .backdropPath = object["backdrop_path"].toString(),
+                    .description = object["description"].toString(),
+                    .genres = std::move(genres),
+                    .runtimeMinutes = runtime.isDouble() ? std::optional(runtime.toInt()) : std::nullopt
                 });
             }
             emit mediaReceived(requestId, media);
