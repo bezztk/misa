@@ -19,6 +19,7 @@ int ApiClient::getMedia() {
                 const QJsonObject object = value.toObject();
                 const QJsonValue rating = object["personal_rating"];
                 media.push_back({
+                    .entityId = object["entity_id"].toInt(),
                     .tmdbId = object["tmdb_id"].toInt(),
                     .mediaType = object["media_type"].toString(),
                     .title = object["title"].toString(),
@@ -36,6 +37,20 @@ int ApiClient::getMedia() {
         reply->deleteLater();
     });
     return requestId;
+}
+
+void ApiClient::updateMediaWatchStatus(const int entityId, const int watchStatusId) {
+    QNetworkRequest request(buildUrl(QString("%1/%2").arg(PATH_MEDIA).arg(entityId)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkReply *reply = manager.sendCustomRequest(
+        request, "PATCH", QJsonDocument(QJsonObject{{"watch_status_id", watchStatusId}}).toJson()
+    );
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        if (requestSucceeded(reply)) {
+            emit mediaWatchStatusChanged();
+        }
+        reply->deleteLater();
+    });
 }
 
 int ApiClient::importMedia(const QString &url) {

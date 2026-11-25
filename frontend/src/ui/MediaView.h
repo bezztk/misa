@@ -10,6 +10,7 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPoint;
 class QStackedWidget;
 struct Media;
 
@@ -22,6 +23,7 @@ public:
 private:
     void showMedia(const std::vector<Media> &media);
     void applyFilters();
+    void showCardContextMenu(const QPoint &position);
 
     ApiClient &apiClient;
     QLineEdit *search;

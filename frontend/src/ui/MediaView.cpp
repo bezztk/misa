@@ -3,6 +3,7 @@
 #include "../api/ApiClient.h"
 #include "MediaImportDialog.h"
 
+#include <QActionGroup>
 #include <QCache>
 #include <QComboBox>
 #include <QDir>
@@ -13,8 +14,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStyle>
@@ -28,7 +31,8 @@ constexpr int CARD_HEIGHT = POSTER_HEIGHT + 78;
 constexpr int CARD_SPACING = 16;
 
 enum MediaRole {
-    OriginalTitleRole = Qt::UserRole,
+    EntityIdRole = Qt::UserRole,
+    OriginalTitleRole,
     MediaTypeRole,
     YearRole,
     PosterFileRole,
@@ -245,6 +249,7 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     grid->setGridSize(QSize(CARD_WIDTH + CARD_SPACING, CARD_HEIGHT + CARD_SPACING));
     grid->setUniformItemSizes(true);
     grid->setSelectionMode(QAbstractItemView::NoSelection);
+    grid->setContextMenuPolicy(Qt::CustomContextMenu);
     grid->setEditTriggers(QAbstractItemView::NoEditTriggers);
     grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     grid->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -254,6 +259,8 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
 
     connect(search, &QLineEdit::textChanged, this, &MediaView::applyFilters);
     connect(typeFilter, &QComboBox::currentIndexChanged, this, &MediaView::applyFilters);
+    connect(grid, &QListWidget::customContextMenuRequested,
+            this, &MediaView::showCardContextMenu);
     connect(&apiClient, &ApiClient::mediaReceived, this,
             [this](const int id, const std::vector<Media> &media) {
                 if (id == requestId) {
@@ -267,6 +274,7 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
         }
     });
     connect(&apiClient, &ApiClient::mediaImported, this, &MediaView::refresh);
+    connect(&apiClient, &ApiClient::mediaWatchStatusChanged, this, &MediaView::refresh);
 }
 
 void MediaView::refresh() {
@@ -282,6 +290,7 @@ void MediaView::openImportDialog() {
 }
 
 void MediaView::showMedia(const std::vector<Media> &media) {
+    const int scrollPosition = grid->verticalScrollBar()->value();
     mediaLoaded = true;
     const QDir appData(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
     const QDir mediaDirectory(appData.filePath("media"));
@@ -291,6 +300,7 @@ void MediaView::showMedia(const std::vector<Media> &media) {
         const QString title = entry.displayTitle();
         auto *item = new QListWidgetItem(title);
         item->setToolTip("<p>" + title.toHtmlEscaped() + "</p>");
+        item->setData(EntityIdRole, entry.entityId);
         item->setData(OriginalTitleRole, entry.originalTitle);
         item->setData(MediaTypeRole, entry.mediaType);
         if (entry.releaseDate.isValid()) {
@@ -304,6 +314,35 @@ void MediaView::showMedia(const std::vector<Media> &media) {
         grid->addItem(item);
     }
     applyFilters();
+    grid->doItemsLayout();
+    grid->verticalScrollBar()->setValue(scrollPosition);
+}
+
+void MediaView::showCardContextMenu(const QPoint &position) {
+    const QListWidgetItem *item = grid->itemAt(position);
+    if (!item) {
+        return;
+    }
+    const int entityId = item->data(EntityIdRole).toInt();
+    const int currentStatus = item->data(WatchStatusRole).toInt();
+
+    QMenu menu(this);
+    QMenu *statusMenu = menu.addMenu("Sichtungsstatus");
+    auto *statuses = new QActionGroup(statusMenu);
+    for (int statusId = 1; statusId <= 5; ++statusId) {
+        QAction *action = statusMenu->addAction(watchStatus(statusId).text);
+        statuses->addAction(action);
+        action->setData(statusId);
+        action->setCheckable(true);
+        action->setChecked(statusId == currentStatus);
+    }
+
+    if (const QAction *selected = menu.exec(grid->viewport()->mapToGlobal(position))) {
+        const int statusId = selected->data().toInt();
+        if (statusId != currentStatus) {
+            apiClient.updateMediaWatchStatus(entityId, statusId);
+        }
+    }
 }
 
 void MediaView::applyFilters() {

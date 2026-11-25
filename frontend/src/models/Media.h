@@ -7,6 +7,7 @@
 #include <optional>
 
 struct Media {
+    int entityId;
     int tmdbId;
     QString mediaType;
     QString title;
