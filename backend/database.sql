@@ -393,15 +393,33 @@ VALUES (1, 'new'),
        (2, 'learning'),
        (3, 'completed');
 
+CREATE TABLE short_term_learning_card_ratings
+(
+    id               integer PRIMARY KEY,
+    name             varchar(30) NOT NULL UNIQUE,
+    display_name     text        NOT NULL,
+    interval_minutes integer
+);
+
+INSERT INTO short_term_learning_card_ratings (id, name, display_name, interval_minutes)
+VALUES (1, 'again', 'Nochmal', 1),
+       (2, 'hard', 'Schwer', 4),
+       (3, 'good', 'Gut', 10),
+       (4, 'easy', 'Einfach', NULL);
+
 CREATE TABLE short_term_learning_cards
 (
-    id                     integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    set_id                 integer NOT NULL REFERENCES short_term_learning_sets (id) ON DELETE CASCADE,
-    front                  text    NOT NULL,
-    hint                   text,
-    back                   text    NOT NULL,
-    front_to_back_state_id integer NOT NULL DEFAULT 1 REFERENCES short_term_learning_card_states (id),
-    back_to_front_state_id integer REFERENCES short_term_learning_card_states (id)
+    id                           integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    set_id                       integer NOT NULL REFERENCES short_term_learning_sets (id) ON DELETE CASCADE,
+    front                        text    NOT NULL,
+    hint                         text,
+    back                         text    NOT NULL,
+    front_to_back_state_id       integer NOT NULL DEFAULT 1 REFERENCES short_term_learning_card_states (id),
+    back_to_front_state_id       integer REFERENCES short_term_learning_card_states (id),
+    front_to_back_last_rating_id integer REFERENCES short_term_learning_card_ratings (id),
+    front_to_back_due_at         timestamptz,
+    back_to_front_last_rating_id integer REFERENCES short_term_learning_card_ratings (id),
+    back_to_front_due_at         timestamptz
 );
 
 CREATE INDEX idx_short_term_learning_cards_set_id

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -30,6 +31,23 @@ pub struct ShortTermLearningCard {
     pub back: String,
     pub front_to_back_state_id: i32,
     pub back_to_front_state_id: Option<i32>,
+    pub front_to_back_last_rating_id: Option<i32>,
+    pub front_to_back_due_at: Option<DateTime<Utc>>,
+    pub back_to_front_last_rating_id: Option<i32>,
+    pub back_to_front_due_at: Option<DateTime<Utc>>,
+}
+
+#[derive(FromRow, Serialize)]
+pub struct ShortTermLearningCardRating {
+    pub id: i32,
+    pub display_name: String,
+    pub interval_minutes: Option<i32>,
+}
+
+#[derive(Serialize)]
+pub struct ShortTermLearningCards {
+    pub cards: Vec<ShortTermLearningCard>,
+    pub ratings: Vec<ShortTermLearningCardRating>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -46,15 +64,14 @@ impl ShortTermLearningCardContent {
 }
 
 #[derive(Deserialize)]
-pub struct UpdateShortTermLearningCard {
-    #[serde(flatten)]
-    pub content: ShortTermLearningCardContent,
-    pub front_to_back_state_id: i32,
-    pub back_to_front_state_id: Option<i32>,
+pub struct RateShortTermLearningCard {
+    pub reverse: bool,
+    pub rating_id: i32,
 }
 
-#[derive(Deserialize)]
-pub struct UpdateShortTermLearningState {
-    pub reverse: bool,
+#[derive(FromRow, Serialize)]
+pub struct ShortTermLearningProgress {
     pub state_id: i32,
+    pub last_rating_id: i32,
+    pub due_at: Option<DateTime<Utc>>,
 }

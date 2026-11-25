@@ -17,6 +17,16 @@ QString cardPath(const int id) {
     return QString("/short-term-learning/cards/%1").arg(id);
 }
 
+ShortTermLearningProgress parseProgress(const QJsonObject &object, const QString &prefix = {}) {
+    const auto lastRating = object.value(prefix + "last_rating_id");
+    return {
+        .state = static_cast<ShortTermLearningState>(object.value(prefix + "state_id").toInt()),
+        .lastRating = lastRating.isDouble()
+            ? std::optional(static_cast<ShortTermLearningRating>(lastRating.toInt())) : std::nullopt,
+        .dueAt = QDateTime::fromString(object.value(prefix + "due_at").toString(), Qt::ISODate),
+    };
+}
+
 } // namespace
 
 void ApiClient::getShortTermLearningSets(
@@ -76,7 +86,7 @@ void ApiClient::resetShortTermLearningSet(
 
 void ApiClient::getShortTermLearningCards(
     const int setId, QObject &context,
-    std::function<void(std::optional<std::vector<ShortTermLearningCard>>)> received
+    std::function<void(std::optional<ShortTermLearningCards>)> received
 ) {
     auto *reply = manager.get(QNetworkRequest(buildUrl(setPath(setId) + "/cards")));
     connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
@@ -86,28 +96,37 @@ void ApiClient::getShortTermLearningCards(
             received(std::nullopt);
             return;
         }
-        if (!response.isArray()) {
+        const auto data = response.object();
+        const auto ratings = data.value("ratings").toArray();
+        ShortTermLearningCards result;
+        if (!data.value("cards").isArray() || ratings.size() != result.ratings.size()) {
             emit requestFailed("Lernkarten laden: Ungültige Serverantwort");
             received(std::nullopt);
             return;
         }
-        std::vector<ShortTermLearningCard> cards;
-        for (const QJsonValue &value : response.array()) {
+        for (const QJsonValue &value : data.value("cards").toArray()) {
             const auto object = value.toObject();
-            const auto reverseState = object["back_to_front_state_id"];
-            cards.push_back({
+            result.cards.push_back({
                 .id = object["id"].toInt(),
                 .front = object["front"].toString(),
                 .hint = object["hint"].toString(),
                 .back = object["back"].toString(),
-                .frontToBackState = static_cast<ShortTermLearningState>(
-                    object["front_to_back_state_id"].toInt()
-                ),
-                .backToFrontState = reverseState.isNull() ? std::nullopt
-                    : std::optional(static_cast<ShortTermLearningState>(reverseState.toInt())),
+                .frontToBack = parseProgress(object, "front_to_back_"),
+                .backToFront = object["back_to_front_state_id"].isNull() ? std::nullopt
+                    : std::optional(parseProgress(object, "back_to_front_")),
             });
         }
-        received(std::move(cards));
+        std::size_t index = 0;
+        for (const QJsonValue &value : ratings) {
+            const auto option = value.toObject();
+            const auto interval = option["interval_minutes"];
+            result.ratings[index++] = {
+                .rating = static_cast<ShortTermLearningRating>(option["id"].toInt()),
+                .displayName = option["display_name"].toString(),
+                .intervalMinutes = interval.isDouble() ? std::optional(interval.toInt()) : std::nullopt,
+            };
+        }
+        received(std::move(result));
     });
 }
 
@@ -125,9 +144,6 @@ void ApiClient::updateShortTermLearningCard(
         {"front", card.front},
         {"hint", card.hint.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(card.hint)},
         {"back", card.back},
-        {"front_to_back_state_id", static_cast<int>(card.frontToBackState)},
-        {"back_to_front_state_id", card.backToFrontState
-            ? QJsonValue(static_cast<int>(*card.backToFrontState)) : QJsonValue(QJsonValue::Null)},
     }), context, std::move(finished));
 }
 
@@ -138,13 +154,30 @@ void ApiClient::deleteShortTermLearningCard(
 }
 
 void ApiClient::rateShortTermLearningCard(
-    const int id, const bool reverse, const ShortTermLearningState state,
-    QObject &context, std::function<void(bool)> finished
+    const int id, const bool reverse, const ShortTermLearningRating rating,
+    QObject &context, std::function<void(std::optional<ShortTermLearningProgress>)> received
 ) {
-    sendShortTermLearningChange(cardPath(id) + "/state", "PATCH", QJsonDocument(QJsonObject{
+    QNetworkRequest request(buildUrl(cardPath(id) + "/rating"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    const auto body = QJsonDocument(QJsonObject{
         {"reverse", reverse},
-        {"state_id", static_cast<int>(state)},
-    }), context, std::move(finished));
+        {"rating_id", static_cast<int>(rating)},
+    }).toJson(QJsonDocument::Compact);
+    auto *reply = manager.post(request, body);
+    connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
+    connect(reply, &QNetworkReply::finished, &context, [this, reply, received = std::move(received)] {
+        QJsonDocument response;
+        if (!readJson(reply, "Bewertung speichern", response)) {
+            received(std::nullopt);
+            return;
+        }
+        if (!response.isObject()) {
+            emit requestFailed("Bewertung speichern: Ungültige Serverantwort");
+            received(std::nullopt);
+            return;
+        }
+        received(parseProgress(response.object()));
+    });
 }
 
 void ApiClient::sendShortTermLearningChange(

@@ -1,8 +1,9 @@
-use sqlx::{PgPool, types::Json};
+use sqlx::{AssertSqlSafe, PgPool, types::Json};
 
 use crate::models::short_term_learning::{
-    COMPLETED, LEARNING, NEW, ShortTermLearningCard, ShortTermLearningCardContent,
-    ShortTermLearningSet, UpdateShortTermLearningCard, UpdateShortTermLearningState,
+    COMPLETED, LEARNING, NEW, RateShortTermLearningCard, ShortTermLearningCard,
+    ShortTermLearningCardContent, ShortTermLearningCardRating, ShortTermLearningProgress,
+    ShortTermLearningSet,
 };
 
 pub async fn get_sets(pool: &PgPool) -> Result<Vec<ShortTermLearningSet>, sqlx::Error> {
@@ -56,7 +57,11 @@ pub async fn reset_set(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
         "WITH reset AS (
             UPDATE short_term_learning_cards
             SET front_to_back_state_id = $2,
-                back_to_front_state_id = CASE WHEN back_to_front_state_id IS NOT NULL THEN $2 END
+                back_to_front_state_id = CASE WHEN back_to_front_state_id IS NOT NULL THEN $2 END,
+                front_to_back_last_rating_id = NULL,
+                front_to_back_due_at = NULL,
+                back_to_front_last_rating_id = NULL,
+                back_to_front_due_at = NULL
             WHERE set_id = $1
          )
          SELECT EXISTS (SELECT 1 FROM short_term_learning_sets WHERE id = $1)",
@@ -72,12 +77,24 @@ pub async fn get_cards(
     set_id: i32,
 ) -> Result<Vec<ShortTermLearningCard>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT id, front, hint, back, front_to_back_state_id, back_to_front_state_id
+        "SELECT id, front, hint, back, front_to_back_state_id, back_to_front_state_id,
+                front_to_back_last_rating_id, front_to_back_due_at,
+                back_to_front_last_rating_id, back_to_front_due_at
          FROM short_term_learning_cards
          WHERE set_id = $1
          ORDER BY id",
     )
     .bind(set_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn get_ratings(pool: &PgPool) -> Result<Vec<ShortTermLearningCardRating>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT id, display_name, interval_minutes
+         FROM short_term_learning_card_ratings
+         ORDER BY id",
+    )
     .fetch_all(pool)
     .await
 }
@@ -111,20 +128,17 @@ pub async fn import_cards(
 pub async fn update_card(
     pool: &PgPool,
     id: i32,
-    card: &UpdateShortTermLearningCard,
+    card: &ShortTermLearningCardContent,
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE short_term_learning_cards
-         SET front = $2, hint = $3, back = $4, front_to_back_state_id = $5,
-             back_to_front_state_id = $6
-         WHERE id = $1 AND (back_to_front_state_id IS NULL) = ($6 IS NULL)",
+         SET front = $2, hint = $3, back = $4
+         WHERE id = $1",
     )
     .bind(id)
-    .bind(&card.content.front)
-    .bind(&card.content.hint)
-    .bind(&card.content.back)
-    .bind(card.front_to_back_state_id)
-    .bind(card.back_to_front_state_id)
+    .bind(&card.front)
+    .bind(&card.hint)
+    .bind(&card.back)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() != 0)
@@ -138,21 +152,40 @@ pub async fn delete_card(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
     Ok(result.rows_affected() != 0)
 }
 
-pub async fn update_state(
+pub async fn rate_card(
     pool: &PgPool,
     id: i32,
-    update: UpdateShortTermLearningState,
-) -> Result<bool, sqlx::Error> {
-    let query = if update.reverse {
-        "UPDATE short_term_learning_cards SET back_to_front_state_id = $2
-         WHERE id = $1 AND back_to_front_state_id IS NOT NULL"
+    rating: RateShortTermLearningCard,
+) -> Result<Option<ShortTermLearningProgress>, sqlx::Error> {
+    let direction = if rating.reverse {
+        "back_to_front"
     } else {
-        "UPDATE short_term_learning_cards SET front_to_back_state_id = $2 WHERE id = $1"
+        "front_to_back"
     };
-    let result = sqlx::query(query)
+    let state = format!("{direction}_state_id");
+    let last_rating = format!("{direction}_last_rating_id");
+    let due_at = format!("{direction}_due_at");
+    let completed = format!(
+        "rating.interval_minutes IS NULL OR (rating.name = 'good' AND card.{last_rating} = rating.id)"
+    );
+    let query = format!(
+        "UPDATE short_term_learning_cards AS card
+         SET {state} = CASE WHEN {completed} THEN $3 ELSE $4 END,
+             {last_rating} = rating.id,
+             {due_at} = CASE WHEN {completed} THEN NULL
+                 ELSE statement_timestamp() + make_interval(mins => rating.interval_minutes) END
+         FROM short_term_learning_card_ratings AS rating
+         WHERE card.id = $1 AND rating.id = $2 AND card.{state} <> $3
+            AND (card.{due_at} IS NULL OR card.{due_at} <= statement_timestamp())
+         RETURNING card.{state} AS state_id, card.{last_rating} AS last_rating_id,
+                   card.{due_at} AS due_at"
+    );
+    // Only the fixed direction column names are interpolated.
+    sqlx::query_as(AssertSqlSafe(query))
         .bind(id)
-        .bind(update.state_id)
-        .execute(pool)
-        .await?;
-    Ok(result.rows_affected() != 0)
+        .bind(rating.rating_id)
+        .bind(COMPLETED)
+        .bind(LEARNING)
+        .fetch_optional(pool)
+        .await
 }

@@ -195,14 +195,14 @@ public:
     void deleteShortTermLearningSet(int id, QObject &context, std::function<void(bool)> finished);
     void resetShortTermLearningSet(int id, QObject &context, std::function<void(bool)> finished);
     void getShortTermLearningCards(int setId, QObject &context,
-        std::function<void(std::optional<std::vector<ShortTermLearningCard>>)> received);
+        std::function<void(std::optional<ShortTermLearningCards>)> received);
     void importShortTermLearningCards(int setId, const QJsonArray &cards,
         QObject &context, std::function<void(bool)> finished);
     void updateShortTermLearningCard(const ShortTermLearningCard &card,
         QObject &context, std::function<void(bool)> finished);
     void deleteShortTermLearningCard(int id, QObject &context, std::function<void(bool)> finished);
-    void rateShortTermLearningCard(int id, bool reverse, ShortTermLearningState state,
-        QObject &context, std::function<void(bool)> finished);
+    void rateShortTermLearningCard(int id, bool reverse, ShortTermLearningRating rating,
+        QObject &context, std::function<void(std::optional<ShortTermLearningProgress>)> received);
     void getNodeAttachments(int nodeId);
     void createAttachment(int nodeId, const QString& originalName,
                           const QString& storageName, qint64 sizeBytes);

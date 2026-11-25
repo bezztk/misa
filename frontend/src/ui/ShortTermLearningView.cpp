@@ -4,7 +4,6 @@
 #include "DialogUtils.h"
 
 #include <QCheckBox>
-#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -31,11 +30,15 @@
 #include <QShowEvent>
 #include <QStackedWidget>
 #include <QTableWidget>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#include <limits>
 
 namespace {
 
 using State = ShortTermLearningState;
+using Rating = ShortTermLearningRating;
 
 QString stateName(const State state) {
     switch (state) {
@@ -86,15 +89,6 @@ QPushButton *addDialogButtons(QDialog &dialog, QVBoxLayout &layout, const QStrin
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout.addWidget(buttons);
     return accept;
-}
-
-QComboBox *stateEditor(const State selected, QWidget *parent) {
-    auto *editor = new QComboBox(parent);
-    for (const State state : {State::New, State::Learning, State::Completed}) {
-        editor->addItem(stateName(state), static_cast<int>(state));
-    }
-    editor->setCurrentIndex(editor->findData(static_cast<int>(selected)));
-    return editor;
 }
 
 } // namespace
@@ -236,10 +230,11 @@ QWidget *ShortTermLearningView::createSession() {
     header->addWidget(end, 0, 2, Qt::AlignRight);
     layout->addLayout(header);
 
-    cardScroll = new QScrollArea(page);
+    sessionContent = new QStackedWidget(page);
+    sessionContent->setMaximumWidth(760);
+    cardScroll = new QScrollArea(sessionContent);
     cardScroll->setFrameShape(QFrame::NoFrame);
     cardScroll->setWidgetResizable(true);
-    cardScroll->setMaximumWidth(760);
     auto *card = new QWidget(cardScroll);
     auto *content = new QVBoxLayout(card);
     content->setContentsMargins(12, 8, 12, 8);
@@ -278,25 +273,51 @@ QWidget *ShortTermLearningView::createSession() {
     cardScroll->setWidget(card);
     card->setAutoFillBackground(false);
     cardScroll->viewport()->setAutoFillBackground(false);
+    sessionContent->addWidget(cardScroll);
+
+    countdown = plainLabel(sessionContent);
+    countdown->setAlignment(Qt::AlignCenter);
+    countdown->setStyleSheet("font-size: 22px;");
+    sessionContent->addWidget(countdown);
+    countdownTimer = new QTimer(page);
+    countdownTimer->setSingleShot(true);
+    countdownTimer->setTimerType(Qt::PreciseTimer);
+    connect(countdownTimer, &QTimer::timeout, this, [this] { advanceSession(); });
 
     auto *cardBand = new QHBoxLayout;
     cardBand->addStretch();
-    cardBand->addWidget(cardScroll, 24);
+    cardBand->addWidget(sessionContent, 24);
     cardBand->addStretch();
     layout->addLayout(cardBand, 1);
+
+    const auto makeShortcut = [page](const Qt::Key key, QPushButton *button) {
+        auto *shortcut = new QShortcut(QKeySequence(key), page);
+        shortcut->setContext(Qt::WidgetWithChildrenShortcut);
+        shortcut->setAutoRepeat(false);
+        shortcut->setEnabled(false);
+        connect(shortcut, &QShortcut::activated, button, &QPushButton::click);
+        return shortcut;
+    };
+    hintShortcut = makeShortcut(Qt::Key_I, revealHint);
+    answerShortcut = makeShortcut(Qt::Key_Space, revealAnswer);
 
     ratingActions = new QWidget(page);
     auto *ratings = new QHBoxLayout(ratingActions);
     ratings->setContentsMargins(0, 0, 0, 0);
     ratings->setSpacing(12);
-    auto *continueLearning = new QPushButton("Weiterlernen (1)", ratingActions);
-    auto *complete = new QPushButton("Beherrscht (2)", ratingActions);
+    constexpr std::array keys{Qt::Key_1, Qt::Key_2, Qt::Key_3, Qt::Key_4};
     ratings->addStretch();
-    for (auto *button : {continueLearning, complete}) {
+    for (std::size_t index = 0; index < ratingButtons.size(); ++index) {
+        auto *button = new QPushButton(ratingActions);
         button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
         button->setMaximumWidth(170);
         button->setFixedHeight(56);
         ratings->addWidget(button, 8);
+        ratingButtons[index] = button;
+        ratingShortcuts[index] = makeShortcut(keys[index], button);
+        connect(button, &QPushButton::clicked, this, [this, index] {
+            rateQuestion(ratingOptions[index].rating);
+        });
     }
     ratings->addStretch();
     ratingActions->setFixedHeight(56);
@@ -305,19 +326,6 @@ QWidget *ShortTermLearningView::createSession() {
     ratingActions->setEnabled(false);
     layout->addWidget(ratingActions);
 
-    hintShortcut = new QShortcut(QKeySequence(Qt::Key_I), page);
-    answerShortcut = new QShortcut(QKeySequence(Qt::Key_Space), page);
-    continueShortcut = new QShortcut(QKeySequence(Qt::Key_1), page);
-    completeShortcut = new QShortcut(QKeySequence(Qt::Key_2), page);
-    for (auto *shortcut : {hintShortcut, answerShortcut, continueShortcut, completeShortcut}) {
-        shortcut->setContext(Qt::WidgetWithChildrenShortcut);
-        shortcut->setAutoRepeat(false);
-        shortcut->setEnabled(false);
-    }
-    connect(hintShortcut, &QShortcut::activated, revealHint, &QPushButton::click);
-    connect(answerShortcut, &QShortcut::activated, revealAnswer, &QPushButton::click);
-    connect(continueShortcut, &QShortcut::activated, continueLearning, &QPushButton::click);
-    connect(completeShortcut, &QShortcut::activated, complete, &QPushButton::click);
     connect(end, &QPushButton::clicked, this, &ShortTermLearningView::endSession);
     connect(revealHint, &QPushButton::clicked, this, [this] {
         revealHint->hide();
@@ -332,8 +340,6 @@ QWidget *ShortTermLearningView::createSession() {
         updateSessionActions();
         session->setFocus(Qt::OtherFocusReason);
     });
-    connect(continueLearning, &QPushButton::clicked, this, [this] { rateQuestion(State::Learning); });
-    connect(complete, &QPushButton::clicked, this, [this] { rateQuestion(State::Completed); });
     return page;
 }
 
@@ -359,13 +365,15 @@ void ShortTermLearningView::setBusy(const bool pending) {
 }
 
 void ShortTermLearningView::updateSessionActions() {
-    const bool questionVisible = screens->currentWidget() == session && !cardScroll->isHidden();
+    const bool questionVisible = screens->currentWidget() == session &&
+        sessionContent->currentWidget() == cardScroll;
     hintShortcut->setEnabled(questionVisible && !revealHint->isHidden());
     answerShortcut->setEnabled(questionVisible && !revealAnswer->isHidden());
     const bool canRate = questionVisible && !busy && !ratingActions->isHidden();
     ratingActions->setEnabled(canRate);
-    continueShortcut->setEnabled(canRate);
-    completeShortcut->setEnabled(canRate);
+    for (auto *shortcut : ratingShortcuts) {
+        shortcut->setEnabled(canRate);
+    }
 }
 
 void ShortTermLearningView::loadSets() {
@@ -405,27 +413,11 @@ void ShortTermLearningView::loadCards() {
             }
             return;
         }
-        cards = std::move(*loaded);
+        cards = std::move(loaded->cards);
+        ratingOptions = std::move(loaded->ratings);
         renderCards();
-        if (screens->currentWidget() != session) {
-            return;
-        }
-
-        for (std::size_t index = 0; index < cards.size(); ++index) {
-            if (cards[index].frontToBackState != State::Completed) {
-                queue.push_back({index, false});
-            }
-        }
-        for (std::size_t index = 0; index < cards.size(); ++index) {
-            if (cards[index].backToFrontState && cards[index].backToFrontState != State::Completed) {
-                queue.push_back({index, true});
-            }
-        }
-        if (queue.empty()) {
-            endSession();
-        } else {
-            sessionProgress->setMaximum(static_cast<int>(queue.size()));
-            showQuestion();
+        if (screens->currentWidget() == session) {
+            advanceSession(true);
         }
     });
 }
@@ -437,11 +429,11 @@ void ShortTermLearningView::renderCards() {
     int row = 0;
     for (const auto &card : cards) {
         setRow(*cardsTable, row++, {
-            card.front, card.hint, card.back, stateName(card.frontToBackState),
-            card.backToFrontState ? stateName(*card.backToFrontState) : QString{},
+            card.front, card.hint, card.back, stateName(card.frontToBack.state),
+            card.backToFront ? stateName(card.backToFront->state) : QString{},
         });
-        if (card.frontToBackState != State::Completed ||
-            (card.backToFrontState && card.backToFrontState != State::Completed)) {
+        if (card.frontToBack.state != State::Completed ||
+            (card.backToFront && card.backToFront->state != State::Completed)) {
             startButton->setEnabled(true);
         }
     }
@@ -559,13 +551,6 @@ void ShortTermLearningView::editCard() {
     form->addRow("Vorderseite", front);
     form->addRow("Hinweis", cardHint);
     form->addRow("Rückseite", back);
-    auto *forwardState = stateEditor(card.frontToBackState, &dialog);
-    form->addRow("Vorne → Hinten", forwardState);
-    QComboBox *reverseState = nullptr;
-    if (card.backToFrontState) {
-        reverseState = stateEditor(*card.backToFrontState, &dialog);
-        form->addRow("Hinten → Vorne", reverseState);
-    }
     layout->addLayout(form);
     auto *accept = addDialogButtons(dialog, *layout, "Speichern");
     const auto updateAccept = [accept, front, back] {
@@ -582,10 +567,6 @@ void ShortTermLearningView::editCard() {
     card.front = front->toPlainText();
     card.hint = cardHint->toPlainText();
     card.back = back->toPlainText();
-    card.frontToBackState = static_cast<State>(forwardState->currentData().toInt());
-    if (reverseState) {
-        card.backToFrontState = static_cast<State>(reverseState->currentData().toInt());
-    }
     setBusy(true);
     apiClient.updateShortTermLearningCard(card, *this,
         [this](const bool saved) { saved ? loadCards() : setBusy(false); });
@@ -606,7 +587,8 @@ void ShortTermLearningView::startSession() {
     remaining->setText("Lernkarten werden geladen …");
     sessionProgress->setRange(0, 1);
     sessionProgress->setValue(0);
-    cardScroll->hide();
+    countdown->clear();
+    sessionContent->setCurrentWidget(countdown);
     ratingActions->hide();
     screens->setCurrentWidget(session);
     session->setFocus(Qt::OtherFocusReason);
@@ -614,14 +596,76 @@ void ShortTermLearningView::startSession() {
 }
 
 void ShortTermLearningView::endSession() {
-    queue.clear();
+    countdownTimer->stop();
     screens->setCurrentWidget(details);
     updateSessionActions();
     renderCards();
 }
 
-void ShortTermLearningView::showQuestion() {
-    const auto [index, reverse] = queue.front();
+void ShortTermLearningView::advanceSession(const bool starting) {
+    std::optional<Question> nextNew;
+    std::optional<Question> nextReview;
+    qint64 earliestDueAt = std::numeric_limits<qint64>::max();
+    int openCount = 0;
+
+    const auto consider = [&](const Question entry, const ShortTermLearningProgress &progress) {
+        if (progress.state == State::Completed) {
+            return;
+        }
+        ++openCount;
+        if (progress.state == State::New) {
+            if (!nextNew) {
+                nextNew = entry;
+            }
+            return;
+        }
+        // A learning direction saved before scheduling was introduced is already due.
+        const qint64 dueAt = progress.dueAt.isValid() ? progress.dueAt.toMSecsSinceEpoch() : 0;
+        if (dueAt < earliestDueAt) {
+            earliestDueAt = dueAt;
+            nextReview = entry;
+        }
+    };
+    for (std::size_t index = 0; index < cards.size(); ++index) {
+        const auto &card = cards[index];
+        consider({index, false}, card.frontToBack);
+        if (card.backToFront) {
+            consider({index, true}, *card.backToFront);
+        }
+    }
+
+    if (openCount == 0) {
+        sessionProgress->setValue(sessionProgress->maximum());
+        endSession();
+        return;
+    }
+    if (starting) {
+        sessionProgress->setMaximum(openCount);
+    }
+    sessionProgress->setValue(sessionProgress->maximum() - openCount);
+    remaining->setText(openCount == 1 ? "1 Abfrage verbleibend"
+        : QString("%1 Abfragen verbleibend").arg(openCount));
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (nextReview && earliestDueAt <= now) {
+        showQuestion(*nextReview);
+    } else if (nextNew) {
+        showQuestion(*nextNew);
+    } else {
+        const qint64 milliseconds = earliestDueAt - now;
+        const qint64 seconds = (milliseconds + 999) / 1000;
+        countdown->setText(QString("Nächste Abfrage in %1:%2")
+            .arg(seconds / 60).arg(seconds % 60, 2, 10, QChar('0')));
+        sessionContent->setCurrentWidget(countdown);
+        ratingActions->hide();
+        updateSessionActions();
+        countdownTimer->start(static_cast<int>((milliseconds - 1) % 1000 + 1));
+    }
+}
+
+void ShortTermLearningView::showQuestion(const Question next) {
+    currentQuestion = next;
+    const auto [index, reverse] = next;
     const auto &card = cards[index];
     question->setText(reverse ? card.back : card.front);
     answer->setText(reverse ? card.front : card.back);
@@ -630,47 +674,41 @@ void ShortTermLearningView::showQuestion() {
     answer->hide();
     revealHint->setVisible(!card.hint.isEmpty());
     revealAnswer->show();
+    const auto &progress = reverse ? *card.backToFront : card.frontToBack;
+    for (std::size_t index = 0; index < ratingButtons.size(); ++index) {
+        const auto &option = ratingOptions[index];
+        const bool completes = !option.intervalMinutes ||
+            (option.rating == Rating::Good && progress.lastRating == Rating::Good);
+        const QString interval = completes ? "Fertig" : QString("%1 Min.").arg(*option.intervalMinutes);
+        ratingButtons[index]->setText(QString("%1 (%2)\n%3").arg(option.displayName)
+            .arg(index + 1).arg(interval));
+    }
     ratingActions->hide();
-    remaining->setText(queue.size() == 1 ? "1 Abfrage verbleibend"
-        : QString("%1 Abfragen verbleibend").arg(queue.size()));
-    cardScroll->show();
+    sessionContent->setCurrentWidget(cardScroll);
     updateSessionActions();
     cardScroll->verticalScrollBar()->setValue(0);
 }
 
-void ShortTermLearningView::rateQuestion(const State state) {
+void ShortTermLearningView::rateQuestion(const Rating rating) {
     if (!ratingActions->isEnabled()) {
         return;
     }
-    const Question current = queue.front();
+    const Question current = currentQuestion;
     session->setFocus(Qt::OtherFocusReason);
     setBusy(true);
-    apiClient.rateShortTermLearningCard(cards[current.cardIndex].id, current.reverse, state, *this,
-        [this, current, state](const bool saved) {
+    apiClient.rateShortTermLearningCard(cards[current.cardIndex].id, current.reverse, rating, *this,
+        [this, current](const auto saved) {
             if (!saved) {
                 setBusy(false);
                 return;
             }
             auto &card = cards[current.cardIndex];
-            if (current.reverse) {
-                card.backToFrontState = state;
+            auto &progress = current.reverse ? *card.backToFront : card.frontToBack;
+            progress = *saved;
+            if (screens->currentWidget() == session) {
+                advanceSession();
             } else {
-                card.frontToBackState = state;
-            }
-            if (screens->currentWidget() != session) {
                 renderCards();
-                setBusy(false);
-                return;
-            }
-            queue.pop_front();
-            if (state == State::Learning) {
-                queue.push_back(current);
-            }
-            sessionProgress->setValue(sessionProgress->maximum() - static_cast<int>(queue.size()));
-            if (queue.empty()) {
-                endSession();
-            } else {
-                showQuestion();
             }
             setBusy(false);
         });

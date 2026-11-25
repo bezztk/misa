@@ -220,8 +220,8 @@ pub fn create_router(pool: PgPool) -> Router {
                 .delete(short_term_learning_handler::delete_card),
         )
         .route(
-            "/short-term-learning/cards/{id}/state",
-            axum::routing::patch(short_term_learning_handler::update_state),
+            "/short-term-learning/cards/{id}/rating",
+            axum::routing::post(short_term_learning_handler::rate_card),
         )
         .route(
             "/domain-nodes/{node_id}/attachments",

@@ -1,14 +1,30 @@
 #ifndef FRONTEND_SHORTTERMLEARNING_H
 #define FRONTEND_SHORTTERMLEARNING_H
 
+#include <QDateTime>
 #include <QString>
 
+#include <array>
 #include <optional>
+#include <vector>
 
 enum class ShortTermLearningState {
     New = 1,
     Learning = 2,
     Completed = 3,
+};
+
+enum class ShortTermLearningRating {
+    Again = 1,
+    Hard = 2,
+    Good = 3,
+    Easy = 4,
+};
+
+struct ShortTermLearningProgress {
+    ShortTermLearningState state;
+    std::optional<ShortTermLearningRating> lastRating;
+    QDateTime dueAt;
 };
 
 struct ShortTermLearningSet {
@@ -26,8 +42,19 @@ struct ShortTermLearningCard {
     QString front;
     QString hint;
     QString back;
-    ShortTermLearningState frontToBackState;
-    std::optional<ShortTermLearningState> backToFrontState;
+    ShortTermLearningProgress frontToBack;
+    std::optional<ShortTermLearningProgress> backToFront;
+};
+
+struct ShortTermLearningRatingOption {
+    ShortTermLearningRating rating;
+    QString displayName;
+    std::optional<int> intervalMinutes;
+};
+
+struct ShortTermLearningCards {
+    std::vector<ShortTermLearningCard> cards;
+    std::array<ShortTermLearningRatingOption, 4> ratings;
 };
 
 #endif // FRONTEND_SHORTTERMLEARNING_H

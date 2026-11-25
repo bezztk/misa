@@ -6,9 +6,8 @@ use sqlx::PgPool;
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::response::IdResponse;
 use crate::models::short_term_learning::{
-    COMPLETED, CreateShortTermLearningSet, LEARNING, NEW, ShortTermLearningCard,
-    ShortTermLearningCardContent, ShortTermLearningSet, UpdateShortTermLearningCard,
-    UpdateShortTermLearningState,
+    CreateShortTermLearningSet, RateShortTermLearningCard, ShortTermLearningCardContent,
+    ShortTermLearningCards, ShortTermLearningProgress, ShortTermLearningSet,
 };
 use crate::repositories::short_term_learning_repository as repository;
 
@@ -45,8 +44,10 @@ pub async fn reset_set(State(pool): State<PgPool>, Path(id): Path<i32>) -> ApiRe
 pub async fn get_cards(
     State(pool): State<PgPool>,
     Path(id): Path<i32>,
-) -> ApiResult<Json<Vec<ShortTermLearningCard>>> {
-    Ok(Json(repository::get_cards(&pool, id).await?))
+) -> ApiResult<Json<ShortTermLearningCards>> {
+    let cards = repository::get_cards(&pool, id).await?;
+    let ratings = repository::get_ratings(&pool).await?;
+    Ok(Json(ShortTermLearningCards { cards, ratings }))
 }
 
 pub async fn import_cards(
@@ -66,14 +67,9 @@ pub async fn import_cards(
 pub async fn update_card(
     State(pool): State<PgPool>,
     Path(id): Path<i32>,
-    Json(card): Json<UpdateShortTermLearningCard>,
+    Json(card): Json<ShortTermLearningCardContent>,
 ) -> ApiResult<StatusCode> {
-    if !card.content.is_valid()
-        || !matches!(card.front_to_back_state_id, NEW | LEARNING | COMPLETED)
-        || card
-            .back_to_front_state_id
-            .is_some_and(|state| !matches!(state, NEW | LEARNING | COMPLETED))
-    {
+    if !card.is_valid() {
         return Err(ApiError::BadRequest);
     }
     if !repository::update_card(&pool, id, &card).await? {
@@ -89,16 +85,13 @@ pub async fn delete_card(State(pool): State<PgPool>, Path(id): Path<i32>) -> Api
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn update_state(
+pub async fn rate_card(
     State(pool): State<PgPool>,
     Path(id): Path<i32>,
-    Json(update): Json<UpdateShortTermLearningState>,
-) -> ApiResult<StatusCode> {
-    if !matches!(update.state_id, LEARNING | COMPLETED) {
-        return Err(ApiError::BadRequest);
-    }
-    if !repository::update_state(&pool, id, update).await? {
-        return Err(ApiError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
+    Json(rating): Json<RateShortTermLearningCard>,
+) -> ApiResult<Json<ShortTermLearningProgress>> {
+    let progress = repository::rate_card(&pool, id, rating)
+        .await?
+        .ok_or(ApiError::Conflict)?;
+    Ok(Json(progress))
 }

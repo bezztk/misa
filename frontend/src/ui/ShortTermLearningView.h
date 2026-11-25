@@ -5,7 +5,6 @@
 
 #include <QWidget>
 
-#include <deque>
 #include <vector>
 
 class ApiClient;
@@ -18,6 +17,7 @@ class QShortcut;
 class QShowEvent;
 class QStackedWidget;
 class QTableWidget;
+class QTimer;
 
 class ShortTermLearningView final : public QWidget {
 public:
@@ -50,8 +50,9 @@ private:
     void deleteCard();
     void startSession();
     void endSession();
-    void showQuestion();
-    void rateQuestion(ShortTermLearningState state);
+    void advanceSession(bool starting = false);
+    void showQuestion(Question next);
+    void rateQuestion(ShortTermLearningRating rating);
 
     ApiClient &apiClient;
     QStackedWidget *screens;
@@ -64,7 +65,10 @@ private:
     QPushButton *startButton;
     QLabel *remaining;
     QProgressBar *sessionProgress;
+    QStackedWidget *sessionContent;
     QScrollArea *cardScroll;
+    QLabel *countdown;
+    QTimer *countdownTimer;
     QLabel *question;
     QLabel *hint;
     QLabel *answer;
@@ -73,13 +77,14 @@ private:
     QWidget *ratingActions;
     QShortcut *hintShortcut;
     QShortcut *answerShortcut;
-    QShortcut *continueShortcut;
-    QShortcut *completeShortcut;
+    std::array<QPushButton *, 4> ratingButtons;
+    std::array<QShortcut *, 4> ratingShortcuts;
 
     std::vector<ShortTermLearningSet> sets;
     ShortTermLearningSet selectedSet{};
     std::vector<ShortTermLearningCard> cards;
-    std::deque<Question> queue;
+    std::array<ShortTermLearningRatingOption, 4> ratingOptions;
+    Question currentQuestion{};
     bool busy = false;
 };
 
