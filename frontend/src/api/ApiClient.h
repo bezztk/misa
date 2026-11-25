@@ -19,7 +19,10 @@
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 
+#include <functional>
+
 class QJsonDocument;
+class QJsonObject;
 class QNetworkReply;
 
 class ApiClient : public QObject {
@@ -47,7 +50,12 @@ signals:
     void mediaLoadFailed(int requestId);
     void mediaImported(int requestId);
     void mediaImportFailed(int requestId, const QString &message);
-    void mediaWatchStatusChanged();
+    void mediaSeasonsReceived(int requestId, const std::vector<MediaSeason> &seasons);
+    void mediaEpisodesReceived(int requestId, const std::vector<MediaEpisode> &episodes);
+    void mediaSeriesProgressReceived(int requestId, const MediaSeriesProgress &progress);
+    void mediaDetailsLoadFailed(int requestId);
+    void mediaPersonalDataUpdateFinished(int requestId, bool successful);
+    void mediaEpisodeStatusUpdateFinished(int requestId, int entityId, int seasonId, bool successful);
     void mediaRatingUpdateFinished(int entityId, std::optional<MediaRating> rating, bool successful);
     void flashcardsReceived(const std::vector<FlashcardReviewQueueItem>& flashcards);
     void dueFlashcardCountReceived(int count);
@@ -137,6 +145,11 @@ public:
     void deleteIdea(int id);
     int getMedia();
     int importMedia(const QString &url);
+    int getMediaSeasons(int entityId);
+    int getMediaEpisodes(int entityId, int seasonId);
+    int getMediaSeriesProgress(int entityId);
+    int updateMediaPersonalData(int entityId, const QJsonObject &fields);
+    int updateMediaEpisodeStatus(int entityId, int seasonId, int episodeId, int watchStatusId);
     void updateMediaWatchStatus(int entityId, int watchStatusId);
     void updateMediaRating(int entityId, std::optional<MediaRating> rating);
     void getRssFeeds();
@@ -220,6 +233,10 @@ private:
     void requestDueFlashcards(bool includeFlashcards);
     bool requestSucceeded(const QNetworkReply *reply) const;
     bool readJson(QNetworkReply *reply, const QString& operation, QJsonDocument& document);
+    int getMediaJson(const QString &path, const QString &operation,
+                     std::function<bool(int, const QJsonDocument &)> received);
+    int patchMediaJson(const QString &path, const QJsonObject &fields,
+                       std::function<void(int, bool)> finished);
 
     QNetworkAccessManager manager;
     Metadata loadedMetadata;

@@ -2,6 +2,7 @@
 #define FRONTEND_MEDIA_H
 
 #include <QDate>
+#include <QDateTime>
 #include <QString>
 #include <QStringList>
 
@@ -30,6 +31,18 @@ struct Media {
     std::optional<int> runtimeMinutes;
     std::optional<double> tmdbVoteAverage;
     std::optional<int> tmdbVoteCount;
+    QString productionStatus;
+    QStringList keywords;
+    QString posterUrl;
+    QString backdropUrl;
+    QString trailerUrl;
+    QStringList additionalBackdropPaths;
+    int seasonCount;
+    int episodeCount;
+    int watchCount;
+    QDateTime completedAt;
+    QDateTime lastSyncedAt;
+    QString personalNotes;
 
     QString displayTitle() const {
         if (!title.isEmpty()) {
@@ -37,6 +50,40 @@ struct Media {
         }
         return originalTitle.isEmpty() ? QStringLiteral("Ohne Titel") : originalTitle;
     }
+};
+
+struct MediaSeason {
+    int id;
+    int number;
+    QString title;
+    QString description;
+    QString posterPath;
+    QDate releaseDate;
+    int episodeCount;
+    int completedEpisodeCount;
+};
+
+struct MediaEpisode {
+    int id;
+    int number;
+    QString title;
+    QString description;
+    QString stillPath;
+    std::optional<int> runtimeMinutes;
+    QDate releaseDate;
+    int watchStatusId;
+    QDateTime watchedAt;
+};
+
+struct MediaEpisodeProgress {
+    int episodeCount;
+    int completedEpisodeCount;
+    double percentage;
+};
+
+struct MediaSeriesProgress {
+    MediaEpisodeProgress regular;
+    MediaEpisodeProgress specials;
 };
 
 #endif // FRONTEND_MEDIA_H

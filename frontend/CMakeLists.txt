@@ -12,6 +12,7 @@ endif()
 
 find_package(Qt6 COMPONENTS
         Core
+        Concurrent
         Gui
         Widgets
         Network
@@ -179,6 +180,11 @@ add_executable(frontend
         src/ui/MediaView.h
         src/ui/MediaDetailView.cpp
         src/ui/MediaDetailView.h
+        src/ui/MediaImages.cpp
+        src/ui/MediaImages.h
+        src/ui/MediaSeriesView.cpp
+        src/ui/MediaSeriesView.h
+        src/ui/MediaUi.h
         src/ui/MediaImportDialog.cpp
         src/ui/MediaImportDialog.h
         src/models/Task.h
@@ -209,6 +215,7 @@ set_target_properties(frontend PROPERTIES
 )
 target_link_libraries(frontend
         Qt6::Core
+        Qt6::Concurrent
         Qt6::Gui
         Qt6::Widgets
         Qt6::Network

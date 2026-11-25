@@ -2,13 +2,13 @@
 
 #include "../api/ApiClient.h"
 #include "MediaDetailView.h"
+#include "MediaImages.h"
 #include "MediaImportDialog.h"
+#include "MediaUi.h"
 
 #include <QActionGroup>
 #include <QCache>
 #include <QComboBox>
-#include <QDir>
-#include <QFileInfo>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QImageReader>
@@ -21,7 +21,6 @@
 #include <QPainterPath>
 #include <QScrollBar>
 #include <QStackedWidget>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStyledItemDelegate>
 #include <QVBoxLayout>
@@ -63,41 +62,6 @@ constexpr auto MEDIA_STYLE = R"(
         color: #A8A8A8;
     }
 )";
-
-struct WatchStatus {
-    QString text;
-    QColor color;
-};
-
-WatchStatus watchStatus(const int id) {
-    switch (id) {
-    case 1: return {"Geplant", QColor("#B8B8B8")};
-    case 2: return {"Wird angesehen", QColor("#9DBFF2")};
-    case 3: return {"Abgeschlossen", QColor("#9DCCAE")};
-    case 4: return {"Pausiert", QColor("#E1BC84")};
-    case 5: return {"Abgebrochen", QColor("#E0A29D")};
-    default: return {};
-    }
-}
-
-QDir mediaDirectory() {
-    const QDir appData(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
-    return QDir(appData.filePath("media"));
-}
-
-QString mediaImageFile(
-    const QDir &directory,
-    const Media &media,
-    const QString &name,
-    const QString &tmdbPath
-) {
-    const QString extension = QFileInfo(tmdbPath).suffix();
-    if (extension.isEmpty() || (media.mediaType != "movie" && media.mediaType != "tv")) {
-        return {};
-    }
-    return directory.filePath(QString("%1/%2/%3.%4")
-        .arg(media.mediaType, QString::number(media.tmdbId), name, extension));
-}
 
 class MediaCardDelegate final : public QStyledItemDelegate {
 public:
@@ -164,7 +128,7 @@ public:
             QRect(left, top + 29, width, 17), textFlags, index.data(YearRole).toString()
         );
 
-        const WatchStatus status = watchStatus(index.data(WatchStatusRole).toInt());
+        const MediaWatchStatus status = mediaWatchStatus(index.data(WatchStatusRole).toInt());
         const QRect statusRow(left, top + 52, width, 17);
         if (!status.text.isEmpty()) {
             painter->setBrush(status.color);
@@ -258,9 +222,7 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
     watchStatusFilter->setObjectName("mediaWatchStatusFilter");
     watchStatusFilter->setAccessibleName("Sichtungsstatus");
     watchStatusFilter->addItem("Alle Status", 0);
-    for (int statusId = 1; statusId <= 5; ++statusId) {
-        watchStatusFilter->addItem(watchStatus(statusId).text, statusId);
-    }
+    addMediaWatchStatuses(*watchStatusFilter);
     toolbar->addWidget(watchStatusFilter);
     layout->addLayout(toolbar);
     setMinimumWidth(qMax(minimumWidth(), layout->minimumSize().width()));
@@ -320,7 +282,11 @@ MediaView::MediaView(ApiClient &apiClient, QWidget *parent)
         }
     });
     connect(&apiClient, &ApiClient::mediaImported, this, &MediaView::refresh);
-    connect(&apiClient, &ApiClient::mediaWatchStatusChanged, this, &MediaView::refresh);
+    connect(&apiClient, &ApiClient::mediaPersonalDataUpdateFinished, this, [this](int, const bool successful) {
+        if (successful) {
+            refresh();
+        }
+    });
     connect(&apiClient, &ApiClient::mediaRatingUpdateFinished, this,
             [this](int, std::optional<MediaRating>, const bool successful) {
                 if (successful) {
@@ -366,7 +332,6 @@ void MediaView::showMedia(const std::vector<Media> &entries) {
     const int scrollPosition = grid->verticalScrollBar()->value();
     mediaLoaded = true;
     media = entries;
-    const QDir directory = mediaDirectory();
     static_cast<MediaCardDelegate *>(grid->itemDelegate())->clearPosters();
     grid->clear();
     for (const Media &entry : media) {
@@ -379,12 +344,13 @@ void MediaView::showMedia(const std::vector<Media> &entries) {
         if (entry.releaseDate.isValid()) {
             item->setData(YearRole, QString::number(entry.releaseDate.year()));
         }
-        item->setData(PosterFileRole, mediaImageFile(directory, entry, "poster", entry.posterPath));
+        item->setData(PosterFileRole, mediaImageFile(mediaImagePath(entry, "poster", entry.posterPath)));
         item->setData(WatchStatusRole, entry.watchStatusId);
         if (entry.personalRating) {
             item->setData(RatingRole, static_cast<int>(*entry.personalRating));
         }
         grid->addItem(item);
+        detail->updateCompletionDate(entry.entityId, entry.completedAt);
     }
     applyFilters();
     grid->doItemsLayout();
@@ -399,12 +365,7 @@ void MediaView::showDetails(const int entityId) {
         return;
     }
 
-    const QDir directory = mediaDirectory();
-    detail->setMedia(
-        *entry,
-        mediaImageFile(directory, *entry, "poster", entry->posterPath),
-        mediaImageFile(directory, *entry, "backdrop", entry->backdropPath)
-    );
+    detail->setMedia(*entry);
     pages->setCurrentWidget(detail);
 }
 
@@ -420,7 +381,7 @@ void MediaView::showCardContextMenu(const QPoint &position) {
     QMenu *statusMenu = menu.addMenu("Sichtungsstatus");
     auto *statuses = new QActionGroup(statusMenu);
     for (int statusId = 1; statusId <= 5; ++statusId) {
-        QAction *action = statusMenu->addAction(watchStatus(statusId).text);
+        QAction *action = statusMenu->addAction(mediaWatchStatus(statusId).text);
         statuses->addAction(action);
         action->setData(statusId);
         action->setCheckable(true);

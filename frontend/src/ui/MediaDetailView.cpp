@@ -1,90 +1,102 @@
 #include "MediaDetailView.h"
 
 #include "../api/ApiClient.h"
+#include "MediaImages.h"
+#include "MediaSeriesView.h"
+#include "MediaUi.h"
 
-#include <QComboBox>
-#include <QGraphicsBlurEffect>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsScene>
+#include <QDesktopServices>
+#include <QFileInfo>
+#include <QFormLayout>
 #include <QHBoxLayout>
-#include <QImageReader>
-#include <QLabel>
+#include <QJsonObject>
 #include <QLinearGradient>
 #include <QLocale>
 #include <QPainter>
-#include <QPixmap>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollBar>
+#include <QSpinBox>
 #include <QStyle>
-#include <QToolButton>
-#include <QVBoxLayout>
+#include <QUrl>
 
+#include <limits>
 #include <utility>
 
 namespace {
 const QColor BACKGROUND(30, 30, 30);
-constexpr QSize COVER_SIZE(124, 186);
 constexpr int FADE_HEIGHT = 80;
+constexpr int KEYWORD_PREVIEW = 12;
 
 constexpr auto DETAIL_STYLE = R"(
     QWidget#mediaDetailContent { background: #1E1E1E; }
-    QLabel#mediaDetailTitle {
-        color: #F5F5F5;
-        font-size: 32px;
-        font-weight: 600;
-    }
-    QLabel#mediaDetailCover { background: #303030; }
-    QLabel#mediaDetailMetadata, QLabel#mediaDetailTmdbRating { color: #B8B8B8; font-size: 14px; }
-    QLabel#mediaDetailRatingLabel { color: #E5E5E5; font-size: 14px; }
-    QComboBox#mediaDetailRating {
-        background: #262626;
-        color: #E5E5E5;
-        border: 1px solid #3A3A3A;
-        border-radius: 4px;
-        padding: 5px 9px;
-    }
-    QLabel#mediaDetailDescription { color: #E5E5E5; font-size: 15px; }
-    QToolButton#mediaDetailBack {
+    QLabel#mediaDetailTitle { color: #F5F5F5; font-size: 34px; font-weight: 600; }
+    QLabel#mediaSectionTitle { color: #E5E5E5; font-size: 18px; font-weight: 600; }
+    QLabel#mediaEpisodeTitle { color: #E5E5E5; font-weight: 600; }
+    QLabel#mediaMutedText { color: #B8B8B8; }
+    QLabel#mediaTmdbRating { color: #E1BC84; font-weight: 600; }
+    QLabel#mediaWatchedAt { color: #9DCCAE; }
+    QFrame#mediaSeason { background: #262626; border: 1px solid #383838; border-radius: 4px; }
+    QFrame#mediaEpisode { background: #222222; border-radius: 4px; }
+    QWidget#mediaDetailContent QComboBox, QWidget#mediaDetailContent QSpinBox,
+    QWidget#mediaDetailContent QPlainTextEdit, QWidget#mediaDetailContent QPushButton,
+    QToolButton#mediaDetailBack, QToolButton#mediaSeasonToggle, QToolButton#mediaTechnicalToggle {
         background: #262626;
         color: #E5E5E5;
         border: 1px solid #454545;
         border-radius: 4px;
-        padding: 6px 10px;
+        padding: 5px 8px;
     }
-    QToolButton#mediaDetailBack:hover { background: #383838; }
+    QWidget#mediaDetailContent QPushButton:hover, QToolButton#mediaDetailBack:hover,
+    QToolButton#mediaSeasonToggle:hover, QToolButton#mediaTechnicalToggle:hover { background: #383838; }
+    QWidget#mediaDetailContent QPushButton:disabled,
+    QWidget#mediaDetailContent QComboBox:disabled { color: #888888; }
+    QProgressBar {
+        background: #1E1E1E;
+        color: #E5E5E5;
+        border: 1px solid #414141;
+        border-radius: 3px;
+        min-height: 15px;
+        text-align: center;
+    }
+    QProgressBar::chunk { background: #536D8D; border-radius: 2px; }
 )";
 
-QPixmap readImage(const QString &file, const QSize &maximumSize) {
-    if (file.isEmpty()) {
-        return {};
-    }
-    QImageReader reader(file);
-    const QSize size = reader.size();
-    if (size.width() > maximumSize.width() || size.height() > maximumSize.height()) {
-        reader.setScaledSize(size.scaled(maximumSize, Qt::KeepAspectRatio));
-    }
-    return QPixmap::fromImage(reader.read());
+QLabel *sectionTitle(const QString &text, QWidget *parent) {
+    auto *label = mediaText(text, parent);
+    label->setObjectName("mediaSectionTitle");
+    return label;
 }
 
-QPixmap blurredBackdrop(const QString &file) {
-    const QPixmap image = readImage(file, QSize(1600, 1600));
-    if (image.isNull()) {
-        return {};
+QString productionLabel(const QString &status) {
+    const std::pair<const char *, const char *> labels[]{
+        {"Released", "Veröffentlicht"}, {"Returning Series", "Laufend"}, {"Ended", "Beendet"},
+        {"Canceled", "Eingestellt"}, {"In Production", "In Produktion"}, {"Planned", "Geplant"},
+        {"Post Production", "In Nachbearbeitung"}, {"Rumored", "Gerücht"}, {"Pilot", "Pilotfolge"}
+    };
+    for (const auto &[key, label] : labels) {
+        if (status == QString::fromLatin1(key)) {
+            return QString::fromUtf8(label);
+        }
     }
+    return status;
+}
 
-    QGraphicsScene scene;
-    auto *picture = scene.addPixmap(image);
-    auto *blur = new QGraphicsBlurEffect();
-    blur->setBlurRadius(image.width() * 0.004);
-    blur->setBlurHints(QGraphicsBlurEffect::QualityHint);
-    picture->setGraphicsEffect(blur);
+QString tmdbRatingText(const Media &media) {
+    const QLocale locale(QLocale::German);
+    QStringList summary;
+    if (media.tmdbVoteAverage && media.tmdbVoteCount != 0) {
+        summary.append(QString("%1/10").arg(locale.toString(*media.tmdbVoteAverage, 'f', 1)));
+    }
+    if (media.tmdbVoteCount) {
+        summary.append(*media.tmdbVoteCount == 1 ? QStringLiteral("1 Stimme")
+            : QString("%1 Stimmen").arg(locale.toString(*media.tmdbVoteCount)));
+    }
+    return summary.isEmpty() ? QString() : QString("TMDB · %1").arg(summary.join(" · "));
+}
 
-    QPixmap backdrop(image.size());
-    backdrop.fill(BACKGROUND);
-    QPainter painter(&backdrop);
-    const QRectF bounds(image.rect());
-    scene.render(&painter, bounds, bounds);
-    painter.end();
-    return backdrop;
+bool isTrailerUrl(const QUrl &url) {
+    return url.scheme() == "https" && url.host() == "www.youtube.com" && url.path() == "/watch";
 }
 }
 
@@ -96,8 +108,8 @@ public:
         setSizePolicy(policy);
     }
 
-    void setBackdrop(QPixmap image) {
-        backdrop = std::move(image);
+    void setBackdrop(const QPixmap &image) {
+        backdrop = image;
         updateGeometry();
         update();
     }
@@ -111,27 +123,27 @@ protected:
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
         painter.fillRect(rect(), BACKGROUND);
+        const int imageHeight = backdrop.isNull() ? height() : backdropHeight(width());
+        const QRect bounds(0, 0, width(), imageHeight);
         if (backdrop.isNull()) {
+            QLinearGradient background(0, 0, 0, imageHeight);
+            background.setColorAt(0, QColor("#303030"));
+            background.setColorAt(1, BACKGROUND);
+            painter.fillRect(bounds, background);
             return;
         }
-
-        const int height = backdropHeight(width());
-        const QRect imageBounds(0, 0, width(), height);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.drawPixmap(imageBounds, backdrop);
+        painter.drawPixmap(bounds, backdrop);
 
-        QLinearGradient shade(0, 0, 0, height);
-        shade.setColorAt(0.0, QColor(0, 0, 0, 38));
-        shade.setColorAt(0.55, QColor(0, 0, 0, 38));
-        shade.setColorAt(1.0, QColor(0, 0, 0, 155));
-        painter.fillRect(imageBounds, shade);
-
-        const int fadeStart = qMax(0, height - FADE_HEIGHT);
-        QLinearGradient fade(0, fadeStart, 0, height);
-        fade.setColorAt(0.0, QColor(30, 30, 30, 0));
-        fade.setColorAt(0.55, QColor(30, 30, 30, 155));
-        fade.setColorAt(1.0, BACKGROUND);
-        painter.fillRect(QRect(0, fadeStart, width(), height - fadeStart), fade);
+        QLinearGradient shade(0, 0, width(), 0);
+        shade.setColorAt(0, QColor(0, 0, 0, 48));
+        shade.setColorAt(1, QColor(0, 0, 0, 190));
+        painter.fillRect(bounds, shade);
+        const int fadeStart = qMax(0, imageHeight - FADE_HEIGHT);
+        QLinearGradient fade(0, fadeStart, 0, imageHeight);
+        fade.setColorAt(0, QColor(30, 30, 30, 0));
+        fade.setColorAt(1, BACKGROUND);
+        painter.fillRect(QRect(0, fadeStart, width(), imageHeight - fadeStart), fade);
     }
 
 private:
@@ -169,56 +181,144 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
     heroLayout->addStretch(1);
     connect(back, &QToolButton::clicked, this, &MediaDetailView::backRequested);
 
-    auto *heading = new QHBoxLayout();
-    heading->setSpacing(16);
-    cover = new QLabel(hero);
-    cover->setObjectName("mediaDetailCover");
-    cover->setFixedSize(COVER_SIZE);
-    cover->setAlignment(Qt::AlignCenter);
-    heading->addWidget(cover);
+    heading = new QHBoxLayout();
+    heading->setSpacing(18);
+    cover = new MediaImage(hero, Qt::KeepAspectRatio);
+    cover->setAccessibleName("Poster vergrößern");
+    cover->setCursor(Qt::PointingHandCursor);
+    heading->addWidget(cover, 0, Qt::AlignLeft | Qt::AlignBottom);
+    connect(cover, &MediaImage::clicked, this, [this] {
+        showMediaImages(this, {mediaImageFile(mediaImagePath(media, "poster", media.posterPath))});
+    });
 
-    title = new QLabel(hero);
+    auto *intro = new QVBoxLayout();
+    intro->setSpacing(6);
+    intro->addStretch(1);
+    mediaTypeLabel = mediaText({}, hero);
+    mediaTypeLabel->setObjectName("mediaMutedText");
+    intro->addWidget(mediaTypeLabel);
+    title = mediaText({}, hero);
     title->setObjectName("mediaDetailTitle");
-    title->setTextFormat(Qt::PlainText);
-    title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    title->setWordWrap(true);
-    heading->addWidget(title, 1, Qt::AlignBottom);
+    intro->addWidget(title);
+    originalTitle = mediaText({}, hero);
+    originalTitle->setObjectName("mediaMutedText");
+    intro->addWidget(originalTitle);
+    facts = mediaText({}, hero);
+    facts->setObjectName("mediaMutedText");
+    intro->addWidget(facts);
+    genres = mediaText({}, hero);
+    genres->setObjectName("mediaMutedText");
+    intro->addWidget(genres);
+    description = new MediaDescription(420, hero);
+    intro->addWidget(description);
+    tmdbRating = mediaText({}, hero);
+    tmdbRating->setObjectName("mediaTmdbRating");
+    intro->addWidget(tmdbRating);
+
+    actions = new QHBoxLayout();
+    actions->setSpacing(10);
+    auto *statusField = new QVBoxLayout();
+    statusField->setSpacing(4);
+    auto *statusLabel = new QLabel("&Sichtungsstatus", hero);
+    watchStatus = new QComboBox(hero);
+    addMediaWatchStatuses(*watchStatus);
+    statusLabel->setBuddy(watchStatus);
+    statusField->addWidget(statusLabel);
+    statusField->addWidget(watchStatus, 0, Qt::AlignLeft);
+    actions->addLayout(statusField);
+    auto *ratingField = new QVBoxLayout();
+    ratingField->setSpacing(4);
+    auto *ratingLabel = new QLabel("&Persönliche Bewertung", hero);
+    rating = new QComboBox(hero);
+    ratingLabel->setBuddy(rating);
+    ratingField->addWidget(ratingLabel);
+    ratingField->addWidget(rating, 0, Qt::AlignLeft);
+    actions->addLayout(ratingField);
+    trailer = new QPushButton("Trailer ansehen", hero);
+    trailer->setCursor(Qt::PointingHandCursor);
+    actions->addWidget(trailer, 0, Qt::AlignBottom | Qt::AlignLeft);
+    actions->addStretch(1);
+    intro->addLayout(actions);
+    heading->addLayout(intro, 1);
     heroLayout->addLayout(heading);
     layout->addWidget(hero);
 
     auto *body = new QVBoxLayout();
-    body->setContentsMargins(20, 0, 20, 30);
+    body->setContentsMargins(20, 0, 20, 28);
     body->setSpacing(12);
-    metadata = new QLabel(content);
-    metadata->setObjectName("mediaDetailMetadata");
-    metadata->setTextFormat(Qt::PlainText);
-    metadata->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    metadata->setWordWrap(true);
-    body->addWidget(metadata);
+    series = new MediaSeriesView(apiClient, content);
+    body->addWidget(series);
 
-    description = new QLabel(content);
-    description->setObjectName("mediaDetailDescription");
-    description->setTextFormat(Qt::PlainText);
-    description->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    description->setWordWrap(true);
-    body->addWidget(description);
+    body->addWidget(sectionTitle("Persönliche Informationen", content));
+    auto *personalFields = new QFormLayout();
+    personalFields->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    watchCount = new QSpinBox(content);
+    watchCount->setRange(0, std::numeric_limits<int>::max());
+    personalFields->addRow("Sichtungsanzahl", watchCount);
+    completionDate = mediaText({}, content);
+    completionDate->setToolTip("Wird durch den Sichtungsstatus gesetzt.");
+    personalFields->addRow("Abschlussdatum", completionDate);
+    body->addLayout(personalFields);
+    auto *notesLabel = new QLabel("Persönliche &Notizen", content);
+    notes = new QPlainTextEdit(content);
+    notes->setFixedHeight(98);
+    notesLabel->setBuddy(notes);
+    body->addWidget(notesLabel);
+    body->addWidget(notes);
+    savePersonal = new QPushButton("Speichern", content);
+    body->addWidget(savePersonal, 0, Qt::AlignLeft);
 
-    tmdbRating = new QLabel(content);
-    tmdbRating->setObjectName("mediaDetailTmdbRating");
-    tmdbRating->setTextFormat(Qt::PlainText);
-    tmdbRating->setWordWrap(true);
-    body->addWidget(tmdbRating);
+    gallerySection = new QWidget(content);
+    auto *galleryLayout = new QVBoxLayout(gallerySection);
+    galleryLayout->setContentsMargins(0, 0, 0, 0);
+    galleryLayout->addWidget(sectionTitle("Bildergalerie", gallerySection));
+    gallery = new MediaGallery(gallerySection);
+    galleryLayout->addWidget(gallery);
+    body->addWidget(gallerySection);
 
-    auto *ratingLayout = new QVBoxLayout();
-    ratingLayout->setSpacing(5);
-    auto *ratingLabel = new QLabel("&Persönliche Bewertung", content);
-    ratingLabel->setObjectName("mediaDetailRatingLabel");
-    ratingLayout->addWidget(ratingLabel);
-    rating = new QComboBox(content);
-    rating->setObjectName("mediaDetailRating");
-    ratingLabel->setBuddy(rating);
-    ratingLayout->addWidget(rating, 0, Qt::AlignLeft);
-    body->addLayout(ratingLayout);
+    releaseDate = mediaText({}, content);
+    releaseDate->setObjectName("mediaMutedText");
+    body->addWidget(releaseDate);
+    keywordSection = new QWidget(content);
+    auto *keywordLayout = new QVBoxLayout(keywordSection);
+    keywordLayout->setContentsMargins(0, 0, 0, 0);
+    keywordLayout->addWidget(sectionTitle("Keywords", keywordSection));
+    keywords = mediaText({}, keywordSection);
+    keywords->setTextFormat(Qt::RichText);
+    keywordLayout->addWidget(keywords);
+    moreKeywords = new QToolButton(keywordSection);
+    moreKeywords->setAutoRaise(true);
+    moreKeywords->setCheckable(true);
+    moreKeywords->setCursor(Qt::PointingHandCursor);
+    keywordLayout->addWidget(moreKeywords, 0, Qt::AlignLeft);
+    body->addWidget(keywordSection);
+
+    technicalToggle = new QToolButton(content);
+    technicalToggle->setObjectName("mediaTechnicalToggle");
+    technicalToggle->setText("Technische Informationen");
+    technicalToggle->setCheckable(true);
+    technicalToggle->setArrowType(Qt::RightArrow);
+    technicalToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    technicalToggle->setCursor(Qt::PointingHandCursor);
+    body->addWidget(technicalToggle, 0, Qt::AlignLeft);
+    auto *technical = new QWidget(content);
+    technicalDetails = new QFormLayout(technical);
+    technicalDetails->setContentsMargins(0, 0, 0, 0);
+    technicalDetails->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    technicalDetails->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    body->addWidget(technical);
+    technical->hide();
+    connect(technicalToggle, &QToolButton::toggled, this, [this, technical](const bool open) {
+        technicalToggle->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
+        technical->setVisible(open);
+    });
+    connect(moreKeywords, &QToolButton::toggled, this, &MediaDetailView::updateKeywords);
+    connect(trailer, &QPushButton::clicked, this, [this] {
+        const QUrl url(media.trailerUrl);
+        if (isTrailerUrl(url)) {
+            QDesktopServices::openUrl(url);
+        }
+    });
 
     const auto updateRatingOptions = [this, &apiClient] {
         rating->clear();
@@ -232,89 +332,237 @@ MediaDetailView::MediaDetailView(ApiClient &apiClient, QWidget *parent) : QScrol
     };
     connect(&apiClient, &ApiClient::metadataReceived, this, updateRatingOptions);
     updateRatingOptions();
-
     connect(rating, &QComboBox::activated, this, [this, &apiClient](const int index) {
         const QVariant data = rating->itemData(index);
         const auto value = data.isValid()
             ? std::optional(static_cast<MediaRating>(data.toInt()))
             : std::nullopt;
-        if (value == savedRating) {
-            return;
+        if (value != savedRating) {
+            ratingUpdateEntityId = media.entityId;
+            rating->setEnabled(false);
+            apiClient.updateMediaRating(media.entityId, value);
         }
-        ratingUpdateEntityId = entityId;
-        rating->setEnabled(false);
-        apiClient.updateMediaRating(entityId, value);
     });
     connect(&apiClient, &ApiClient::mediaRatingUpdateFinished, this,
             [this](const int id, const std::optional<MediaRating> value, const bool successful) {
-                if (id != ratingUpdateEntityId) {
-                    return;
+                if (id == ratingUpdateEntityId) {
+                    ratingUpdateEntityId = 0;
+                    if (id == media.entityId) {
+                        setRating(successful ? value : savedRating);
+                    }
+                    rating->setEnabled(true);
                 }
-                ratingUpdateEntityId = 0;
-                if (id == entityId) {
-                    setRating(successful ? value : savedRating);
+            });
+    connect(watchStatus, &QComboBox::activated, this, [this, &apiClient](const int index) {
+        const int status = watchStatus->itemData(index).toInt();
+        if (status != media.watchStatusId) {
+            statusEntityId = media.entityId;
+            pendingWatchStatus = status;
+            statusRequestId = apiClient.updateMediaPersonalData(media.entityId, {{"watch_status_id", status}});
+            watchStatus->setEnabled(false);
+        }
+    });
+    connect(watchCount, &QSpinBox::valueChanged, this, &MediaDetailView::updatePersonalSaveButton);
+    connect(notes, &QPlainTextEdit::textChanged, this, &MediaDetailView::updatePersonalSaveButton);
+    connect(savePersonal, &QPushButton::clicked, this, [this, &apiClient] {
+        personalEntityId = media.entityId;
+        pendingWatchCount = watchCount->value();
+        pendingNotes = notes->toPlainText();
+        const QJsonValue value = pendingNotes.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(pendingNotes);
+        personalRequestId = apiClient.updateMediaPersonalData(media.entityId, {
+            {"watch_count", pendingWatchCount}, {"personal_notes", value}
+        });
+        watchCount->setEnabled(false);
+        notes->setEnabled(false);
+        updatePersonalSaveButton();
+    });
+    connect(&apiClient, &ApiClient::mediaPersonalDataUpdateFinished, this,
+            [this](const int id, const bool successful) {
+                if (id == statusRequestId) {
+                    statusRequestId = 0;
+                    if (media.entityId == statusEntityId) {
+                        if (successful) {
+                            media.watchStatusId = pendingWatchStatus;
+                        }
+                        watchStatus->setCurrentIndex(watchStatus->findData(media.watchStatusId));
+                    }
+                    watchStatus->setEnabled(true);
+                } else if (id == personalRequestId) {
+                    personalRequestId = 0;
+                    if (successful && media.entityId == personalEntityId) {
+                        media.watchCount = pendingWatchCount;
+                        media.personalNotes = pendingNotes;
+                    }
+                    watchCount->setEnabled(true);
+                    notes->setEnabled(true);
+                    updatePersonalSaveButton();
                 }
-                rating->setEnabled(true);
             });
 
     layout->addLayout(body);
     layout->addStretch(1);
     setWidget(content);
+    updateHeaderLayout();
 }
 
-void MediaDetailView::setMedia(
-    const Media &media, const QString &posterFile, const QString &backdropFile
-) {
-    entityId = media.entityId;
+void MediaDetailView::setMedia(const Media &entry) {
+    media = entry;
     setRating(media.personalRating);
-    const QLocale locale(QLocale::German);
-    QStringList voteSummary;
-    if (media.tmdbVoteAverage && media.tmdbVoteCount != 0) {
-        voteSummary.append(QString("%1/10").arg(locale.toString(*media.tmdbVoteAverage, 'f', 1)));
-    }
-    if (media.tmdbVoteCount) {
-        const QString count = locale.toString(*media.tmdbVoteCount);
-        voteSummary.append(*media.tmdbVoteCount == 1 ? "1 Stimme" : QString("%1 Stimmen").arg(count));
-    }
-    tmdbRating->setText(QString("TMDB · %1").arg(voteSummary.join(" · ")));
-    tmdbRating->setVisible(!voteSummary.isEmpty());
-
+    const bool isSeries = media.mediaType == "tv";
+    mediaTypeLabel->setText(isSeries ? "Serie" : "Film");
     title->setText(media.displayTitle());
-    const QPixmap poster = readImage(posterFile, QSize(384, 576));
-    if (poster.isNull()) {
-        cover->setPixmap(style()->standardIcon(QStyle::SP_MediaPlay).pixmap(32, 32, QIcon::Disabled));
-    } else {
-        const qreal ratio = devicePixelRatioF();
-        const QSize target(qRound(COVER_SIZE.width() * ratio), qRound(COVER_SIZE.height() * ratio));
-        const QPixmap scaled = poster.scaled(target, Qt::KeepAspectRatioByExpanding,
-                                             Qt::SmoothTransformation);
-        QRect source(QPoint(), target);
-        source.moveCenter(scaled.rect().center());
-        QPixmap cropped = scaled.copy(source);
-        cropped.setDevicePixelRatio(ratio);
-        cover->setPixmap(cropped);
-    }
+    originalTitle->setText(media.originalTitle);
+    originalTitle->setVisible(!media.originalTitle.isEmpty() && media.originalTitle != title->text());
 
-    QStringList facts;
+    QStringList info;
     if (media.releaseDate.isValid()) {
-        facts.append(QString::number(media.releaseDate.year()));
+        info.append(QString::number(media.releaseDate.year()));
     }
-    if (!media.genres.isEmpty()) {
-        facts.append(media.genres.join(", "));
+    if (isSeries) {
+        info.append(media.seasonCount == 1 ? QStringLiteral("1 Staffel")
+                                                : QString("%1 Staffeln").arg(media.seasonCount));
+        info.append(media.episodeCount == 1 ? QStringLiteral("1 Episode")
+                                                 : QString("%1 Episoden inkl. Sonderfolgen").arg(media.episodeCount));
+    } else if (media.runtimeMinutes) {
+        info.append(QString("%1 Min.").arg(*media.runtimeMinutes));
     }
-    if (media.mediaType == "movie" && media.runtimeMinutes) {
-        facts.append(QString("%1 Min.").arg(*media.runtimeMinutes));
+    if (!media.productionStatus.isEmpty()) {
+        info.append(productionLabel(media.productionStatus));
     }
-    metadata->setText(facts.join("  ·  "));
-    metadata->setVisible(!facts.isEmpty());
+    facts->setText(info.join(" · "));
+    facts->setVisible(!info.isEmpty());
+    genres->setText(media.genres.join(" · "));
+    genres->setVisible(!media.genres.isEmpty());
     description->setText(media.description);
-    description->setVisible(!media.description.isEmpty());
+    tmdbRating->setText(tmdbRatingText(media));
+    tmdbRating->setVisible(!tmdbRating->text().isEmpty());
+    trailer->setVisible(isTrailerUrl(QUrl(media.trailerUrl)));
 
-    hero->setBackdrop(blurredBackdrop(backdropFile));
+    const QString posterFile = mediaImageFile(mediaImagePath(media, "poster", media.posterPath));
+    cover->setEnabled(QFileInfo(posterFile).isFile());
+    cover->setFile(posterFile, QSize(480, 720));
+    const QString backdropFile = mediaImageFile(mediaImagePath(media, "backdrop", media.backdropPath));
+    const int imageRequest = ++backdropRequestId;
+    hero->setBackdrop({});
+    loadMediaPixmap(*this, backdropFile, QSize(1440, 900), [this, imageRequest](const QPixmap &image) {
+        if (imageRequest == backdropRequestId) {
+            hero->setBackdrop(image);
+        }
+    }, true);
+
+    const bool statusPending = statusRequestId != 0 && media.entityId == statusEntityId;
+    watchStatus->setEnabled(statusRequestId == 0);
+    watchStatus->setCurrentIndex(watchStatus->findData(statusPending ? pendingWatchStatus : media.watchStatusId));
+    const bool personalPending = personalRequestId != 0 && media.entityId == personalEntityId;
+    watchCount->setEnabled(personalRequestId == 0);
+    notes->setEnabled(personalRequestId == 0);
+    watchCount->setValue(personalPending ? pendingWatchCount : media.watchCount);
+    notes->setPlainText(personalPending ? pendingNotes : media.personalNotes);
+    updatePersonalSaveButton();
+    updateCompletionDate(media.entityId, media.completedAt);
+
+    QStringList galleryFiles;
+    if (QFileInfo(backdropFile).isFile()) {
+        galleryFiles.append(backdropFile);
+    }
+    for (int index = 0; index < media.additionalBackdropPaths.size(); ++index) {
+        const QString file = mediaImageFile(mediaImagePath(media, QString("backdrops/%1").arg(index + 1),
+                                                          media.additionalBackdropPaths[index]));
+        if (QFileInfo(file).isFile()) {
+            galleryFiles.append(file);
+        }
+    }
+    gallery->setFiles(galleryFiles);
+    gallerySection->setVisible(!galleryFiles.isEmpty());
+    releaseDate->setText(media.releaseDate.isValid()
+        ? QString("%1 · %2").arg(isSeries ? QStringLiteral("Serienstart") : QStringLiteral("Veröffentlichung"),
+                                 media.releaseDate.toString("dd.MM.yyyy"))
+        : QString());
+    releaseDate->setVisible(media.releaseDate.isValid());
+    keywordSection->setVisible(!media.keywords.isEmpty());
+    moreKeywords->setChecked(false);
+    updateKeywords();
+    technicalToggle->setChecked(false);
+    setTechnicalDetails();
+    series->setMedia(media);
     verticalScrollBar()->setValue(0);
+}
+
+void MediaDetailView::resizeEvent(QResizeEvent *event) {
+    QScrollArea::resizeEvent(event);
+    updateHeaderLayout();
+}
+
+void MediaDetailView::updateHeaderLayout() {
+    if (!heading) {
+        return;
+    }
+    const int width = viewport()->width();
+    heading->setDirection(width < 620 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+    const int posterWidth = width >= 950 ? 200 : width >= 620 ? 156 : 112;
+    cover->setFixedSize(posterWidth, posterWidth * 3 / 2);
+    actions->setDirection(width < 740 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
 }
 
 void MediaDetailView::setRating(const std::optional<MediaRating> value) {
     savedRating = value;
     rating->setCurrentIndex(value ? rating->findData(static_cast<int>(*value)) : 0);
+}
+
+void MediaDetailView::updateCompletionDate(const int entityId, const QDateTime &completedAt) {
+    if (media.entityId == entityId) {
+        completionDate->setText(completedAt.isValid()
+            ? completedAt.toLocalTime().toString("dd.MM.yyyy · HH:mm") : QStringLiteral("–"));
+    }
+}
+
+void MediaDetailView::updatePersonalSaveButton() {
+    savePersonal->setEnabled(personalRequestId == 0
+        && (watchCount->value() != media.watchCount || notes->toPlainText() != media.personalNotes));
+}
+
+void MediaDetailView::updateKeywords() {
+    const bool showAll = moreKeywords->isChecked();
+    const qsizetype count = showAll ? media.keywords.size()
+        : qMin<qsizetype>(media.keywords.size(), KEYWORD_PREVIEW);
+    QStringList tags;
+    for (qsizetype index = 0; index < count; ++index) {
+        tags.append(QString("<span style=\"background-color:#303030; color:#e5e5e5\">&nbsp;%1&nbsp;</span>")
+            .arg(media.keywords[index].toHtmlEscaped()));
+    }
+    keywords->setText(tags.join(" "));
+    moreKeywords->setVisible(media.keywords.size() > KEYWORD_PREVIEW);
+    moreKeywords->setText(showAll ? "Weniger Keywords anzeigen"
+        : QString("Alle %1 Keywords anzeigen").arg(media.keywords.size()));
+}
+
+void MediaDetailView::setTechnicalDetails() {
+    while (technicalDetails->rowCount() > 0) {
+        technicalDetails->removeRow(0);
+    }
+    const auto add = [this](const QString &caption, const QString &value, const bool link = false) {
+        if (value.isEmpty()) {
+            return;
+        }
+        auto *label = mediaText(value, technicalDetails->parentWidget());
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::LinksAccessibleByMouse);
+        if (link && QUrl(value).scheme() == "https") {
+            label->setTextFormat(Qt::RichText);
+            label->setText(QString("<a href=\"%1\">%1</a>").arg(value.toHtmlEscaped()));
+            label->setOpenExternalLinks(true);
+        }
+        technicalDetails->addRow(caption, label);
+    };
+    add("Entity-ID", QString::number(media.entityId));
+    add("TMDB-ID", QString::number(media.tmdbId));
+    add("Zuletzt synchronisiert", media.lastSyncedAt.toLocalTime().toString("dd.MM.yyyy · HH:mm"));
+    add("Lokaler Posterpfad", mediaImagePath(media, "poster", media.posterPath));
+    add("Lokaler Backdrop-Pfad", mediaImagePath(media, "backdrop", media.backdropPath));
+    for (int index = 0; index < media.additionalBackdropPaths.size(); ++index) {
+        add(QString("Galeriebild %1").arg(index + 1),
+            mediaImagePath(media, QString("backdrops/%1").arg(index + 1), media.additionalBackdropPaths[index]));
+    }
+    add("TMDB-Poster", media.posterUrl, true);
+    add("TMDB-Backdrop", media.backdropUrl, true);
+    add("Trailer-URL", media.trailerUrl, true);
 }

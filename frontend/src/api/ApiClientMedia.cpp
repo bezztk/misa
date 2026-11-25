@@ -22,6 +22,22 @@ std::optional<MediaRating> parseMediaRating(const QString &key) {
     }
     return std::nullopt;
 }
+
+QStringList parseMediaStrings(const QJsonValue &value) {
+    QStringList strings;
+    for (const QJsonValue &item : value.toArray()) {
+        strings.append(item.toString());
+    }
+    return strings;
+}
+
+MediaEpisodeProgress parseMediaProgress(const QJsonObject &object) {
+    return {
+        .episodeCount = object["episode_count"].toInt(),
+        .completedEpisodeCount = object["completed_episode_count"].toInt(),
+        .percentage = object["percentage"].toDouble()
+    };
+}
 }
 
 int ApiClient::getMedia() {
@@ -38,10 +54,6 @@ int ApiClient::getMedia() {
                 const QJsonValue runtime = object["runtime_minutes"];
                 const QJsonValue voteAverage = object["tmdb_vote_average"];
                 const QJsonValue voteCount = object["tmdb_vote_count"];
-                QStringList genres;
-                for (const QJsonValue &genre : object["genres"].toArray()) {
-                    genres.append(genre.toString());
-                }
                 media.push_back({
                     .entityId = object["entity_id"].toInt(),
                     .tmdbId = object["tmdb_id"].toInt(),
@@ -54,10 +66,22 @@ int ApiClient::getMedia() {
                     .personalRating = parseMediaRating(object["personal_rating"].toString()),
                     .backdropPath = object["backdrop_path"].toString(),
                     .description = object["description"].toString(),
-                    .genres = std::move(genres),
+                    .genres = parseMediaStrings(object["genres"]),
                     .runtimeMinutes = runtime.isDouble() ? std::optional(runtime.toInt()) : std::nullopt,
                     .tmdbVoteAverage = voteAverage.isDouble() ? std::optional(voteAverage.toDouble()) : std::nullopt,
-                    .tmdbVoteCount = voteCount.isDouble() ? std::optional(voteCount.toInt()) : std::nullopt
+                    .tmdbVoteCount = voteCount.isDouble() ? std::optional(voteCount.toInt()) : std::nullopt,
+                    .productionStatus = object["production_status"].toString(),
+                    .keywords = parseMediaStrings(object["keywords"]),
+                    .posterUrl = object["poster_url"].toString(),
+                    .backdropUrl = object["backdrop_url"].toString(),
+                    .trailerUrl = object["trailer_url"].toString(),
+                    .additionalBackdropPaths = parseMediaStrings(object["additional_backdrop_paths"]),
+                    .seasonCount = object["season_count"].toInt(),
+                    .episodeCount = object["episode_count"].toInt(),
+                    .watchCount = object["watch_count"].toInt(),
+                    .completedAt = QDateTime::fromString(object["completed_at"].toString(), Qt::ISODate),
+                    .lastSyncedAt = QDateTime::fromString(object["last_synced_at"].toString(), Qt::ISODate),
+                    .personalNotes = object["personal_notes"].toString()
                 });
             }
             emit mediaReceived(requestId, media);
@@ -70,32 +94,135 @@ int ApiClient::getMedia() {
 }
 
 void ApiClient::updateMediaWatchStatus(const int entityId, const int watchStatusId) {
-    QNetworkRequest request(buildUrl(QString("%1/%2").arg(PATH_MEDIA).arg(entityId)));
+    updateMediaPersonalData(entityId, {{"watch_status_id", watchStatusId}});
+}
+
+int ApiClient::getMediaJson(
+    const QString &path, const QString &operation,
+    std::function<bool(int, const QJsonDocument &)> received
+) {
+    const int requestId = ++mediaRequestSequence;
+    QNetworkRequest request(buildUrl(path));
+    request.setAttribute(HANDLE_ERROR_LOCALLY, true);
+    QNetworkReply *reply = manager.get(request);
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, requestId, operation, received = std::move(received)] {
+                QJsonDocument response;
+                if (!readJson(reply, operation, response) || !received(requestId, response)) {
+                    emit mediaDetailsLoadFailed(requestId);
+                }
+                reply->deleteLater();
+            });
+    return requestId;
+}
+
+int ApiClient::getMediaSeasons(const int entityId) {
+    return getMediaJson(QString("%1/%2/seasons").arg(PATH_MEDIA).arg(entityId), "Staffeln laden",
+        [this](const int requestId, const QJsonDocument &response) {
+            if (!response.isArray()) {
+                return false;
+            }
+            std::vector<MediaSeason> seasons;
+            for (const QJsonValue &value : response.array()) {
+                const QJsonObject object = value.toObject();
+                seasons.push_back({
+                    .id = object["id"].toInt(),
+                    .number = object["season_number"].toInt(),
+                    .title = object["title"].toString(),
+                    .description = object["description"].toString(),
+                    .posterPath = object["poster_path"].toString(),
+                    .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
+                    .episodeCount = object["episode_count"].toInt(),
+                    .completedEpisodeCount = object["completed_episode_count"].toInt()
+                });
+            }
+            emit mediaSeasonsReceived(requestId, seasons);
+            return true;
+        });
+}
+
+int ApiClient::getMediaEpisodes(const int entityId, const int seasonId) {
+    return getMediaJson(QString("%1/%2/seasons/%3/episodes").arg(PATH_MEDIA).arg(entityId).arg(seasonId),
+        "Episoden laden", [this](const int requestId, const QJsonDocument &response) {
+            if (!response.isArray()) {
+                return false;
+            }
+            std::vector<MediaEpisode> episodes;
+            for (const QJsonValue &value : response.array()) {
+                const QJsonObject object = value.toObject();
+                const QJsonValue runtime = object["runtime_minutes"];
+                episodes.push_back({
+                    .id = object["id"].toInt(),
+                    .number = object["episode_number"].toInt(),
+                    .title = object["title"].toString(),
+                    .description = object["description"].toString(),
+                    .stillPath = object["still_path"].toString(),
+                    .runtimeMinutes = runtime.isDouble() ? std::optional(runtime.toInt()) : std::nullopt,
+                    .releaseDate = QDate::fromString(object["release_date"].toString(), Qt::ISODate),
+                    .watchStatusId = object["watch_status_id"].toInt(),
+                    .watchedAt = QDateTime::fromString(object["watched_at"].toString(), Qt::ISODate)
+                });
+            }
+            emit mediaEpisodesReceived(requestId, episodes);
+            return true;
+        });
+}
+
+int ApiClient::getMediaSeriesProgress(const int entityId) {
+    return getMediaJson(QString("%1/%2/progress").arg(PATH_MEDIA).arg(entityId), "Serienfortschritt laden",
+        [this](const int requestId, const QJsonDocument &response) {
+            const QJsonObject object = response.object();
+            if (!object["regular"].isObject() || !object["specials"].isObject()) {
+                return false;
+            }
+            emit mediaSeriesProgressReceived(requestId, {
+                .regular = parseMediaProgress(object["regular"].toObject()),
+                .specials = parseMediaProgress(object["specials"].toObject())
+            });
+            return true;
+        });
+}
+
+int ApiClient::patchMediaJson(
+    const QString &path, const QJsonObject &fields, std::function<void(int, bool)> finished
+) {
+    const int requestId = ++mediaRequestSequence;
+    QNetworkRequest request(buildUrl(path));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.sendCustomRequest(
-        request, "PATCH", QJsonDocument(QJsonObject{{"watch_status_id", watchStatusId}}).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
-        if (requestSucceeded(reply)) {
-            emit mediaWatchStatusChanged();
-        }
-        reply->deleteLater();
-    });
+    QNetworkReply *reply = manager.sendCustomRequest(request, "PATCH", QJsonDocument(fields).toJson());
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, requestId, finished = std::move(finished)] {
+                finished(requestId, requestSucceeded(reply));
+                reply->deleteLater();
+            });
+    return requestId;
+}
+
+int ApiClient::updateMediaPersonalData(const int entityId, const QJsonObject &fields) {
+    return patchMediaJson(QString("%1/%2").arg(PATH_MEDIA).arg(entityId), fields,
+        [this](const int requestId, const bool successful) {
+            emit mediaPersonalDataUpdateFinished(requestId, successful);
+        });
+}
+
+int ApiClient::updateMediaEpisodeStatus(
+    const int entityId, const int seasonId, const int episodeId, const int watchStatusId
+) {
+    return patchMediaJson(QString("%1/%2/seasons/%3/episodes/%4")
+        .arg(PATH_MEDIA).arg(entityId).arg(seasonId).arg(episodeId), {{"watch_status_id", watchStatusId}},
+        [this, entityId, seasonId](const int requestId, const bool successful) {
+            emit mediaEpisodeStatusUpdateFinished(requestId, entityId, seasonId, successful);
+        });
 }
 
 void ApiClient::updateMediaRating(const int entityId, const std::optional<MediaRating> rating) {
     const QJsonValue value = rating
         ? QJsonValue(QString::fromLatin1(MEDIA_RATING_KEYS[static_cast<std::size_t>(*rating) - 1]))
         : QJsonValue(QJsonValue::Null);
-    QNetworkRequest request(buildUrl(QString("%1/%2").arg(PATH_MEDIA).arg(entityId)));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    QNetworkReply *reply = manager.sendCustomRequest(
-        request, "PATCH", QJsonDocument(QJsonObject{{"personal_rating", value}}).toJson()
-    );
-    connect(reply, &QNetworkReply::finished, this, [this, reply, entityId, rating] {
-        emit mediaRatingUpdateFinished(entityId, rating, requestSucceeded(reply));
-        reply->deleteLater();
-    });
+    patchMediaJson(QString("%1/%2").arg(PATH_MEDIA).arg(entityId), {{"personal_rating", value}},
+        [this, entityId, rating](int, const bool successful) {
+            emit mediaRatingUpdateFinished(entityId, rating, successful);
+        });
 }
 
 int ApiClient::importMedia(const QString &url) {
