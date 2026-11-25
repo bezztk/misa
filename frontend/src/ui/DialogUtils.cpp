@@ -103,12 +103,14 @@ std::optional<QString> showTextInputDialog(
     QWidget *parent,
     const QString &title,
     const QString &label,
-    const QString &acceptText
+    const QString &acceptText,
+    const QString &initialValue
 ) {
     QInputDialog dialog(parent);
     dialog.setWindowTitle(title);
     dialog.setLabelText(label);
     dialog.setInputMode(QInputDialog::TextInput);
+    dialog.setTextValue(initialValue);
     dialog.setOkButtonText(acceptText);
     dialog.setCancelButtonText("Abbrechen");
     prepareDialog(dialog);

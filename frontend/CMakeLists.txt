@@ -146,6 +146,7 @@ add_executable(frontend
         src/api/ApiClientIdeas.cpp
         src/api/ApiClientMedia.cpp
         src/api/ApiClientRss.cpp
+        src/api/ApiClientSources.cpp
         src/api/ApiClientWork.cpp
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
@@ -176,6 +177,8 @@ add_executable(frontend
         src/ui/IdeaView.h
         src/ui/RssView.cpp
         src/ui/RssView.h
+        src/ui/SourceView.cpp
+        src/ui/SourceView.h
         src/ui/MediaView.cpp
         src/ui/MediaView.h
         src/ui/MediaDetailView.cpp
@@ -191,6 +194,7 @@ add_executable(frontend
         src/models/Idea.h
         src/models/Media.h
         src/models/Rss.h
+        src/models/Source.h
         src/models/DomainNode.h
         src/models/Document.h
         src/ui/LearningView.cpp

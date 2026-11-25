@@ -13,4 +13,5 @@ pub mod pursuit;
 pub mod routine;
 pub mod rss;
 pub mod session;
+pub mod source;
 pub mod system_task;

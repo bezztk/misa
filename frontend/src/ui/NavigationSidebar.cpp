@@ -440,6 +440,9 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
     auto *rssSection = new RssNavigationSection(apiClient, cardContainer);
+    auto *sourcesSection = new NavigationCard(
+        "Quellen", ":/assets/icons/books.png", false, cardContainer
+    );
     auto *mediaSection = new MediaNavigationSection(cardContainer);
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
@@ -450,6 +453,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     cardLayout->addWidget(ideasSection);
     cardLayout->addWidget(learningSection);
     cardLayout->addWidget(rssSection);
+    cardLayout->addWidget(sourcesSection);
     cardLayout->addWidget(mediaSection);
     cardLayout->addWidget(actualizationSection);
     cardLayout->addStretch();
@@ -466,6 +470,20 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openLearningRequested);
     connect(rssSection, &RssNavigationSection::openRequested,
             this, &NavigationSidebar::openRssRequested);
+    connect(sourcesSection, &NavigationCard::activated,
+            this, &NavigationSidebar::openSourcesRequested);
+    connect(sourcesSection, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                QAction *addAction = menu.addAction("Quelle hinzufügen");
+                QAction *categoryAction = menu.addAction("Kategorie erstellen");
+                const QAction *selected = menu.exec(position);
+                if (selected == addAction) {
+                    emit createSourceRequested();
+                } else if (selected == categoryAction) {
+                    emit createSourceCategoryRequested();
+                }
+            });
     connect(mediaSection, &MediaNavigationSection::openRequested,
             this, &NavigationSidebar::openMediaRequested);
     connect(mediaSection, &MediaNavigationSection::importRequested,

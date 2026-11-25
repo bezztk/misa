@@ -162,6 +162,9 @@ signals:
     void openIdeasRequested();
     void openLearningRequested();
     void openRssRequested();
+    void openSourcesRequested();
+    void createSourceRequested();
+    void createSourceCategoryRequested();
     void openMediaRequested();
     void importMediaRequested();
     void createRssFeedRequested();

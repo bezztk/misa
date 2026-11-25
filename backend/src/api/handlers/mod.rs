@@ -12,4 +12,5 @@ pub mod progression_handler;
 pub mod pursuit_handler;
 pub mod routine_handler;
 pub mod rss_handler;
+pub mod source_handler;
 pub mod task_handler;

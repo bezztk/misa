@@ -15,6 +15,7 @@ class IdeaView;
 class LearningView;
 class MediaView;
 class RssView;
+class SourceView;
 
 class MainWindow : public QMainWindow {
 public:
@@ -32,6 +33,7 @@ private:
     IdeaView *openIdeas();
     LearningView *openLearning();
     RssView *openRss();
+    SourceView *openSources();
     MediaView *openMedia();
     void openDomainNode(int nodeId, const QString &title);
 

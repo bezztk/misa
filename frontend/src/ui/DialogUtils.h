@@ -16,7 +16,8 @@ std::optional<QString> showTextInputDialog(
     QWidget *parent,
     const QString &title,
     const QString &label,
-    const QString &acceptText = "Erstellen"
+    const QString &acceptText = "Erstellen",
+    const QString &initialValue = {}
 );
 
 std::optional<QString> showItemInputDialog(

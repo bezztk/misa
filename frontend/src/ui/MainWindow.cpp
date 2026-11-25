@@ -7,6 +7,7 @@
 #include "MediaView.h"
 #include "NavigationSidebar.h"
 #include "RssView.h"
+#include "SourceView.h"
 #include "TaskView.h"
 #include "WorkspaceManager.h"
 
@@ -123,6 +124,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openLearning);
     connect(navigation, &NavigationSidebar::openRssRequested,
             this, &MainWindow::openRss);
+    connect(navigation, &NavigationSidebar::openSourcesRequested,
+            this, &MainWindow::openSources);
+    connect(navigation, &NavigationSidebar::createSourceRequested,
+            this, [this] { openSources()->openCreateDialog(); });
+    connect(navigation, &NavigationSidebar::createSourceCategoryRequested,
+            this, [this] { openSources()->openCreateCategoryDialog(); });
     connect(navigation, &NavigationSidebar::openMediaRequested,
             this, &MainWindow::openMedia);
     connect(navigation, &NavigationSidebar::importMediaRequested,
@@ -330,6 +337,12 @@ RssView *MainWindow::openRss() {
         view->refresh();
     }
     return view;
+}
+
+SourceView *MainWindow::openSources() {
+    return static_cast<SourceView *>(workspaceManager->openView(
+        "sources", "Quellen", [this] { return new SourceView(apiClient); }
+    ));
 }
 
 MediaView *MainWindow::openMedia() {

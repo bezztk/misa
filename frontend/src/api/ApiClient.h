@@ -14,6 +14,7 @@
 #include "../models/Idea.h"
 #include "../models/Media.h"
 #include "../models/Rss.h"
+#include "../models/Source.h"
 #include <QJsonValue>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
@@ -120,6 +121,10 @@ signals:
     void rssFeedEntriesRead();
     void rssCategoriesChanged();
     void rssEntryUpdated();
+    void sourcesReceived(const std::vector<Source> &sources);
+    void sourcesChanged();
+    void sourceCategoriesReceived(const std::vector<SourceCategory> &categories);
+    void sourceCategoriesChanged();
 
 public:
     explicit ApiClient(QObject *parent = nullptr);
@@ -164,6 +169,15 @@ public:
     void deleteRssCategory(int id);
     void getRssEntries();
     void updateRssEntryRead(int id, bool isRead);
+    void getSources();
+    void createSource(const QString &url);
+    void updateSourceTitle(const QString &id, const QString &title);
+    void assignSourceCategory(const QString &id, int categoryId);
+    void deleteSource(const QString &id);
+    void getSourceCategories();
+    void createSourceCategory(const QString &name);
+    void renameSourceCategory(int id, const QString &name);
+    void deleteSourceCategory(int id);
     void getDueFlashcards();
     void getDueFlashcardCount();
     void rateFlashcard(int id, ReviewFlashcard reviewFlashcard);
@@ -219,11 +233,15 @@ private:
     static constexpr auto PATH_RSS_FEEDS = "/rss/feeds";
     static constexpr auto PATH_RSS_ENTRIES = "/rss/entries";
     static constexpr auto PATH_RSS_CATEGORIES = "/rss/categories";
+    static constexpr auto PATH_SOURCES = "/sources";
+    static constexpr auto PATH_SOURCE_CATEGORIES = "/source-categories";
 
     static QUrl buildUrl(const QString& path);
     void requestDueFlashcards(bool includeFlashcards);
     bool requestSucceeded(const QNetworkReply *reply) const;
     bool readJson(QNetworkReply *reply, const QString& operation, QJsonDocument& document);
+    void sendSourceChange(const QString &path, const QByteArray &method,
+                          const QJsonObject &body, void (ApiClient::*changed)());
     int getMediaJson(const QString &path, const QString &operation,
                      std::function<bool(int, const QJsonDocument &)> received);
     int patchMediaJson(const QString &path, const QJsonObject &fields,

@@ -1,13 +1,39 @@
 use crate::api::handlers::{
     attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
     entity_handler, flashcard_handler, idea_handler, media_handler, metadata_handler,
-    progression_handler, pursuit_handler, routine_handler, rss_handler, task_handler,
+    progression_handler, pursuit_handler, routine_handler, rss_handler, source_handler,
+    task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
 
 pub fn create_router(pool: PgPool) -> Router {
     let api_routes = Router::new()
+        .route(
+            "/sources",
+            get(source_handler::get_sources).post(source_handler::create_source),
+        )
+        .route(
+            "/sources/{id}",
+            axum::routing::delete(source_handler::delete_source),
+        )
+        .route(
+            "/sources/{id}/title",
+            axum::routing::patch(source_handler::update_title),
+        )
+        .route(
+            "/sources/{id}/category",
+            axum::routing::put(source_handler::assign_category),
+        )
+        .route(
+            "/source-categories",
+            get(source_handler::get_categories).post(source_handler::create_category),
+        )
+        .route(
+            "/source-categories/{id}",
+            axum::routing::put(source_handler::rename_category)
+                .delete(source_handler::delete_category),
+        )
         .route("/media", get(media_handler::get_all))
         .route(
             "/media/import",

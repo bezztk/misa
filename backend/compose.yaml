@@ -1,0 +1,5 @@
+services:
+  translation-server:
+    image: zotero/translation-server
+    ports:
+      - "127.0.0.1:1969:1969"
