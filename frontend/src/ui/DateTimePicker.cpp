@@ -2,19 +2,22 @@
 
 #include "DialogUtils.h"
 
+#include <QApplication>
+#include <QButtonGroup>
 #include <QCalendarWidget>
-#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
 #include <QPalette>
+#include <QStackedWidget>
 #include <QTextCharFormat>
 #include <QTimeZone>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <optional>
@@ -27,18 +30,35 @@ QString formatDateTime(const QDateTime &dateTime) {
     return german.toString(dateTime, "d. MMMM yyyy, HH:mm");
 }
 
-QComboBox *createTimeSelector(QWidget *parent, const int maximum, const int initialValue) {
-    auto *selector = new QComboBox(parent);
-    selector->setEditable(true);
-    selector->setInsertPolicy(QComboBox::NoInsert);
-    selector->setMaxVisibleItems(10);
-    for (int value = 0; value <= maximum; ++value) {
-        selector->addItem(QString("%1").arg(value, 2, 10, QChar('0')));
+QString timeLabel(const int value) {
+    return QString("%1").arg(value, 2, 10, QChar('0'));
+}
+
+QButtonGroup *createTimeGrid(QWidget *page, const QString &title, const int count, const int step) {
+    constexpr int columns = 6;
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(8);
+    layout->addWidget(new QLabel(title, page));
+
+    auto *grid = new QGridLayout;
+    grid->setSpacing(6);
+    layout->addLayout(grid);
+    layout->addStretch();
+
+    auto *buttons = new QButtonGroup(page);
+    for (int index = 0; index < count; ++index) {
+        const int value = index * step;
+        auto *button = new QToolButton(page);
+        button->setText(timeLabel(value));
+        button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        button->setFixedSize(38, 32);
+        button->setCheckable(true);
+        button->setFocusPolicy(Qt::StrongFocus);
+        grid->addWidget(button, index / columns, index % columns);
+        buttons->addButton(button, value);
     }
-    selector->setValidator(new QIntValidator(0, maximum, selector));
-    selector->lineEdit()->setMaxLength(2);
-    selector->setCurrentIndex(initialValue);
-    return selector;
+    return buttons;
 }
 
 std::optional<QDateTime> selectDateTime(
@@ -100,14 +120,101 @@ std::optional<QDateTime> selectDateTime(
     calendar->setWeekdayTextFormat(Qt::Sunday, weekend);
     selection->addWidget(calendar, 1);
 
-    auto *timeLayout = new QFormLayout;
-    selection->addLayout(timeLayout);
-    auto *hours = createTimeSelector(&dialog, 23, initial.time().hour());
-    auto *minutes = createTimeSelector(&dialog, 59, initial.time().minute());
-    hours->setMinimumWidth(72);
-    minutes->setMinimumWidth(72);
-    timeLayout->addRow("&Stunden", hours);
-    timeLayout->addRow("&Minuten", minutes);
+    auto *timePanel = new QWidget(&dialog);
+    timePanel->setStyleSheet(R"(
+        QToolButton, QLineEdit {
+            color: #F4F4F4;
+            background: #303030;
+            border: 1px solid #505050;
+            border-radius: 4px;
+        }
+        QToolButton:hover {
+            background: #414141;
+        }
+        QToolButton:checked {
+            color: #242424;
+            background: #B8B8B8;
+            border-color: #B8B8B8;
+        }
+        QToolButton:focus, QLineEdit:focus {
+            border-color: #F4F4F4;
+        }
+        QToolButton#timeHour, QLineEdit, QLabel#timeSeparator {
+            font-size: 19px;
+            font-weight: 600;
+        }
+    )");
+    selection->addWidget(timePanel, 0, Qt::AlignTop);
+
+    auto *timeLayout = new QVBoxLayout(timePanel);
+    timeLayout->setContentsMargins(0, 0, 0, 0);
+    timeLayout->setSpacing(10);
+    auto *timeValue = new QHBoxLayout;
+    timeValue->setSpacing(4);
+    timeLayout->addLayout(timeValue);
+    timeValue->addStretch();
+
+    auto *hours = new QToolButton(timePanel);
+    hours->setObjectName("timeHour");
+    hours->setAccessibleName("Stunde auswählen");
+    hours->setText(timeLabel(initial.time().hour()));
+    hours->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    hours->setFixedSize(48, 34);
+    timeValue->addWidget(hours);
+
+    auto *separator = new QLabel(":", timePanel);
+    separator->setObjectName("timeSeparator");
+    timeValue->addWidget(separator);
+
+    auto *minutes = new QLineEdit(timeLabel(initial.time().minute()), timePanel);
+    minutes->setAccessibleName("Minuten");
+    minutes->setValidator(new QIntValidator(0, 59, minutes));
+    minutes->setMaxLength(2);
+    minutes->setAlignment(Qt::AlignCenter);
+    minutes->setFixedSize(48, 34);
+    timeValue->addWidget(minutes);
+    timeValue->addStretch();
+
+    auto *timePages = new QStackedWidget(timePanel);
+    timeLayout->addWidget(timePages);
+    auto *hourPage = new QWidget(timePages);
+    auto *hourButtons = createTimeGrid(hourPage, "Stunde wählen", 24, 1);
+    timePages->addWidget(hourPage);
+    hourButtons->button(initial.time().hour())->setChecked(true);
+
+    auto *minutePage = new QWidget(timePages);
+    auto *minuteButtons = createTimeGrid(minutePage, "Minute wählen", 12, 5);
+    timePages->addWidget(minutePage);
+
+    const auto markMinute = [minuteButtons](const QString &text) {
+        bool valid = false;
+        const int minute = text.toInt(&valid);
+        minuteButtons->setExclusive(false);
+        for (auto *button : minuteButtons->buttons()) {
+            button->setChecked(valid && minuteButtons->id(button) == minute);
+        }
+        minuteButtons->setExclusive(true);
+    };
+    QObject::connect(minutes, &QLineEdit::textChanged, &dialog, markMinute);
+    markMinute(minutes->text());
+    QObject::connect(minutes, &QLineEdit::editingFinished, &dialog, [minutes] {
+        minutes->setText(timeLabel(minutes->text().toInt()));
+    });
+    QObject::connect(
+        qApp, &QApplication::focusChanged, &dialog,
+        [minutes, timePages, minutePage](QWidget *, QWidget *current) {
+            if (current == minutes) {
+                timePages->setCurrentWidget(minutePage);
+            }
+        }
+    );
+    QObject::connect(hours, &QToolButton::clicked, &dialog, [timePages, hourPage, hourButtons] {
+        timePages->setCurrentWidget(hourPage);
+        hourButtons->checkedButton()->setFocus();
+    });
+    QObject::connect(minuteButtons, &QButtonGroup::idClicked, &dialog, [minutes](const int minute) {
+        minutes->setText(timeLabel(minute));
+    });
 
     auto *preview = new QLabel(&dialog);
     preview->setWordWrap(true);
@@ -126,14 +233,14 @@ std::optional<QDateTime> selectDateTime(
 
     QDateTime selected;
     const auto updatePreview = [&] {
-        if (!hours->lineEdit()->hasAcceptableInput() || !minutes->lineEdit()->hasAcceptableInput()) {
-            preview->setText("Stunden und Minuten eingeben.");
+        if (!minutes->hasAcceptableInput()) {
+            preview->setText("Minuten von 00 bis 59 eingeben.");
             accept->setEnabled(false);
             return;
         }
 
         const QDate date = calendar->selectedDate();
-        const QTime time(hours->currentText().toInt(), minutes->currentText().toInt());
+        const QTime time(hourButtons->checkedId(), minutes->text().toInt());
         const QTime initialTime = initial.time();
         const bool unchanged = date == initial.date()
             && time == QTime(initialTime.hour(), initialTime.minute());
@@ -151,10 +258,19 @@ std::optional<QDateTime> selectDateTime(
         }
     };
     QObject::connect(calendar, &QCalendarWidget::selectionChanged, &dialog, updatePreview);
-    QObject::connect(hours, &QComboBox::currentTextChanged, &dialog, updatePreview);
-    QObject::connect(minutes, &QComboBox::currentTextChanged, &dialog, updatePreview);
+    QObject::connect(
+        hourButtons, &QButtonGroup::idClicked, &dialog,
+        [hours, timePages, minutePage, minutes, updatePreview](const int hour) {
+            hours->setText(timeLabel(hour));
+            timePages->setCurrentWidget(minutePage);
+            minutes->setFocus();
+            minutes->selectAll();
+            updatePreview();
+        }
+    );
+    QObject::connect(minutes, &QLineEdit::textChanged, &dialog, updatePreview);
     updatePreview();
-    prepareDialog(dialog, 520);
+    prepareDialog(dialog, 620);
     calendar->setFocus();
 
     if (dialog.exec() != QDialog::Accepted) {
