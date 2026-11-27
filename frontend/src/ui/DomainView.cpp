@@ -2436,7 +2436,7 @@ void DomainView::renderPursuits() {
 }
 
 void DomainView::createTask(const int nodeId) {
-    showTaskCreateDialog(this, apiClient, {}, {}, nodeId);
+    showTaskCreateDialog(this, apiClient, {}, 0, nodeId);
 }
 
 void DomainView::editTask(const int taskId) {

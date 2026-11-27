@@ -37,9 +37,9 @@ CREATE TABLE context_entities
     context_id integer NOT NULL REFERENCES contexts (id) ON DELETE CASCADE,
     entity_id  integer NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
 
-    PRIMARY KEY (context_id, entity_id)
+    PRIMARY KEY (context_id, entity_id),
+    UNIQUE (entity_id)
 );
-CREATE INDEX idx_context_entities_entity_id ON context_entities (entity_id);
 
 CREATE TABLE entity_fields
 (

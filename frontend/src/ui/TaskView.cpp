@@ -451,19 +451,11 @@ const Task &TaskView::taskById(const int id) const {
 }
 
 void TaskView::openCreateDialog() {
-    showTaskCreateDialog(this, apiClient, contexts, {selectedContextId()});
+    showTaskCreateDialog(this, apiClient, contexts, selectedContextId());
 }
 
-void TaskView::openScheduleDialog(const Task &task) {
-    const QDateTime initialStart = QDateTime::currentDateTime();
-    const auto entry = showCalendarEntryDialog(this, "Aufgabe einplanen", {
-        .name = task.name,
-        .startAt = initialStart,
-        .endAt = initialStart.addSecs(3600),
-        .isReminder = true,
-        .systemTaskId = task.id
-    }, "Erstellen", false);
-    if (entry) {
+void TaskView::openScheduleDialog(const Task &task, const bool isReminder) {
+    if (const auto entry = showTaskScheduleDialog(this, task, isReminder)) {
         apiClient.createCalendarEntry(*entry);
     }
 }
@@ -477,7 +469,10 @@ void TaskView::showTaskMenu(const QPoint &position) {
 
     QMenu menu(this);
     const auto *edit = menu.addAction(QIcon(":/assets/icons/edit.png"), "Bearbeiten");
-    const auto *schedule = menu.addAction(QIcon(":/assets/icons/clock.png"), "Einplanen");
+    auto *scheduleMenu = menu.addMenu(QIcon(":/assets/icons/clock.png"), "Einplanen");
+    const auto *reminder = scheduleMenu->addAction("Erinnerung");
+    const auto *appointment = scheduleMenu->addAction("Termin");
+    scheduleMenu->addAction("Routine")->setEnabled(false);
     const auto *comments = menu.addAction(
         QIcon(":/assets/icons/speech-bubble.png"),
         task.comments.empty() ? "Kommentare anzeigen"
@@ -493,8 +488,8 @@ void TaskView::showTaskMenu(const QPoint &position) {
     const auto *selected = menu.exec(taskList->viewport()->mapToGlobal(position));
     if (selected == edit) {
         showTaskEditDialog(this, apiClient, task, contexts);
-    } else if (selected == schedule) {
-        openScheduleDialog(task);
+    } else if (selected == reminder || selected == appointment) {
+        openScheduleDialog(task, selected == reminder);
     } else if (selected == comments) {
         showCommentsDialog(this, apiClient, task.id, "Kommentare – " + task.name, task.comments);
         apiClient.getTasks();

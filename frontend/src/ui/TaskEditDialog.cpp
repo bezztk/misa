@@ -10,38 +10,27 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLineEdit>
-#include <QListWidget>
 #include <QPushButton>
 
-#include <algorithm>
+static constexpr int WITHOUT_CONTEXT = 0;
 
-static QListWidget *createContextSelection(
+static QComboBox *createContextSelection(
     QWidget *parent,
     const std::vector<Context> &contexts,
-    const std::vector<int> &selectedIds
+    const int selectedId
 ) {
-    auto *list = new QListWidget(parent);
-    list->setMaximumHeight(150);
-    list->setSelectionMode(QAbstractItemView::NoSelection);
+    auto *selection = new QComboBox(parent);
+    selection->addItem("Ohne Kontext", WITHOUT_CONTEXT);
     for (const Context &context : contexts) {
-        auto *item = new QListWidgetItem(context.title, list);
-        item->setData(Qt::UserRole, context.id);
-        const bool checked = std::ranges::contains(selectedIds, context.id);
-        item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+        selection->addItem(context.title, context.id);
     }
-    return list;
+    selection->setCurrentIndex(qMax(0, selection->findData(selectedId)));
+    return selection;
 }
 
-static std::vector<int> selectedContextIds(const QListWidget &list) {
-    std::vector<int> ids;
-    for (int row = 0; row < list.count(); ++row) {
-        const auto *item = list.item(row);
-        if (item->checkState() == Qt::Checked) {
-            ids.push_back(item->data(Qt::UserRole).toInt());
-        }
-    }
-    std::ranges::sort(ids);
-    return ids;
+static std::vector<int> selectedContextIds(const QComboBox &selection) {
+    const int id = selection.currentData().toInt();
+    return id == WITHOUT_CONTEXT ? std::vector<int>{} : std::vector<int>{id};
 }
 
 static DateTimeButton *createDueDate(QWidget *row, const QDateTime &dueAt = {}) {
@@ -70,7 +59,7 @@ void showTaskCreateDialog(
     QWidget *parent,
     ApiClient &apiClient,
     const std::vector<Context> &contexts,
-    const std::vector<int> &selectedIds,
+    const int selectedContextId,
     const std::optional<int> domainNodeId
 ) {
     QDialog dialog(parent);
@@ -80,9 +69,9 @@ void showTaskCreateDialog(
     auto *nameEdit = new QLineEdit(&dialog);
     layout->addRow("&Name", nameEdit);
 
-    auto *contextSelection = domainNodeId ? nullptr : createContextSelection(&dialog, contexts, selectedIds);
+    auto *contextSelection = domainNodeId ? nullptr : createContextSelection(&dialog, contexts, selectedContextId);
     if (contextSelection) {
-        layout->addRow("&Kontexte", contextSelection);
+        layout->addRow("&Kontext", contextSelection);
     }
 
     auto *priorityEdit = new QComboBox(&dialog);
@@ -128,10 +117,11 @@ void showTaskEditDialog(
     auto *nameEdit = new QLineEdit(task.name, &dialog);
     layout->addRow("Name", nameEdit);
 
+    const int contextId = task.contextIds.empty() ? WITHOUT_CONTEXT : task.contextIds.front();
     auto *contextSelection = task.domainNodeId || contexts.empty()
-        ? nullptr : createContextSelection(&dialog, contexts, task.contextIds);
+        ? nullptr : createContextSelection(&dialog, contexts, contextId);
     if (contextSelection) {
-        layout->addRow("Kontexte", contextSelection);
+        layout->addRow("Kontext", contextSelection);
     }
 
     auto *stateEdit = new QComboBox(&dialog);

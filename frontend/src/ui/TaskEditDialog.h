@@ -11,7 +11,7 @@ void showTaskCreateDialog(
     QWidget *parent,
     ApiClient &apiClient,
     const std::vector<Context> &contexts,
-    const std::vector<int> &selectedIds,
+    int selectedContextId,
     std::optional<int> domainNodeId = std::nullopt
 );
 

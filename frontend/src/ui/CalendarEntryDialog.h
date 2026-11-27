@@ -8,6 +8,7 @@
 #include <optional>
 
 class QWidget;
+struct Task;
 
 std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     QWidget *parent,
@@ -16,5 +17,7 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     const QString &acceptText,
     bool acceptOnOutsideClick
 );
+
+std::optional<CreateCalendarEntry> showTaskScheduleDialog(QWidget *parent, const Task &task, bool isReminder);
 
 #endif // FRONTEND_CALENDARENTRYDIALOG_H

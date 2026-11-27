@@ -1,6 +1,7 @@
 #include "CalendarEntryDialog.h"
 #include "DateTimePicker.h"
 #include "DialogUtils.h"
+#include "../models/Task.h"
 
 #include <QComboBox>
 #include <QDialog>
@@ -90,4 +91,56 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
         result.endAt = endEdit->dateTime();
     }
     return result;
+}
+
+std::optional<CreateCalendarEntry> showTaskScheduleDialog(QWidget *parent, const Task &task, const bool isReminder) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(isReminder ? "Erinnerung einplanen" : "Termin einplanen");
+    auto *layout = new QFormLayout(&dialog);
+
+    auto *startEdit = new DateTimeButton(isReminder ? "Zeitpunkt auswählen" : "Beginn auswählen", {}, &dialog);
+    layout->addRow(isReminder ? "Wann soll erinnert werden?" : "Beginn", startEdit);
+
+    auto *endEdit = isReminder ? nullptr : new DateTimeButton("Ende auswählen", {}, &dialog);
+    if (endEdit) {
+        layout->addRow("Ende", endEdit);
+    }
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    auto *save = buttons->button(QDialogButtonBox::Save);
+    save->setText("Einplanen");
+    save->setEnabled(false);
+    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    const auto updateSave = [startEdit, endEdit, save] {
+        save->setEnabled(startEdit->dateTime().isValid() && (!endEdit || endEdit->dateTime().isValid()));
+    };
+    QObject::connect(startEdit, &DateTimeButton::dateTimeChanged, &dialog, [startEdit, endEdit, updateSave] {
+        if (endEdit) {
+            const QDateTime minimumEnd = startEdit->dateTime().addSecs(60);
+            if (endEdit->dateTime().isValid() && endEdit->dateTime() < minimumEnd) {
+                endEdit->setDateTime({});
+            }
+            endEdit->setMinimumDateTime(minimumEnd);
+        }
+        updateSave();
+    });
+    if (endEdit) {
+        QObject::connect(endEdit, &DateTimeButton::dateTimeChanged, &dialog, updateSave);
+    }
+
+    prepareFormDialog(dialog, *buttons);
+    if (execDialog(dialog) != QDialog::Accepted) {
+        return std::nullopt;
+    }
+
+    return CreateCalendarEntry{
+        .name = task.name,
+        .startAt = startEdit->dateTime(),
+        .endAt = endEdit ? std::optional(endEdit->dateTime()) : std::nullopt,
+        .isReminder = isReminder,
+        .systemTaskId = task.id
+    };
 }

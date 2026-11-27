@@ -318,7 +318,7 @@ DateTimeButton::DateTimeButton(
     connect(this, &QPushButton::clicked, this, [this, title] {
         const QDateTime now = QDateTime::currentDateTime();
         const QDateTime currentMinute = now.addMSecs(-(now.time().msecsSinceStartOfDay() % 60000));
-        const QDateTime initial = value.isValid() ? value : currentMinute;
+        const QDateTime initial = value.isValid() ? value : qMax(currentMinute, minimumDateTime);
         if (const auto selected = selectDateTime(this, title, initial, minimumDateTime)) {
             setDateTime(*selected);
         }
@@ -341,7 +341,7 @@ void DateTimeButton::setDateTime(const QDateTime &dateTime) {
 
 void DateTimeButton::setMinimumDateTime(const QDateTime &minimum) {
     minimumDateTime = minimum;
-    if (value < minimumDateTime) {
+    if (value.isValid() && value < minimumDateTime) {
         setDateTime(minimumDateTime);
     }
 }
