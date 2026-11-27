@@ -2431,40 +2431,7 @@ void DomainView::renderPursuits() {
 }
 
 void DomainView::createTask(const int nodeId) {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Aufgabe erstellen");
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *nameEdit = new QLineEdit(&dialog);
-    layout->addRow("Name", nameEdit);
-
-    auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
-        priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
-    }
-    layout->addRow("Priorität", priorityEdit);
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
-    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addRow(buttons);
-    prepareDialog(dialog);
-
-    if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    apiClient.createTask(CreateTask{
-        .name = nameEdit->text().trimmed(),
-        .contextIds = {},
-        .priorityId = priorityEdit->currentData().toInt(),
-        .domainNodeId = nodeId
-    });
+    showTaskCreateDialog(this, apiClient, {}, {}, nodeId);
 }
 
 void DomainView::editTask(const int taskId) {

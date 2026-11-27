@@ -48,6 +48,7 @@ void ApiClient::getTasks() {
             }
             task.stateId = object["state_id"].toInt();
             task.priorityId = object["priority_id"].toInt();
+            task.dueAt = QDateTime::fromString(object["due_at"].toString(), Qt::ISODate).toLocalTime();
             task.comments = parseComments(object["comments"].toArray());
 
             tasks.push_back(task);
@@ -69,6 +70,9 @@ void ApiClient::createTask(const CreateTask &task) {
     json["priority_id"] = task.priorityId;
     json["domain_node_id"] = task.domainNodeId.has_value()
         ? QJsonValue(*task.domainNodeId)
+        : QJsonValue(QJsonValue::Null);
+    json["due_at"] = task.dueAt.isValid()
+        ? QJsonValue(task.dueAt.toUTC().toString(Qt::ISODateWithMs))
         : QJsonValue(QJsonValue::Null);
 
     QNetworkReply *reply = manager.post(networkRequest, QJsonDocument(json).toJson());

@@ -130,6 +130,8 @@ add_executable(frontend
         src/ui/CalendarView.h
         src/ui/CalendarEntryDialog.cpp
         src/ui/CalendarEntryDialog.h
+        src/ui/DateTimePicker.cpp
+        src/ui/DateTimePicker.h
         src/ui/DialogUtils.cpp
         src/ui/DialogUtils.h
         src/ui/TaskEditDialog.cpp

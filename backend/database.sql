@@ -69,7 +69,8 @@ VALUES (1, 1, 1, 'name'),
        (17, 9, 1, 'title'),
        (18, 9, 2, 'content'),
        (19, 9, 3, 'phase_id'),
-       (20, 9, 4, 'state_id');
+       (20, 9, 4, 'state_id'),
+       (21, 2, 4, 'due_at');
 
 CREATE TABLE entity_field_versions
 (

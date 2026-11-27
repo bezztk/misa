@@ -56,6 +56,7 @@ static QString fieldName(const QString &name, const bool idea) {
     if (name == "verification_level_id") return "Verifizierungsniveau";
     if (name == "state_id") return idea ? "Ideenstatus" : "Status";
     if (name == "priority_id") return "Priorität";
+    if (name == "due_at") return "Fälligkeit";
     if (name == "front") return "Vorderseite";
     if (name == "back") return "Rückseite";
     if (name == "personal_relevance_id") return "Persönliche Relevanz";
@@ -104,6 +105,10 @@ static QString fieldValue(
     }
     if (value.isNull()) {
         return "—";
+    }
+    if (field == "due_at") {
+        return QDateTime::fromString(value.toString(), Qt::ISODate)
+            .toLocalTime().toString("dd.MM.yyyy HH:mm");
     }
     if (value.isString()) {
         return value.toString();

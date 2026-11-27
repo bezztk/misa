@@ -31,6 +31,7 @@ pub async fn create_task(
         &payload.context_ids,
         payload.priority_id,
         payload.domain_node_id,
+        payload.due_at,
     )
     .await?;
 
@@ -67,6 +68,9 @@ pub async fn update_task_field(
             serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
         ),
         TaskField::PriorityId => TaskFieldUpdate::PriorityId(
+            serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
+        ),
+        TaskField::DueAt => TaskFieldUpdate::DueAt(
             serde_json::from_value(payload.value).map_err(|_| ApiError::BadRequest)?,
         ),
     };

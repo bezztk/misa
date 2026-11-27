@@ -3,12 +3,14 @@ use crate::models::system_task::{
     OPEN_SYSTEM_TASK_STATE_ID, TaskField, TaskFieldUpdate, TaskListItem,
 };
 use crate::repositories::{comment_repository, entity_repository};
+use chrono::{DateTime, Utc};
 use serde_json::json;
 use sqlx::{PgConnection, PgPool};
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
     let mut tasks = sqlx::query_as::<_, TaskListItem>(
         "SELECT task.entity_id AS id, task.name, task.domain_node_id, task.state_id, task.priority_id,
+                task.due_at,
                 ARRAY(
                     SELECT context_id
                     FROM context_entities
@@ -38,20 +40,22 @@ pub async fn create_task(
     context_ids: &[i32],
     priority_id: i32,
     domain_node_id: Option<i32>,
+    due_at: Option<DateTime<Utc>>,
 ) -> Result<i32, sqlx::Error> {
     let mut transaction = pool.begin().await?;
     let entity_id =
         entity_repository::create_entity(&mut transaction, EntityType::SystemTask).await?;
     sqlx::query(
         "INSERT INTO systemtasks
-            (entity_id, name, state_id, priority_id, domain_node_id)
-         VALUES ($1, $2, $3, $4, $5)",
+            (entity_id, name, state_id, priority_id, domain_node_id, due_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(entity_id)
     .bind(name)
     .bind(OPEN_SYSTEM_TASK_STATE_ID)
     .bind(priority_id)
     .bind(domain_node_id)
+    .bind(due_at)
     .execute(&mut *transaction)
     .await?;
     insert_task_contexts(&mut transaction, entity_id, context_ids).await?;
@@ -169,6 +173,26 @@ pub async fn update_task_field(
                 .execute(&mut *transaction)
                 .await?;
             (TaskField::PriorityId, json!(old_value), json!(value))
+        }
+        TaskFieldUpdate::DueAt(value) => {
+            let Some(old_value) = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+                "SELECT due_at FROM systemtasks WHERE entity_id = $1 FOR UPDATE",
+            )
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            else {
+                return Ok(false);
+            };
+            if old_value == value {
+                return Ok(true);
+            }
+            sqlx::query("UPDATE systemtasks SET due_at = $2 WHERE entity_id = $1")
+                .bind(id)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            (TaskField::DueAt, json!(old_value), json!(value))
         }
     };
 

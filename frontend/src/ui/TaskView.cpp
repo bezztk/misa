@@ -339,7 +339,7 @@ const Task &TaskView::taskById(const int id) const {
 }
 
 void TaskView::openCreateDialog() {
-    showTaskCreateDialog(this, apiClient, contexts, selectedContextId());
+    showTaskCreateDialog(this, apiClient, contexts, {selectedContextId()});
 }
 
 void TaskView::openScheduleDialog(const Task &task) {

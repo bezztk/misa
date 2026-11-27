@@ -1,8 +1,8 @@
 #include "CalendarEntryDialog.h"
+#include "DateTimePicker.h"
 #include "DialogUtils.h"
 
 #include <QComboBox>
-#include <QDateTimeEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -30,26 +30,19 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     auto *nameEdit = new QLineEdit(initialEntry.name, &dialog);
     layout->addRow("Name", nameEdit);
 
-    auto *startEdit = new QDateTimeEdit(initialEntry.startAt, &dialog);
-    startEdit->setCalendarPopup(true);
-    startEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
+    auto *startEdit = new DateTimeButton("Start auswählen", initialEntry.startAt, &dialog);
     layout->addRow("Start", startEdit);
 
     auto *endLabel = new QLabel("Ende", &dialog);
-    auto *endEdit = new QDateTimeEdit(
+    auto *endEdit = new DateTimeButton(
+        "Ende auswählen",
         initialEntry.endAt.value_or(initialEntry.startAt.addSecs(3600)),
         &dialog
     );
-    endEdit->setCalendarPopup(true);
-    endEdit->setDisplayFormat("dd.MM.yyyy HH:mm");
     layout->addRow(endLabel, endEdit);
 
     const auto updateEndRange = [startEdit, endEdit] {
-        const QDateTime minimumEnd = startEdit->dateTime().addSecs(60);
-        endEdit->setMinimumDateTime(minimumEnd);
-        if (endEdit->dateTime() < minimumEnd) {
-            endEdit->setDateTime(minimumEnd);
-        }
+        endEdit->setMinimumDateTime(startEdit->dateTime().addSecs(60));
     };
     const auto updateType = [typeEdit, endLabel, endEdit] {
         const bool isReminder = typeEdit->currentData().toBool();
@@ -58,9 +51,9 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     };
     QObject::connect(
         startEdit,
-        &QDateTimeEdit::dateTimeChanged,
+        &DateTimeButton::dateTimeChanged,
         &dialog,
-        [updateEndRange](const QDateTime &) { updateEndRange(); }
+        updateEndRange
     );
     QObject::connect(
         typeEdit,

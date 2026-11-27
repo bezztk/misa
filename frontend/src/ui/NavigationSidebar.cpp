@@ -305,7 +305,7 @@ IdeasNavigationSection::IdeasNavigationSection(
     ApiClient &apiClient,
     QWidget *parent
 ) : NavigationCard(
-        "Ideeninkubator", NavigationIcons::ideas, false, parent
+        "Ideen", NavigationIcons::ideas, false, parent
     ) {
     setSubtext("Ideen werden geladen …");
     connect(&apiClient, &ApiClient::ideasReceived, this,

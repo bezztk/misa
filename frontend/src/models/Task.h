@@ -1,6 +1,7 @@
 ﻿#ifndef FRONTEND_TASK_H
 #define FRONTEND_TASK_H
 
+#include <QDateTime>
 #include <QString>
 #include <optional>
 #include <vector>
@@ -10,7 +11,8 @@
 enum class TaskField {
     Name = 1,
     StateId = 2,
-    PriorityId = 3
+    PriorityId = 3,
+    DueAt = 4
 };
 
 struct Task {
@@ -20,6 +22,7 @@ struct Task {
     QString name;
     int stateId;
     int priorityId;
+    QDateTime dueAt;
     std::vector<Comment> comments;
 
     bool isOpen() const {
@@ -32,6 +35,7 @@ struct CreateTask {
     std::vector<int> contextIds;
     int priorityId;
     std::optional<int> domainNodeId;
+    QDateTime dueAt;
 };
 
 #endif //FRONTEND_TASK_H

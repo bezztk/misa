@@ -48,6 +48,7 @@ pub struct TaskListItem {
     pub context_ids: Vec<i32>,
     pub state_id: i32,
     pub priority_id: i32,
+    pub due_at: Option<DateTime<Utc>>,
     #[sqlx(skip)]
     pub comments: Vec<Comment>,
 }
@@ -58,6 +59,7 @@ pub struct CreateTaskRequest {
     pub context_ids: Vec<i32>,
     pub priority_id: i32,
     pub domain_node_id: Option<i32>,
+    pub due_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,6 +78,7 @@ pub enum TaskField {
     Name = 1,
     StateId = 2,
     PriorityId = 3,
+    DueAt = 4,
 }
 
 impl TryFrom<i32> for TaskField {
@@ -86,6 +89,7 @@ impl TryFrom<i32> for TaskField {
             1 => Ok(Self::Name),
             2 => Ok(Self::StateId),
             3 => Ok(Self::PriorityId),
+            4 => Ok(Self::DueAt),
             _ => Err(()),
         }
     }
@@ -95,4 +99,5 @@ pub enum TaskFieldUpdate {
     Name(String),
     StateId(i32),
     PriorityId(i32),
+    DueAt(Option<DateTime<Utc>>),
 }

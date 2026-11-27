@@ -1,4 +1,5 @@
 #include "TaskEditDialog.h"
+#include "DateTimePicker.h"
 #include "DialogUtils.h"
 
 #include "../api/ApiClient.h"
@@ -7,6 +8,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
@@ -43,11 +45,35 @@ static std::vector<int> selectedContextIds(const QListWidget &list) {
     return ids;
 }
 
+static DateTimeButton *addDueDate(QFormLayout *layout, const QDateTime &dueAt = {}) {
+    auto *row = new QWidget(layout->parentWidget());
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto *dueDate = new DateTimeButton("Fälligkeit auswählen", dueAt, row);
+    auto *clear = new QPushButton("Entfernen", row);
+    clear->setAccessibleName("Fälligkeit entfernen");
+    clear->setAutoDefault(false);
+    clear->setEnabled(dueAt.isValid());
+    QObject::connect(clear, &QPushButton::clicked, dueDate, [dueDate] {
+        dueDate->setDateTime({});
+    });
+    QObject::connect(dueDate, &DateTimeButton::dateTimeChanged, clear, [dueDate, clear] {
+        clear->setEnabled(dueDate->dateTime().isValid());
+    });
+    rowLayout->addWidget(dueDate, 1);
+    rowLayout->addWidget(clear);
+    row->setFocusProxy(dueDate);
+    layout->addRow("&Fälligkeit", row);
+    return dueDate;
+}
+
 void showTaskCreateDialog(
     QWidget *parent,
     ApiClient &apiClient,
     const std::vector<Context> &contexts,
-    const int selectedContextId
+    const std::vector<int> &selectedIds,
+    const std::optional<int> domainNodeId
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle("Aufgabe erstellen");
@@ -56,13 +82,14 @@ void showTaskCreateDialog(
     auto *nameEdit = new QLineEdit(&dialog);
     layout->addRow("Name", nameEdit);
 
-    const auto *contextSelection = addContextSelection(layout, contexts, {selectedContextId});
+    const auto *contextSelection = domainNodeId ? nullptr : addContextSelection(layout, contexts, selectedIds);
 
     auto *priorityEdit = new QComboBox(&dialog);
     for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
         priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
     }
     layout->addRow("Priorität", priorityEdit);
+    const auto *dueDate = addDueDate(layout);
 
     auto *buttons = new QDialogButtonBox(
         QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
@@ -80,9 +107,10 @@ void showTaskCreateDialog(
 
     apiClient.createTask(CreateTask{
         .name = nameEdit->text().trimmed(),
-        .contextIds = selectedContextIds(*contextSelection),
+        .contextIds = contextSelection ? selectedContextIds(*contextSelection) : std::vector<int>{},
         .priorityId = priorityEdit->currentData().toInt(),
-        .domainNodeId = std::nullopt
+        .domainNodeId = domainNodeId,
+        .dueAt = dueDate->dateTime()
     });
 }
 
@@ -115,6 +143,7 @@ void showTaskEditDialog(
     }
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
+    const auto *dueDate = addDueDate(layout, task.dueAt);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
@@ -138,6 +167,14 @@ void showTaskEditDialog(
     const int priorityId = priorityEdit->currentData().toInt();
     if (priorityId != task.priorityId) {
         apiClient.updateTaskField(task.id, TaskField::PriorityId, priorityId);
+    }
+
+    const QDateTime dueAt = dueDate->dateTime();
+    if (dueAt != task.dueAt) {
+        const QJsonValue value = dueAt.isValid()
+            ? QJsonValue(dueAt.toUTC().toString(Qt::ISODateWithMs))
+            : QJsonValue(QJsonValue::Null);
+        apiClient.updateTaskField(task.id, TaskField::DueAt, value);
     }
 
     if (contextSelection) {
