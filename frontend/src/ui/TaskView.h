@@ -22,6 +22,7 @@ private:
     int selectedContextId() const;
     const Task &taskById(int id) const;
     void openScheduleDialog(const Task &task, bool isReminder);
+    void showTaskComments(const Task &task);
     void showTaskMenu(const QPoint &position);
 
     ApiClient &apiClient;
