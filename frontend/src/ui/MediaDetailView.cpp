@@ -48,7 +48,7 @@ constexpr auto DETAIL_STYLE = R"(
     QFrame#mediaSeason, QFrame#mediaEpisode { background: transparent; border: none; }
     QFrame#mediaSeason[separated="true"] { border-top: 1px solid #737373; }
     QFrame#mediaEpisode[separated="true"] { border-top: 1px solid #3E3E3E; }
-    QWidget#mediaDetailContent QComboBox, QWidget#mediaDetailContent QPushButton,
+    QWidget#mediaDetailContent QPushButton,
     QToolButton#mediaTechnicalToggle {
         background: #262626;
         color: #E5E5E5;
@@ -58,8 +58,7 @@ constexpr auto DETAIL_STYLE = R"(
     }
     QWidget#mediaDetailContent QPushButton:hover,
     QToolButton#mediaTechnicalToggle:hover { background: #383838; }
-    QWidget#mediaDetailContent QPushButton:disabled,
-    QWidget#mediaDetailContent QComboBox:disabled { color: #888888; }
+    QWidget#mediaDetailContent QPushButton:disabled { color: #888888; }
     QWidget#mediaDetailContent QPushButton#mediaEpisodeWatchedButton:checked {
         background: #293831;
         color: #B8D9C1;

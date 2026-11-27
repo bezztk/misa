@@ -1,7 +1,6 @@
 #include "DialogUtils.h"
 
 #include <QApplication>
-#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QEvent>
@@ -67,10 +66,6 @@ void prepareDialog(QDialog &dialog, const int minimumWidth) {
     const auto lineEdits = dialog.findChildren<QLineEdit *>();
     for (QLineEdit *edit : lineEdits) {
         edit->setMinimumHeight(28);
-    }
-    const auto comboBoxes = dialog.findChildren<QComboBox *>();
-    for (QComboBox *combo : comboBoxes) {
-        combo->setMinimumHeight(28);
     }
     const auto buttons = dialog.findChildren<QPushButton *>();
     for (QPushButton *button : buttons) {

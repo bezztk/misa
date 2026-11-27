@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     QApplication::setApplicationName("misa");
-    installContextMenuStyle();
+    installWidgetStyle();
     app.setWindowIcon(QIcon(":/assets/icons/misa.png"));
 
     QPalette palette = app.palette();

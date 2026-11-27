@@ -202,7 +202,7 @@ target_link_libraries(frontend
 )
 
 if (WIN32)
-    target_link_libraries(frontend Shell32)
+    target_link_libraries(frontend Shell32 Dwmapi)
 endif()
 
 target_compile_options(frontend PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)

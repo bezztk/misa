@@ -2,5 +2,5 @@
 
 class QIcon;
 
-void installContextMenuStyle();
+void installWidgetStyle();
 QIcon contextMenuDeleteIcon();

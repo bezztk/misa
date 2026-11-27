@@ -48,14 +48,14 @@ constexpr auto MEDIA_STYLE = R"(
         background: #1E1E1E;
         border: none;
     }
-    QLineEdit#mediaSearch, QComboBox#mediaFilter, QComboBox#mediaWatchStatusFilter {
+    QLineEdit#mediaSearch {
         background: #262626;
         color: #E5E5E5;
         border: 1px solid #3A3A3A;
         border-radius: 4px;
         padding: 5px 9px;
     }
-    QLineEdit#mediaSearch:focus, QComboBox#mediaFilter:focus, QComboBox#mediaWatchStatusFilter:focus {
+    QLineEdit#mediaSearch:focus {
         border-color: #7FA7E2;
     }
     QLabel#mediaNotice {
