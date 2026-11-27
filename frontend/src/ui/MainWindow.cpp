@@ -362,7 +362,10 @@ CalendarView *MainWindow::openCalendar() {
             auto *view = new CalendarView(apiClient);
             connect(view, &CalendarView::openTaskRequested, this,
                     [this](const int id) { openTasks()->showTask(id); });
-            connect(view, &CalendarView::openDomainNodeRequested, this, &MainWindow::openDomainNode);
+            connect(view, &CalendarView::openDomainNodeRequested, this,
+                    [this](const int nodeId, const QString &title) {
+                        openDomainNode(nodeId, title, nullptr);
+                    });
             return view;
         }
     ));
@@ -425,16 +428,18 @@ MediaView *MainWindow::openMedia() {
     return view;
 }
 
-void MainWindow::openDomainNode(const int nodeId, const QString &title) {
+void MainWindow::openDomainNode(
+    const int nodeId, const QString &title, const DomainView *navigation
+) {
     const QString key = "domain_node:" + QString::number(nodeId);
     auto view = std::make_shared<QPointer<DomainView>>();
     workspaceManager->openView(
         key,
         title,
         NavigationIcons::tabIcon(NavigationIcons::notes),
-        [this, nodeId, view] {
+        [this, nodeId, navigation, view] {
             *view = new DomainView(apiClient);
-            (*view)->showNode(nodeId);
+            (*view)->showNode(nodeId, navigation);
             return view->data();
         },
         [view](std::function<void()> continuation) {

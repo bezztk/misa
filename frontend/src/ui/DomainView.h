@@ -34,7 +34,7 @@ public:
     void refreshTasks();
     void setNodeOpenHandler(NodeOpenHandler handler);
     void setBeforeNodeActionHandler(BeforeNodeActionHandler handler);
-    void showNode(int nodeId);
+    void showNode(int nodeId, const DomainView *navigation);
 
 private:
     void renderDomainTree(

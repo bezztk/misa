@@ -156,7 +156,7 @@ public:
     void setBeforeNodeActionHandler(BeforeNodeActionHandler handler);
 
 signals:
-    void openDomainNodeRequested(int nodeId, const QString &title);
+    void openDomainNodeRequested(int nodeId, const QString &title, const DomainView *navigation);
 
 private:
     DomainView *domainNavigation;
@@ -193,7 +193,7 @@ signals:
     void refreshCalendarRequested();
     void createIdeaRequested();
     void refreshLearningRequested();
-    void openDomainNodeRequested(int nodeId, const QString &title);
+    void openDomainNodeRequested(int nodeId, const QString &title, const DomainView *navigation);
 
 private:
     ActualizationNavigationSection *actualizationSection;

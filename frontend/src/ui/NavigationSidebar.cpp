@@ -420,7 +420,7 @@ ActualizationNavigationSection::ActualizationNavigationSection(
     domainNavigation = new DomainView(apiClient, this);
     domainNavigation->setNodeOpenHandler(
         [this](const int nodeId, const QString &title) {
-            emit openDomainNodeRequested(nodeId, title);
+            emit openDomainNodeRequested(nodeId, title, domainNavigation);
         }
     );
     contentLayout()->addWidget(domainNavigation);

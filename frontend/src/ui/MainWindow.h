@@ -12,6 +12,7 @@ class WorkspaceManager;
 class TaskView;
 class ContextView;
 class CalendarView;
+class DomainView;
 class IdeaView;
 class LearningArea;
 class MediaView;
@@ -37,7 +38,7 @@ private:
     RssView *openRss();
     SourceView *openSources();
     MediaView *openMedia();
-    void openDomainNode(int nodeId, const QString &title);
+    void openDomainNode(int nodeId, const QString &title, const DomainView *navigation);
 
     ApiClient apiClient;
     WorkspaceManager *workspaceManager;

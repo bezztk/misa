@@ -1762,11 +1762,26 @@ void DomainView::setBeforeNodeActionHandler(BeforeNodeActionHandler handler) {
     beforeNodeActionHandler = std::move(handler);
 }
 
-void DomainView::showNode(const int nodeId) {
+void DomainView::showNode(const int nodeId, const DomainView *navigation) {
     nodeOnly = true;
     initialNodeId = nodeId;
     treeView->hide();
-    apiClient.getDomainTree();
+    if (navigation) {
+        const auto copyChildren = [](const auto &copy, const QStandardItem *source,
+                                     QStandardItem *target) -> void {
+            for (int row = 0; row < source->rowCount(); ++row) {
+                const auto *sourceItem = source->child(row);
+                auto *item = sourceItem->clone();
+                target->appendRow(item);
+                copy(copy, sourceItem, item);
+            }
+        };
+        domainNodes = navigation->domainNodes;
+        copyChildren(copyChildren, navigation->model->invisibleRootItem(), model->invisibleRootItem());
+        requestDocumentChange(nodeId, findDomainNodeItem(nodeId)->data(HAS_DOCUMENT_ROLE).toBool());
+    } else {
+        apiClient.getDomainTree();
+    }
     apiClient.getTasks();
 }
 
@@ -1821,15 +1836,15 @@ void DomainView::continueDocumentChange() {
     renderAttachments({});
 
     if (nodeId != -1) {
+        if (hasDocument) {
+            apiClient.getDocument(nodeId);
+        }
         updateFlashcardStatus(optionalRole(
             findDomainNodeItem(nodeId)->index(), FLASHCARD_STATUS_ROLE
         ));
         apiClient.getNodeFlashcards(nodeId);
         apiClient.getNodeAttachments(nodeId);
         apiClient.getNodePursuits(nodeId);
-        if (hasDocument) {
-            apiClient.getDocument(nodeId);
-        }
     } else {
         updateFlashcardStatus(std::nullopt);
     }
