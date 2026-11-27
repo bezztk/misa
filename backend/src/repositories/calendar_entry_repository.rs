@@ -5,10 +5,14 @@ use sqlx::PgPool;
 
 pub async fn get_calendar_entries(pool: &PgPool) -> Result<Vec<CalendarEntry>, sqlx::Error> {
     sqlx::query_as::<_, CalendarEntry>(
-        "SELECT entity_id AS id, systemtask_id, routine_execution_id, name, note,
-                start_at, end_at, is_locked
-         FROM calendar_entries
-         ORDER BY start_at, entity_id",
+        "SELECT entry.entity_id AS id, entry.systemtask_id, entry.routine_execution_id,
+                routine.systemtask_id AS routine_systemtask_id, assignment.context_id,
+                entry.name, entry.note, entry.start_at, entry.end_at, entry.is_locked
+         FROM calendar_entries entry
+         LEFT JOIN systemtask_routine_executions execution ON execution.id = entry.routine_execution_id
+         LEFT JOIN systemtask_routines routine ON routine.id = execution.routine_id
+         LEFT JOIN context_entities assignment ON assignment.entity_id = entry.entity_id
+         ORDER BY entry.start_at, entry.entity_id",
     )
     .fetch_all(pool)
     .await

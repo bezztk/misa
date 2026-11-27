@@ -366,7 +366,11 @@ ContextView *MainWindow::openContexts() {
 CalendarView *MainWindow::openCalendar() {
     return static_cast<CalendarView *>(workspaceManager->openView(
         "calendar", "Kalender", NavigationIcons::tabIcon(NavigationIcons::calendar), [this] {
-            return new CalendarView(apiClient);
+            auto *view = new CalendarView(apiClient);
+            connect(view, &CalendarView::openTaskRequested, this,
+                    [this](const int id) { openTasks()->showTask(id); });
+            connect(view, &CalendarView::openDomainNodeRequested, this, &MainWindow::openDomainNode);
+            return view;
         }
     ));
 }

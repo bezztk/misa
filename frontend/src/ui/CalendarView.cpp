@@ -3,6 +3,7 @@
 #include "../api/ApiClient.h"
 #include "CalendarEntryDialog.h"
 #include "ContextMenuStyle.h"
+#include "TaskPriority.h"
 
 #include <QAbstractButton>
 #include <QButtonGroup>
@@ -32,6 +33,8 @@ constexpr int entryMinimumHeight = 20;
 constexpr int millisecondsPerHour = 3'600'000;
 constexpr int daysPerWeek = 7;
 constexpr int weekdayHeaderHeight = 28;
+constexpr auto taskIconPath = ":/assets/icons/task-white.png";
+constexpr auto nodeIconPath = ":/assets/icons/node.png";
 
 const QLocale german(QLocale::German, QLocale::Germany);
 
@@ -58,17 +61,38 @@ bool occursOnDay(const CalendarEntry &entry, const QDateTime &start, const QDate
 
 class CalendarEntryButton final : public QAbstractButton {
 public:
-    explicit CalendarEntryButton(const CalendarEntry &entry, QWidget *parent)
+    CalendarEntryButton(const CalendarEntry &entry, const Task *task, const Context *context,
+                        const bool important, QWidget *parent)
         : QAbstractButton(parent),
           title(entry.name),
-          time(entry.startAt.toLocalTime().toString("HH:mm")),
+          startTime(entry.startAt.toLocalTime().toString("HH:mm")),
+          time(startTime),
+          nodeName(task ? task->domainNodeName : QString()),
+          contextName(context ? context->title : QString()),
+          contextImage(context ? contextIcon(context->icon) : QIcon()),
+          typeIcon(entry.routineExecutionId ? ":/assets/icons/infinity.png" : entry.systemTaskId ? taskIconPath
+                   : entry.isReminder() ? ":/assets/icons/clock.png" : ":/assets/icons/calendar.png"),
           fill(entry.routineExecutionId ? "#344934" : entry.systemTaskId ? "#354C60" : "#30485B"),
-          accent(entry.isReminder() ? "#D39A55" : entry.routineExecutionId ? "#819D78" : "#7799B3") {
+          accent(context && context->color.isValid() ? context->color
+                 : QColor(entry.isReminder() ? "#D39A55" : entry.routineExecutionId ? "#819D78" : "#7799B3")),
+          important(important),
+          taskIsTypeIcon(entry.systemTaskId.has_value()),
+          taskAction(task ? createLink(taskIconPath, "Aufgabe öffnen · " + task->name) : nullptr),
+          nodeAction(task && task->domainNodeId ? createLink(nodeIconPath, "Aufschrieb öffnen · " + nodeName) : nullptr) {
         const auto dateFormat = "dd.MM.yyyy, HH:mm";
         QString details = german.toString(entry.startAt.toLocalTime(), dateFormat);
         if (entry.endAt) {
             time += " – " + entry.endAt->toLocalTime().toString("HH:mm");
             details += " – " + german.toString(entry.endAt->toLocalTime(), dateFormat);
+        }
+        if (important) {
+            details += " · Hohe Priorität";
+        }
+        if (!nodeName.isEmpty()) {
+            details += " · Aufschrieb: " + nodeName;
+        }
+        if (!contextName.isEmpty()) {
+            details += " · Kontext: " + contextName;
         }
         if (entry.isLocked) {
             details += " · Gesperrt";
@@ -76,45 +100,141 @@ public:
 
         setAccessibleName(title);
         setAccessibleDescription(details);
-        setToolTip("<qt>" + title.toHtmlEscaped() + "<br>" + details + "</qt>");
         setAttribute(Qt::WA_Hover);
         setFocusPolicy(Qt::StrongFocus);
         setCursor(Qt::PointingHandCursor);
         setContextMenuPolicy(Qt::CustomContextMenu);
     }
 
+    QToolButton *taskButton() const { return taskAction; }
+    QToolButton *nodeButton() const { return nodeAction; }
+
 protected:
+    void resizeEvent(QResizeEvent *) override {
+        const QRect row = firstRow();
+        if (taskAction && taskIsTypeIcon) {
+            taskAction->setGeometry(iconRect(row.left(), row));
+            taskAction->setVisible(row.width() >= iconWidth);
+        }
+
+        int right = row.right() + 1;
+        for (auto *action : {taskIsTypeIcon ? nullptr : taskAction, nodeAction}) {
+            if (action) {
+                const bool visible = right - row.left() >= 2 * iconWidth + 26;
+                if (visible) {
+                    right -= iconWidth;
+                    action->setGeometry(iconRect(right, row));
+                }
+                action->setVisible(visible);
+            }
+        }
+    }
+
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
-        painter.setBrush(underMouse() || isDown() ? fill.lighter(118) : fill);
+        painter.setBrush(underMouse() || isDown() ? fill.lighter(115) : fill);
         painter.setPen(hasFocus() ? QColor("#C8D8E2") : fill.lighter(140));
         painter.drawRect(rect().adjusted(0, 0, -1, -1));
         painter.fillRect(1, 1, 3, height() - 2, accent);
 
-        const QRect textArea = rect().adjusted(9, 2, -5, -2);
+        const QRect row = firstRow();
+        QRect label = row;
+        if (row.width() >= iconWidth) {
+            if (!taskIsTypeIcon || !taskAction) {
+                typeIcon.paint(&painter, iconRect(row.left(), row).adjusted(2, 2, -2, -2));
+            }
+            label.adjust(iconWidth + 2, 0, 0, 0);
+        }
+        for (auto *action : {taskIsTypeIcon ? nullptr : taskAction, nodeAction}) {
+            if (action && !action->isHidden()) {
+                label.adjust(0, 0, -iconWidth, 0);
+            }
+        }
+        if (important && label.width() >= 15) {
+            painter.save();
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QColor(importantTaskPriorityColor));
+            painter.drawEllipse(QRect(label.left(), row.center().y() - 3, 6, 6));
+            painter.restore();
+            label.adjust(9, 0, 0, 0);
+        }
+
         const QFontMetrics metrics = fontMetrics();
-        const int textHeight = metrics.height();
-        if (textArea.height() >= textHeight && textArea.width() > 0) {
-            const int flags = Qt::AlignVCenter | Qt::TextSingleLine;
-            painter.setPen(QColor("#F1F4F6"));
-            if (textArea.height() >= textHeight * 2 + 4) {
-                const QRect titleArea(textArea.x(), textArea.y() + 2, textArea.width(), textHeight);
-                painter.drawText(titleArea, flags, metrics.elidedText(title, Qt::ElideRight, textArea.width()));
-                painter.setPen(QColor("#CAD5DC"));
-                painter.drawText(titleArea.translated(0, textHeight), flags,
-                                 metrics.elidedText(time, Qt::ElideRight, textArea.width()));
-            } else {
-                const QString label = time.left(5) + "  " + title;
-                painter.drawText(textArea, flags, metrics.elidedText(label, Qt::ElideRight, textArea.width()));
+        const auto drawLabel = [&](const QRect &area, const QString &text) {
+            if (area.width() > 0) {
+                painter.drawText(area, Qt::AlignVCenter | Qt::TextSingleLine,
+                                 metrics.elidedText(text, Qt::ElideRight, area.width()));
+            }
+        };
+
+        painter.setPen(QColor("#F1F4F6"));
+        const bool showStartTime = compact() && label.width() >= metrics.horizontalAdvance(startTime) + 34;
+        drawLabel(label, showStartTime ? startTime + "  " + title : title);
+
+        if (!compact()) {
+            painter.setPen(QColor("#CAD5DC"));
+            QRect detail = row.translated(0, row.height());
+            drawLabel(detail, time);
+            if (!nodeName.isEmpty() && detail.bottom() + row.height() < height() - 1) {
+                detail.translate(0, row.height());
+                drawLabel(detail, nodeName);
+            }
+            if (!contextName.isEmpty() && detail.bottom() + row.height() < height() - 1) {
+                detail.translate(0, row.height());
+                if (!contextImage.isNull()) {
+                    contextImage.paint(&painter, iconRect(detail.left(), detail).adjusted(2, 2, -2, -2));
+                    detail.adjust(iconWidth, 0, 0, 0);
+                }
+                drawLabel(detail, contextName);
             }
         }
     }
 
 private:
+    static constexpr int iconWidth = 17;
+
+    bool compact() const {
+        return height() < 2 * fontMetrics().height() + 6;
+    }
+
+    QRect firstRow() const {
+        const int textHeight = fontMetrics().height();
+        return {8, compact() ? (height() - textHeight) / 2 : 3, width() - 13, textHeight};
+    }
+
+    static QRect iconRect(const int x, const QRect &row) {
+        return {x, row.center().y() - iconWidth / 2, iconWidth, iconWidth};
+    }
+
+    QToolButton *createLink(const char *iconPath, const QString &name) {
+        auto *button = new QToolButton(this);
+        button->setIcon(QIcon(iconPath));
+        button->setIconSize(QSize(13, 13));
+        button->setAccessibleName(name);
+        button->setFocusPolicy(Qt::StrongFocus);
+        button->setCursor(Qt::PointingHandCursor);
+        button->setStyleSheet(R"(
+            QToolButton { background: transparent; border: 1px solid transparent; padding: 0; }
+            QToolButton:hover { background: rgba(255, 255, 255, 38); }
+            QToolButton:focus { border-color: #C8D8E2; }
+        )");
+        return button;
+    }
+
     QString title;
+    QString startTime;
     QString time;
+    QString nodeName;
+    QString contextName;
+    QIcon contextImage;
+    QIcon typeIcon;
     QColor fill;
     QColor accent;
+    bool important;
+    bool taskIsTypeIcon;
+    QToolButton *taskAction;
+    QToolButton *nodeAction;
 };
 
 } // namespace
@@ -123,7 +243,7 @@ class CalendarView::TimeGrid final : public QWidget {
 public:
     TimeGrid(CalendarView &calendar, QScrollArea &scroll)
         : QWidget(&scroll), calendar(calendar), weekHeader(new QWidget(scroll.viewport())),
-          currentTimeLine(new QWidget(this)) {
+          currentTimeLine(new QWidget(this)), currentTimeLabel(new QLabel(this)) {
         weekHeader->setAttribute(Qt::WA_StyledBackground);
         weekHeader->setStyleSheet("background: #222222;");
         weekHeader->hide();
@@ -135,6 +255,11 @@ public:
         currentTimeLine->setStyleSheet("background: #D27B5E;");
         currentTimeLine->setAttribute(Qt::WA_TransparentForMouseEvents);
         currentTimeLine->hide();
+        currentTimeLabel->setStyleSheet(R"(
+            background: #D27B5E; color: #1C1C1C; padding: 1px 4px; font-size: 11px; font-weight: 600;
+        )");
+        currentTimeLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+        currentTimeLabel->hide();
     }
 
     void setRange(const QDate first, const int dayCount, const std::vector<CalendarEntry> &entries) {
@@ -198,14 +323,21 @@ public:
         const qint64 day = firstDate.daysTo(now.date());
         if (day < 0 || day >= static_cast<int>(positionedDays.size())) {
             currentTimeLine->hide();
+            currentTimeLabel->hide();
             return;
         }
 
         const int x = dayBoundary(static_cast<int>(day));
         const int right = dayBoundary(static_cast<int>(day) + 1);
-        currentTimeLine->setGeometry(x, timePosition(now), right - x, 2);
+        const int y = timePosition(now);
+        currentTimeLine->setGeometry(x, y, right - x, 2);
         currentTimeLine->show();
         currentTimeLine->raise();
+        currentTimeLabel->setText(now.time().toString("HH:mm"));
+        currentTimeLabel->adjustSize();
+        currentTimeLabel->move(x, y + 1 - currentTimeLabel->height() / 2);
+        currentTimeLabel->show();
+        currentTimeLabel->raise();
     }
 
 protected:
@@ -336,6 +468,7 @@ private:
     QWidget *weekHeader;
     std::array<QLabel *, daysPerWeek> weekDays;
     QWidget *currentTimeLine;
+    QLabel *currentTimeLabel;
     QDate firstDate;
     QDateTime firstDayStart;
     int gridBottom = 0;
@@ -430,13 +563,25 @@ CalendarView::CalendarView(ApiClient &client, QWidget *parent)
                 entries = receivedEntries;
                 renderCalendar();
             });
+    connect(&apiClient, &ApiClient::taskReceived, this, [this](const std::vector<Task> &receivedTasks) {
+        tasks = receivedTasks;
+        renderCalendar();
+    });
+    connect(&apiClient, &ApiClient::contextsReceived, this, [this](const std::vector<Context> &receivedContexts) {
+        contexts = receivedContexts;
+        renderCalendar();
+    });
+    connect(&apiClient, &ApiClient::metadataReceived, this, &CalendarView::renderCalendar);
     const auto reloadEntries = [this] { apiClient.getCalendarEntries(); };
     connect(&apiClient, &ApiClient::calendarEntryCreated, this, reloadEntries);
     connect(&apiClient, &ApiClient::calendarEntryUpdated, this, reloadEntries);
     connect(&apiClient, &ApiClient::calendarEntryDeleted, this, reloadEntries);
     connect(&apiClient, &ApiClient::taskDeleted, this, reloadEntries);
+    connect(&apiClient, &ApiClient::domainNodeDeleted, this, reloadEntries);
     connect(&apiClient, &ApiClient::routineExecutionsGenerated, this, reloadEntries);
     reloadEntries();
+    apiClient.getTasks();
+    apiClient.getContexts();
 }
 
 void CalendarView::showDate(const QDate date, const ViewMode mode) {
@@ -558,7 +703,26 @@ void CalendarView::renderMonth() {
 }
 
 QAbstractButton *CalendarView::createEntryButton(const CalendarEntry &entry, QWidget *parent) {
-    auto *button = new CalendarEntryButton(entry, parent);
+    const Task *task = findLinkedTask(entry);
+    auto contextId = entry.contextId;
+    if (!contextId && task && task->contextIds.size() == 1) {
+        contextId = task->contextIds.front();
+    }
+    const auto context = contextId ? std::ranges::find(contexts, *contextId, &Context::id) : contexts.end();
+    const bool important = task && importantTaskPriority(apiClient.metadata(), task->priorityId);
+    auto *button = new CalendarEntryButton(entry, task, context == contexts.end() ? nullptr : &*context,
+                                           important, parent);
+    if (task) {
+        connect(button->taskButton(), &QToolButton::clicked, this, [this, id = task->id] {
+            emit openTaskRequested(id);
+        });
+        if (task->domainNodeId) {
+            connect(button->nodeButton(), &QToolButton::clicked, this,
+                    [this, id = *task->domainNodeId, title = task->domainNodeName] {
+                        emit openDomainNodeRequested(id, title);
+                    });
+        }
+    }
     connect(button, &QAbstractButton::clicked, this, [this, id = entry.id] {
         openEditDialog(id);
     });
@@ -600,6 +764,18 @@ void CalendarView::showEntryContextMenu(const int id, const QPoint &position) {
     const CalendarEntry entry = *entryPointer;
 
     QMenu menu(this);
+    if (const Task *task = findLinkedTask(entry)) {
+        menu.addAction(QIcon(taskIconPath), "Aufgabe öffnen", this, [this, id = task->id] {
+            emit openTaskRequested(id);
+        });
+        if (task->domainNodeId) {
+            menu.addAction(QIcon(nodeIconPath), "Aufschrieb öffnen", this,
+                           [this, id = *task->domainNodeId, title = task->domainNodeName] {
+                               emit openDomainNodeRequested(id, title);
+                           });
+        }
+        menu.addSeparator();
+    }
     QAction *editAction = menu.addAction(
         QIcon(":/assets/icons/edit.png"),
         "Bearbeiten"
@@ -629,4 +805,10 @@ const CalendarEntry *CalendarView::findEntry(const int id) const {
         }
     }
     return nullptr;
+}
+
+const Task *CalendarView::findLinkedTask(const CalendarEntry &entry) const {
+    const auto id = entry.systemTaskId ? entry.systemTaskId : entry.routineSystemTaskId;
+    const auto task = id ? std::ranges::find(tasks, *id, &Task::id) : tasks.end();
+    return task == tasks.end() ? nullptr : &*task;
 }

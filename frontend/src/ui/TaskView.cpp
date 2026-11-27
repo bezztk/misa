@@ -4,6 +4,7 @@
 #include "CommentUi.h"
 #include "ContextMenuStyle.h"
 #include "TaskEditDialog.h"
+#include "TaskPriority.h"
 #include "VersionHistoryDialog.h"
 #include "../api/ApiClient.h"
 
@@ -196,7 +197,7 @@ public:
             painter->save();
             painter->setRenderHint(QPainter::Antialiasing);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(QColor("#DEA760"));
+            painter->setBrush(QColor(importantTaskPriorityColor));
             painter->drawEllipse(QRect(line.bounds.left(), line.bounds.top() + (taskLineHeight - priorityDotSize) / 2,
                 priorityDotSize, priorityDotSize));
             painter->restore();
@@ -483,6 +484,10 @@ void TaskView::renderTasks() {
     const QString query = search->text().trimmed();
     const int contextId = selectedContextId();
     const auto &metadata = apiClient.metadata();
+    const auto *currentItem = taskList->currentItem();
+    const std::optional<int> selectedId = taskToShow ? taskToShow
+        : currentItem ? std::optional(currentItem->data(Qt::UserRole).toInt()) : std::nullopt;
+    QListWidgetItem *selectedItem = nullptr;
     taskList->clear();
     for (const Task &task : tasks) {
         const bool matchesContext = contextId == ALL_TASKS
@@ -506,9 +511,7 @@ void TaskView::renderTasks() {
                 details.append(status);
             }
         }
-        const auto priority = std::ranges::find(metadata.systemTaskPriorities, task.priorityId, &MetadataItem::id);
-        if (priority != metadata.systemTaskPriorities.end()
-            && (priority->name == "high" || priority->name == "critical")) {
+        if (const auto *priority = importantTaskPriority(metadata, task.priorityId)) {
             item->setData(TASK_IMPORTANT_ROLE, true);
             details.append("Priorität: " + priority->displayName.value_or(priority->name));
         }
@@ -530,6 +533,14 @@ void TaskView::renderTasks() {
         item->setData(Qt::AccessibleDescriptionRole, details.join("  ·  "));
         item->setToolTip(task.name);
         taskList->addItem(item);
+        if (selectedId == task.id) {
+            selectedItem = item;
+        }
+    }
+    if (selectedItem) {
+        taskList->setCurrentItem(selectedItem);
+        taskList->scrollToItem(selectedItem);
+        taskToShow.reset();
     }
 }
 
@@ -539,6 +550,16 @@ const Task &TaskView::taskById(const int id) const {
 
 void TaskView::openCreateDialog() {
     showTaskCreateDialog(this, apiClient, contexts, selectedContextId());
+}
+
+void TaskView::showTask(const int id) {
+    const QSignalBlocker searchBlocker(search);
+    const QSignalBlocker navigationBlocker(navigation);
+    search->clear();
+    navigation->setCurrentRow(0);
+    taskToShow = id;
+    renderTasks();
+    taskList->setFocus();
 }
 
 void TaskView::openScheduleDialog(const Task &task, const bool isReminder) {

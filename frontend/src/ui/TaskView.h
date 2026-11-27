@@ -14,6 +14,7 @@ class TaskView : public QWidget {
 public:
     explicit TaskView(ApiClient &apiClient, QWidget *parent = nullptr);
     void openCreateDialog();
+    void showTask(int id);
 
 private:
     void renderNavigation();
@@ -31,6 +32,7 @@ private:
     QListWidget *taskList;
     std::vector<Context> contexts;
     std::vector<Task> tasks;
+    std::optional<int> taskToShow;
 };
 
 #endif // FRONTEND_TASKVIEW_H

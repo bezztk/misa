@@ -171,6 +171,12 @@ void ApiClient::getCalendarEntries() {
             if (!object["routine_execution_id"].isNull()) {
                 entry.routineExecutionId = object["routine_execution_id"].toInt();
             }
+            if (const auto id = object["routine_systemtask_id"]; id.isDouble()) {
+                entry.routineSystemTaskId = id.toInt();
+            }
+            if (const auto id = object["context_id"]; id.isDouble()) {
+                entry.contextId = id.toInt();
+            }
             entry.isLocked = object["is_locked"].toBool();
             entries.push_back(entry);
         }

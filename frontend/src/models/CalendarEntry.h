@@ -13,6 +13,8 @@ struct CalendarEntry {
     std::optional<QDateTime> endAt{};
     std::optional<int> systemTaskId{};
     std::optional<int> routineExecutionId{};
+    std::optional<int> routineSystemTaskId{};
+    std::optional<int> contextId{};
     bool isLocked = false;
 
     bool isReminder() const {

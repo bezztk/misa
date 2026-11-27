@@ -105,6 +105,7 @@ add_executable(frontend
         src/ui/CommentUi.h
         src/ui/TaskView.cpp
         src/ui/TaskView.h
+        src/ui/TaskPriority.h
         src/ui/ContextView.cpp
         src/ui/ContextView.h
         src/ui/IdeaView.cpp
@@ -205,6 +206,7 @@ qt_add_resources(frontend "icons"
         assets/icons/rss.png
         assets/icons/open.png
         assets/icons/clock.png
+        assets/icons/infinity.png
         assets/icons/add.png
         assets/icons/edit.png
         assets/icons/delete.png
