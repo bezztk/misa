@@ -22,7 +22,10 @@ WorkspaceManager::WorkspaceManager(QWidget *parent) : QWidget(parent) {
         [this](QWidget *, QWidget *current) {
             for (QWidget *widget = current; widget; widget = widget->parentWidget()) {
                 if (auto *group = qobject_cast<TabGroup *>(widget)) {
-                    focusedGroup = group;
+                    if (focusedGroup != group) {
+                        focusedGroup = group;
+                        updateActiveView();
+                    }
                     return;
                 }
             }
@@ -48,7 +51,6 @@ QWidget *WorkspaceManager::openView(
 
     TabGroup *group = targetGroup();
     QWidget *view = factory();
-    group->addView(view, title, icon);
     views.insert(key, ViewRecord{
         .view = view,
         .group = group,
@@ -56,6 +58,7 @@ QWidget *WorkspaceManager::openView(
         .icon = icon,
         .closeHandler = std::move(closeHandler)
     });
+    group->addView(view, title, icon);
     return view;
 }
 
@@ -109,7 +112,10 @@ TabGroup *WorkspaceManager::createGroup() {
     auto *group = new TabGroup();
     groups.append(group);
     connect(group, &TabGroup::focusRequested, this,
-            [this](TabGroup *selected) { focusedGroup = selected; });
+            [this](TabGroup *selected) {
+                focusedGroup = selected;
+                updateActiveView();
+            });
     connect(group, &TabGroup::tabCloseRequested, this,
             [this](TabGroup *, QWidget *view) { requestClose(view); });
     connect(group, &TabGroup::tabContextMenuRequested, this,
@@ -174,8 +180,8 @@ void WorkspaceManager::moveView(QWidget *view, TabGroup *target) {
     }
     TabGroup *source = views[key].group;
     source->removeView(view);
-    target->addView(view, views[key].title, views[key].icon);
     views[key].group = target;
+    target->addView(view, views[key].title, views[key].icon);
     focusedGroup = target;
     removeEmptyGroup(source);
 }
@@ -212,7 +218,8 @@ void WorkspaceManager::removeEmptyGroup(TabGroup *group) {
     }
     groups.removeAll(group);
     if (focusedGroup == group) {
-        focusedGroup = nullptr;
+        focusedGroup = groups.isEmpty() ? nullptr : groups.first().data();
+        updateActiveView();
     }
     if (group == root) {
         workspaceLayout->removeWidget(group);
@@ -239,6 +246,10 @@ void WorkspaceManager::removeEmptyGroup(TabGroup *group) {
         parent->replaceWidget(index, remaining);
     }
     splitter->deleteLater();
+}
+
+void WorkspaceManager::updateActiveView() {
+    emit activeViewChanged(focusedGroup ? keyForView(focusedGroup->currentView()) : QString());
 }
 
 void WorkspaceManager::showTabContextMenu(

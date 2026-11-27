@@ -23,7 +23,6 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QResizeEvent>
-#include <QSplitter>
 #include <QStackedWidget>
 #include <QTimer>
 #include <QToolButton>
@@ -34,16 +33,16 @@
 
 static constexpr auto SIDEBAR_TOGGLE_STYLE = R"(
     QWidget#sidebarToggleRail {
-        background: #1C1C1C;
+        background: #171E27;
         border: none;
-        border-right: 1px solid #383838;
+        border-right: 1px solid #344458;
     }
     QWidget#sidebarToggleRail QToolButton {
         background: transparent;
         border: none;
     }
     QWidget#sidebarToggleRail QToolButton:hover {
-        background: #303030;
+        background: #273648;
     }
 )";
 
@@ -145,52 +144,34 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     sidebarToggleRail->setFixedWidth(28);
     sidebarToggleRail->setStyleSheet(SIDEBAR_TOGGLE_STYLE);
     auto *sidebarToggleLayout = new QVBoxLayout(sidebarToggleRail);
-    sidebarToggleLayout->setContentsMargins(2, 6, 2, 6);
+    sidebarToggleLayout->setContentsMargins(0, 0, 1, 0);
     auto *sidebarToggle = new QToolButton(sidebarToggleRail);
     sidebarToggle->setArrowType(Qt::LeftArrow);
-    sidebarToggle->setToolTip("Hauptnavigation ausblenden");
+    sidebarToggle->setToolTip("Hauptnavigation einklappen");
+    sidebarToggle->setFixedSize(27, 44);
     sidebarToggle->setAutoRaise(true);
     sidebarToggleLayout->addWidget(sidebarToggle, 0, Qt::AlignTop);
     sidebarToggleLayout->addStretch();
     bodyLayout->addWidget(sidebarToggleRail);
 
-    auto *contentSplitter = new QSplitter(Qt::Horizontal, body);
-    contentSplitter->setChildrenCollapsible(false);
-    contentSplitter->setHandleWidth(1);
-    contentSplitter->setStyleSheet(
-        "QSplitter::handle { background: rgba(255, 255, 255, 0.25); }"
-    );
-
-    auto *navigation = new NavigationSidebar(apiClient, contentSplitter);
-    workspaceManager = new WorkspaceManager(contentSplitter);
-    contentSplitter->addWidget(navigation);
-    contentSplitter->addWidget(workspaceManager);
-    contentSplitter->setStretchFactor(0, 0);
-    contentSplitter->setStretchFactor(1, 1);
-    contentSplitter->setSizes({320, 1280});
-    bodyLayout->addWidget(contentSplitter, 1);
+    auto *navigation = new NavigationSidebar(apiClient, body);
+    workspaceManager = new WorkspaceManager(body);
+    bodyLayout->addWidget(navigation);
+    bodyLayout->addWidget(workspaceManager, 1);
     mainLayout->addWidget(body, 1);
     setCentralWidget(central);
 
     connect(sidebarToggle, &QToolButton::clicked, this,
-            [navigation, contentSplitter, sidebarToggle, sidebarWidth = 320]() mutable {
-                if (navigation->isVisible()) {
-                    sidebarWidth = contentSplitter->sizes().first();
-                    navigation->hide();
-                    sidebarToggle->setArrowType(Qt::RightArrow);
-                    sidebarToggle->setToolTip("Hauptnavigation einblenden");
-                } else {
-                    navigation->show();
-                    const int totalWidth = contentSplitter->width();
-                    contentSplitter->setSizes({
-                        sidebarWidth,
-                        qMax(0, totalWidth - sidebarWidth)
-                    });
-                    sidebarToggle->setArrowType(Qt::LeftArrow);
-                    sidebarToggle->setToolTip("Hauptnavigation ausblenden");
-                }
+            [navigation, sidebarToggle] {
+                const bool expanded = navigation->isHidden();
+                navigation->setVisible(expanded);
+                sidebarToggle->setArrowType(expanded ? Qt::LeftArrow : Qt::RightArrow);
+                sidebarToggle->setToolTip(expanded
+                    ? "Hauptnavigation einklappen" : "Hauptnavigation ausklappen");
             });
 
+    connect(workspaceManager, &WorkspaceManager::activeViewChanged,
+            navigation, &NavigationSidebar::setActiveView);
     connect(navigation, &NavigationSidebar::openTasksRequested,
             this, &MainWindow::openTasks);
     connect(navigation, &NavigationSidebar::openContextsRequested,

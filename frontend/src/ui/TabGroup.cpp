@@ -15,14 +15,13 @@
 
 namespace {
 
-constexpr int tabSpacing = 12;
 constexpr int tabCloseInset = 4;
 constexpr int minimumTabWidth = 120;
 constexpr int maximumTabWidth = 240;
 
 static constexpr auto WORKSPACE_TABS_STYLE = R"(
     QTabWidget#workspaceTabs {
-        background: #222222;
+        background: #1C242E;
         border: none;
     }
     QTabWidget#workspaceTabs::pane {
@@ -30,28 +29,39 @@ static constexpr auto WORKSPACE_TABS_STYLE = R"(
         border: none;
     }
     QTabBar#workspaceTabBar {
-        background: #222222;
+        background: #1C242E;
         border: none;
+        font-family: "Bahnschrift";
+        font-size: 15px;
+        font-weight: 500;
         qproperty-drawBase: 0;
     }
     QTabBar#workspaceTabBar::tab {
         height: 37px;
-        margin-right: %1px;
-        padding: 0 6px 0 10px;
-        color: #ABABAB;
-        background: #222222;
+        margin: 0;
+        padding: 0 8px 0 12px;
+        color: #AAB9CA;
+        background: #1C242E;
         border: none;
         border-bottom: 2px solid transparent;
         border-radius: 0;
     }
     QTabBar#workspaceTabBar::tab:hover {
-        color: #D0D0D0;
-        background: #292929;
+        color: #F0F4F9;
+        background: #273648;
     }
     QTabBar#workspaceTabBar::tab:selected {
-        color: #E5E5E5;
-        background: #2B2B2B;
-        border-bottom-color: #686868;
+        color: #F0F4F9;
+        background: #29415B;
+        border-bottom-color: #7BAAE2;
+    }
+    QTabBar#workspaceTabBar > QToolButton {
+        color: #F0F4F9;
+        background: #1C242E;
+        border: none;
+    }
+    QTabBar#workspaceTabBar > QToolButton:hover {
+        background: #273648;
     }
 )";
 
@@ -63,10 +73,10 @@ static constexpr auto TAB_CLOSE_BUTTON_STYLE = R"(
         padding: 5px;
     }
     QToolButton:hover {
-        background: #383838;
+        background: #344458;
     }
     QToolButton:pressed {
-        background: #424242;
+        background: #315984;
     }
 )";
 
@@ -90,8 +100,7 @@ public:
         button->setStyleSheet(TAB_CLOSE_BUTTON_STYLE);
         button->hide();
 
-        // Qt positions the slot relative to the tab rectangle, including its trailing margin.
-        setFixedSize(button->width() + tabSpacing + tabCloseInset, button->height());
+        setFixedSize(button->width() + tabCloseInset, button->height());
     }
 
     QToolButton *closeButton() const {
@@ -118,13 +127,12 @@ public:
 protected:
     QSize tabSizeHint(const int index) const override {
         QSize size = QTabBar::tabSizeHint(index);
-        size.setWidth(std::clamp(size.width(), minimumTabWidth + tabSpacing,
-            maximumTabWidth + tabSpacing));
+        size.setWidth(std::clamp(size.width(), minimumTabWidth, maximumTabWidth));
         return size;
     }
 
     QSize minimumTabSizeHint(const int index) const override {
-        return {minimumTabWidth + tabSpacing, tabSizeHint(index).height()};
+        return {minimumTabWidth, tabSizeHint(index).height()};
     }
 
     bool event(QEvent *event) override {
@@ -160,7 +168,7 @@ private:
         const QPoint position = mapFromGlobal(QCursor::pos());
         const int index = underMouse() ? tabAt(position) : -1;
         QToolButton *next = nullptr;
-        if (index >= 0 && tabRect(index).adjusted(0, 0, -tabSpacing, 0).contains(position)) {
+        if (index >= 0) {
             auto *slot = static_cast<TabCloseSlot *>(tabButton(index, RightSide));
             const auto *child = childAt(position);
             if (slot && (!child || child == slot || child == slot->closeButton())) {
@@ -207,7 +215,7 @@ TabGroup::TabGroup(QWidget *parent) : QWidget(parent) {
     auto *bar = tabs->tabBar();
     bar->setObjectName("workspaceTabBar");
     bar->setExpanding(false);
-    tabs->setStyleSheet(QString(WORKSPACE_TABS_STYLE).arg(tabSpacing));
+    tabs->setStyleSheet(WORKSPACE_TABS_STYLE);
     bar->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(tabs);
 
@@ -272,6 +280,10 @@ void TabGroup::setViewTitle(QWidget *view, const QString &title) {
         tabs->setTabText(index, tabLabel(title));
         tabs->setTabToolTip(index, tabTooltip(title));
     }
+}
+
+QWidget *TabGroup::currentView() const {
+    return tabs->currentWidget();
 }
 
 bool TabGroup::isEmpty() const {

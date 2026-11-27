@@ -258,7 +258,10 @@ qt_add_resources(frontend "icons"
         assets/icons/text-analytics.png
         assets/icons/quill-pen.png
         assets/icons/idea.png
-        assets/icons/film.png
+        assets/icons/bookmark.png
+        assets/icons/movie-clapper.png
+        assets/icons/layers.png
+        assets/icons/checklist.png
         assets/icons/close.png
         assets/icons/split-right.png
         assets/icons/split-down.png

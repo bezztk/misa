@@ -16,6 +16,7 @@ public:
     void removeView(QWidget *view);
     void setCurrentView(QWidget *view);
     void setViewTitle(QWidget *view, const QString &title);
+    [[nodiscard]] QWidget *currentView() const;
     [[nodiscard]] bool isEmpty() const;
 
 signals:

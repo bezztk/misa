@@ -33,6 +33,9 @@ public:
     void prepareView(const QString &key, std::function<void()> continuation);
     void prepareToClose(std::function<void()> continuation);
 
+signals:
+    void activeViewChanged(const QString &key);
+
 private:
     struct ViewRecord {
         QPointer<QWidget> view;
@@ -50,6 +53,7 @@ private:
     void requestClose(QWidget *view);
     void finishClose(const QString &key);
     void removeEmptyGroup(TabGroup *group);
+    void updateActiveView();
     void showTabContextMenu(
         TabGroup *group,
         QWidget *view,

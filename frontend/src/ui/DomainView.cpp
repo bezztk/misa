@@ -22,6 +22,7 @@
 #include <QFileDialog>
 #include <QFileIconProvider>
 #include <QFileInfo>
+#include <QFont>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -33,10 +34,13 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
+#include <QSet>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
@@ -50,7 +54,6 @@
 
 #include <functional>
 #include <algorithm>
-#include <array>
 
 static constexpr int DOMAIN_ID_ROLE = Qt::UserRole + 1;
 static constexpr int HAS_DOCUMENT_ROLE = Qt::UserRole + 2;
@@ -69,19 +72,30 @@ static constexpr int DOMAIN_ICON_ROLE = Qt::UserRole + 16;
 static constexpr int FLASHCARD_BACK_ROLE = Qt::UserRole + 1;
 static constexpr int ATTACHMENT_STORAGE_NAME_ROLE = Qt::UserRole + 1;
 
-static QColor knowledgeLevelColor(const int level) {
-    static const std::array colors{
-        QColor("#9E9E9E"),
-        QColor("#78909C"),
-        QColor("#5C6BC0"),
-        QColor("#42A5F5"),
-        QColor("#26A69A"),
-        QColor("#66BB6A"),
-        QColor("#C0B83F"),
-        QColor("#F59E42"),
-        QColor("#EF5350")
-    };
-    return colors[static_cast<std::size_t>(level)];
+static void setDomainItemAppearance(
+    QStandardItem *item, const MetadataItem &domain, const bool navigationMode
+) {
+    item->setData(domain.color ? QVariant(*domain.color) : QVariant(), DOMAIN_COLOR_ROLE);
+    item->setData(domain.icon ? QVariant(*domain.icon) : QVariant(), DOMAIN_ICON_ROLE);
+    if (!navigationMode && domain.color) {
+        item->setForeground(QBrush(QColor(*domain.color)));
+    } else {
+        item->setData(QVariant(), Qt::ForegroundRole);
+    }
+
+    if (!domain.icon) {
+        item->setIcon({});
+        return;
+    }
+
+    QPixmap pixmap;
+    pixmap.loadFromData(*domain.icon, "PNG");
+    if (navigationMode && domain.color) {
+        QPainter painter(&pixmap);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(pixmap.rect(), QColor(*domain.color));
+    }
+    item->setIcon(QIcon(pixmap));
 }
 
 class DomainNodeDelegate final : public QStyledItemDelegate {
@@ -93,6 +107,14 @@ public:
     ) : QStyledItemDelegate(parent),
         openComments(std::move(openComments)),
         indicatorPressed(std::move(indicatorPressed)) {}
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        QSize size = QStyledItemDelegate::sizeHint(option, index);
+        if (parent()->property("navigationMode").toBool()) {
+            size.setHeight(26);
+        }
+        return size;
+    }
 
     void paint(
         QPainter *painter,
@@ -159,13 +181,12 @@ public:
             ":/assets/icons/speech-bubble.png",
             QColor("#E0E0E0")
         );
-        const bool hasKnowledgeLevel = index.data(KNOWLEDGE_LEVEL_ROLE).isValid();
-        if (indicators.empty() && !hasKnowledgeLevel) {
+        if (indicators.empty()) {
             QStyledItemDelegate::paint(painter, option, index);
             return;
         }
 
-        constexpr int gap = 10;
+        const int gap = parent()->property("navigationMode").toBool() ? 6 : 10;
         int indicatorWidth = 0;
         for (const Indicator &indicator : indicators) {
             indicatorWidth += indicator.width;
@@ -207,19 +228,6 @@ public:
             );
             contentX += iconSize + 5;
         }
-        if (hasKnowledgeLevel) {
-            const int level = index.data(KNOWLEDGE_LEVEL_ROLE).toInt();
-            const QString levelText = "Lv. " + QString::number(level);
-            const int levelWidth = metrics.horizontalAdvance(levelText);
-            painter->setPen(knowledgeLevelColor(level));
-            painter->drawText(
-                QRect(contentX, option.rect.top(), levelWidth, option.rect.height()),
-                Qt::AlignLeft | Qt::AlignVCenter,
-                levelText
-            );
-            contentX += levelWidth + 9;
-        }
-
         const int contentRight = indicators.empty()
             ? option.rect.right() - 4
             : indicatorLeft - 7;
@@ -814,8 +822,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         QWidget#domainView {
             background: palette(base);
         }
-        QWidget#domainView[navigationMode="true"],
-        QWidget#domainView[navigationMode="true"] QTreeView#domainTree {
+        QWidget#domainView[navigationMode="true"] {
             background: transparent;
         }
         QTreeView#domainTree, QTreeView#pursuitTree {
@@ -831,6 +838,15 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
         }
         QTreeView::item:selected {
             background: rgba(100, 181, 246, 0.18);
+        }
+        QTreeView#domainTree[navigationMode="true"] {
+            background: transparent;
+        }
+        QTreeView#domainTree[navigationMode="true"]::item:hover {
+            background: #273648;
+        }
+        QTreeView#domainTree[navigationMode="true"]::item:selected {
+            background: #29415B;
         }
         QWidget#editorHeader {
             background: rgba(255, 255, 255, 0.025);
@@ -1275,17 +1291,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                 if (!item) {
                     return;
                 }
-                item->setForeground(domain.color ? QColor(*domain.color) : QBrush());
-                item->setData(domain.color ? QVariant(*domain.color) : QVariant(), DOMAIN_COLOR_ROLE);
-                if (domain.icon) {
-                    QPixmap pixmap;
-                    pixmap.loadFromData(*domain.icon, "PNG");
-                    item->setIcon(QIcon(pixmap));
-                    item->setData(*domain.icon, DOMAIN_ICON_ROLE);
-                } else {
-                    item->setIcon({});
-                    item->setData({}, DOMAIN_ICON_ROLE);
-                }
+                setDomainItemAppearance(item, domain, property("navigationMode").toBool());
             });
     connect(&apiClient, &ApiClient::domainNodeCreated, this,
             [this](const DomainNode &node) {
@@ -1709,12 +1715,25 @@ void DomainView::refreshTasks() {
 void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     nodeOpenHandler = std::move(handler);
     setProperty("navigationMode", true);
+    treeView->setProperty("navigationMode", true);
     style()->unpolish(this);
     style()->polish(this);
     treeView->style()->unpolish(treeView);
     treeView->style()->polish(treeView);
+
+    QFont treeFont(QStringLiteral("Segoe UI"));
+    treeFont.setPixelSize(13);
+    treeView->setFont(treeFont);
+    QPalette treePalette = treeView->palette();
+    const QColor textColor("#F0F4F9");
+    treePalette.setColor(QPalette::Text, textColor);
+    treePalette.setColor(QPalette::HighlightedText, textColor);
+    treeView->setPalette(treePalette);
+
     treeView->setMinimumWidth(0);
     treeView->setMaximumWidth(QWIDGETSIZE_MAX);
+    treeView->setIndentation(18);
+    treeView->setIconSize(QSize(14, 14));
     treeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     treeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     treeView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -1852,27 +1871,46 @@ void DomainView::renderDomainTree(
     const std::vector<MetadataItem> &domains,
     const std::vector<DomainNode> &nodes
 ) {
+    const bool navigationMode = property("navigationMode").toBool();
+    QSet<int> expandedDomains;
+    QSet<int> expandedNodes;
+    if (navigationMode) {
+        std::function<void(const QModelIndex &)> rememberExpanded;
+        rememberExpanded = [&](const QModelIndex &parent) {
+            for (int row = 0; row < model->rowCount(parent); ++row) {
+                const QModelIndex index = model->index(row, 0, parent);
+                if (treeView->isExpanded(index)) {
+                    const QVariant domainId = index.data(DOMAIN_ID_ROLE);
+                    if (domainId.isValid()) {
+                        expandedDomains.insert(domainId.toInt());
+                    } else {
+                        expandedNodes.insert(index.data(Qt::UserRole).toInt());
+                    }
+                }
+                rememberExpanded(index);
+            }
+        };
+        rememberExpanded({});
+    }
+
     domainNodes = nodes;
     model->clear();
     model->setColumnCount(1);
 
+    QModelIndexList itemsToExpand;
     for (const MetadataItem &domain : domains) {
         auto *domainItem = new QStandardItem(domain.name);
-        QFont font = domainItem->font();
-        font.setBold(true);
-        domainItem->setFont(font);
+        if (!navigationMode) {
+            QFont font = domainItem->font();
+            font.setBold(true);
+            domainItem->setFont(font);
+        }
         domainItem->setData(domain.id, DOMAIN_ID_ROLE);
-        if (domain.color) {
-            domainItem->setForeground(QColor(*domain.color));
-            domainItem->setData(*domain.color, DOMAIN_COLOR_ROLE);
-        }
-        if (domain.icon) {
-            QPixmap pixmap;
-            pixmap.loadFromData(*domain.icon, "PNG");
-            domainItem->setIcon(QIcon(pixmap));
-            domainItem->setData(*domain.icon, DOMAIN_ICON_ROLE);
-        }
+        setDomainItemAppearance(domainItem, domain, navigationMode);
         model->appendRow(domainItem);
+        if (expandedDomains.contains(domain.id)) {
+            itemsToExpand.append(domainItem->index());
+        }
 
         std::function<void(std::optional<int>, QStandardItem *)> addNodes;
         addNodes = [&](const std::optional<int> parentId, QStandardItem *parentItem) {
@@ -1890,6 +1928,9 @@ void DomainView::renderDomainTree(
                 }
                 parentItem->appendRow(item);
                 refreshDomainNodeText(item);
+                if (expandedNodes.contains(node.id)) {
+                    itemsToExpand.append(item->index());
+                }
                 addNodes(node.id, item);
             }
         };
@@ -1898,7 +1939,14 @@ void DomainView::renderDomainTree(
     }
 
     treeView->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    treeView->collapseAll();
+    if (navigationMode) {
+        const QSignalBlocker blocker(treeView);
+        for (const QModelIndex &index : itemsToExpand) {
+            treeView->expand(index);
+        }
+    } else {
+        treeView->collapseAll();
+    }
 
     if (nodeOnly && initialNodeId != -1) {
         QStandardItem *item = findDomainNodeItem(initialNodeId);
@@ -1949,7 +1997,8 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
             QIcon(":/assets/icons/add.png"),
             "Root-Knoten hinzufügen"
         );
-        QAction *colorAction = menu.addAction("Schriftfarbe auswählen");
+        QAction *colorAction = menu.addAction(property("navigationMode").toBool()
+            ? "Fachfarbe auswählen" : "Schriftfarbe auswählen");
         QAction *iconAction = menu.addAction("Icon auswählen");
         QAction *removeIconAction = index.data(DOMAIN_ICON_ROLE).isValid()
             ? menu.addAction("Icon entfernen")

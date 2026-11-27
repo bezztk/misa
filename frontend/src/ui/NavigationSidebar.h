@@ -2,6 +2,7 @@
 #define FRONTEND_NAVIGATIONSIDEBAR_H
 
 #include <QFrame>
+#include <QHash>
 
 #include <functional>
 
@@ -16,14 +17,14 @@ class QVBoxLayout;
 class QWidget;
 
 namespace NavigationIcons {
-inline constexpr auto tasks = ":/assets/icons/task-white.png";
+inline constexpr auto tasks = ":/assets/icons/checklist.png";
 inline constexpr auto contexts = ":/assets/icons/category.png";
 inline constexpr auto calendar = ":/assets/icons/calendar.png";
 inline constexpr auto ideas = ":/assets/icons/idea.png";
-inline constexpr auto learning = ":/assets/icons/flashcards-white.png";
+inline constexpr auto learning = ":/assets/icons/layers.png";
 inline constexpr auto rss = ":/assets/icons/rss.png";
-inline constexpr auto sources = ":/assets/icons/text-analytics.png";
-inline constexpr auto media = ":/assets/icons/film.png";
+inline constexpr auto sources = ":/assets/icons/bookmark.png";
+inline constexpr auto media = ":/assets/icons/movie-clapper.png";
 inline constexpr auto notes = ":/assets/icons/quill-pen.png";
 
 QIcon tabIcon(const QString &path);
@@ -45,6 +46,7 @@ public:
         bool collapsible,
         QWidget *parent
     );
+    void setActive(bool active);
 
 protected:
     QVBoxLayout *contentLayout() const;
@@ -169,6 +171,7 @@ public:
         ActualizationNavigationSection::BeforeNodeActionHandler;
 
     explicit NavigationSidebar(ApiClient &apiClient, QWidget *parent = nullptr);
+    void setActiveView(const QString &key);
     void setBeforeNodeActionHandler(BeforeNodeActionHandler handler);
 
 signals:
@@ -197,6 +200,8 @@ signals:
 
 private:
     ActualizationNavigationSection *actualizationSection;
+    QHash<QString, NavigationCard *> sections;
+    NavigationCard *activeSection = nullptr;
 };
 
 #endif // FRONTEND_NAVIGATIONSIDEBAR_H

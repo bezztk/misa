@@ -21,21 +21,31 @@
 #include <utility>
 
 static constexpr auto NAVIGATION_STYLE = R"(
-    NavigationSidebar,
+    NavigationSidebar {
+        background: #1C242E;
+        border: none;
+        border-right: 1px solid #53647A;
+    }
     QScrollArea#navigationScrollArea,
     QWidget#navigationCardContainer {
-        background: #1C1C1C;
+        background: #1C242E;
     }
-    QFrame#navigationCard {
-        background: #262626;
+    QFrame#navigationSectionDivider {
+        background: #344458;
         border: none;
-        border-radius: 2px;
     }
-    QFrame#navigationCard[clickable="true"]:hover,
-    QWidget#navigationCardHeader[collapsible="true"]:hover {
-        background: #303030;
+    QWidget#navigationCardHeader {
+        background: transparent;
+        border: none;
+        border-left: 2px solid transparent;
     }
-    QWidget#navigationCardHeader,
+    QWidget#navigationCardHeader:hover {
+        background: #273648;
+    }
+    QWidget#navigationCardHeader[active="true"] {
+        background: #29415B;
+        border-left-color: #7BAAE2;
+    }
     QWidget#navigationCardText,
     QLabel#navigationCardIcon,
     QLabel#navigationCardTitle,
@@ -45,12 +55,13 @@ static constexpr auto NAVIGATION_STYLE = R"(
         border: none;
     }
     QLabel#navigationCardTitle {
-        color: #E5E5E5;
-        font-size: 14px;
+        color: #F0F4F9;
+        font-family: "Bahnschrift";
+        font-size: 17px;
         font-weight: 500;
     }
     QLabel#navigationCardSubtext {
-        color: #999999;
+        color: #AAB9CA;
         font-size: 11px;
     }
     QToolButton#navigationCardExpand {
@@ -62,16 +73,16 @@ static constexpr auto NAVIGATION_STYLE = R"(
     }
 )";
 
-static QPixmap navigationIcon(const QIcon &icon, const int size) {
+static QPixmap navigationIcon(const QIcon &icon, const int size, const QColor &color) {
     QPixmap pixmap = icon.pixmap(size, size);
     QPainter painter(&pixmap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(pixmap.rect(), QColor("#B5B5B5"));
+    painter.fillRect(pixmap.rect(), color);
     return pixmap;
 }
 
 QIcon NavigationIcons::tabIcon(const QString &path) {
-    return QIcon(navigationIcon(QIcon(path), 32));
+    return QIcon(navigationIcon(QIcon(path), 32, QColor("#B5B5B5")));
 }
 
 NavigationCard::NavigationCard(
@@ -87,9 +98,6 @@ NavigationCard::NavigationCard(
     const bool collapsible,
     QWidget *parent
 ) : QFrame(parent), collapsible(collapsible) {
-    setObjectName("navigationCard");
-    setProperty("clickable", !collapsible);
-    setAttribute(Qt::WA_Hover);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
 
     auto *layout = new QVBoxLayout(this);
@@ -98,19 +106,21 @@ NavigationCard::NavigationCard(
 
     header = new QWidget(this);
     header->setObjectName("navigationCardHeader");
-    header->setProperty("collapsible", collapsible);
+    header->setFixedHeight(54);
+    header->setAttribute(Qt::WA_Hover);
     header->setCursor(Qt::PointingHandCursor);
     header->installEventFilter(this);
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(12, 12, 12, 12);
-    headerLayout->setSpacing(10);
+    headerLayout->setContentsMargins(16, 0, 16, 0);
+    headerLayout->setSpacing(12);
 
     auto *icon = new QLabel(header);
     icon->setObjectName("navigationCardIcon");
-    icon->setFixedSize(18, 18);
-    icon->setPixmap(navigationIcon(cardIcon, 18));
+    icon->setFixedSize(26, 22);
+    icon->setAlignment(Qt::AlignCenter);
+    icon->setPixmap(navigationIcon(cardIcon, 22, QColor("#BED0E3")));
     icon->setAttribute(Qt::WA_TransparentForMouseEvents);
-    headerLayout->addWidget(icon, 0, Qt::AlignTop);
+    headerLayout->addWidget(icon, 0, Qt::AlignVCenter);
 
     auto *text = new QWidget(header);
     text->setObjectName("navigationCardText");
@@ -129,7 +139,7 @@ NavigationCard::NavigationCard(
     subtextLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     subtextLabel->hide();
     textLayout->addWidget(subtextLabel);
-    headerLayout->addWidget(text, 1);
+    headerLayout->addWidget(text, 1, Qt::AlignVCenter);
 
     if (collapsible) {
         expandButton = new QToolButton(header);
@@ -147,14 +157,20 @@ NavigationCard::NavigationCard(
     content = new QWidget(this);
     content->installEventFilter(this);
     moduleContentLayout = new QVBoxLayout(content);
-    moduleContentLayout->setContentsMargins(12, 0, 12, 12);
-    moduleContentLayout->setSpacing(6);
+    moduleContentLayout->setContentsMargins(16, 0, 16, 0);
     layout->addWidget(content);
     content->hide();
 
     if (!collapsible) {
         setCursor(Qt::PointingHandCursor);
     }
+}
+
+void NavigationCard::setActive(const bool active) {
+    header->setProperty("active", active);
+    header->style()->unpolish(header);
+    header->style()->polish(header);
+    header->update();
 }
 
 QVBoxLayout *NavigationCard::contentLayout() const {
@@ -421,11 +437,12 @@ void ActualizationNavigationSection::setBeforeNodeActionHandler(
 
 NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     : QWidget(parent) {
-    setMinimumWidth(260);
+    setFixedWidth(400);
+    setAttribute(Qt::WA_StyledBackground);
     setStyleSheet(NAVIGATION_STYLE);
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(0, 0, 1, 0);
     layout->setSpacing(0);
 
     auto *scrollArea = new QScrollArea(this);
@@ -437,8 +454,8 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     auto *cardContainer = new QWidget(scrollArea);
     cardContainer->setObjectName("navigationCardContainer");
     auto *cardLayout = new QVBoxLayout(cardContainer);
-    cardLayout->setContentsMargins(8, 8, 8, 8);
-    cardLayout->setSpacing(8);
+    cardLayout->setContentsMargins(0, 8, 0, 14);
+    cardLayout->setSpacing(0);
 
     auto *tasksSection = new TasksNavigationSection(apiClient, cardContainer);
     auto *contextsSection = new NavigationCard(
@@ -455,6 +472,12 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     actualizationSection = new ActualizationNavigationSection(
         apiClient, cardContainer
     );
+    sections = {
+        {"tasks", tasksSection}, {"contexts", contextsSection},
+        {"calendar", calendarSection}, {"ideas", ideasSection},
+        {"learning", learningSection}, {"rss", rssSection},
+        {"sources", sourcesSection}, {"media", mediaSection}
+    };
 
     cardLayout->addWidget(tasksSection);
     cardLayout->addWidget(contextsSection);
@@ -464,6 +487,11 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     cardLayout->addWidget(rssSection);
     cardLayout->addWidget(sourcesSection);
     cardLayout->addWidget(mediaSection);
+    auto *divider = new QFrame(cardContainer);
+    divider->setObjectName("navigationSectionDivider");
+    divider->setFixedHeight(1);
+    cardLayout->addSpacing(6);
+    cardLayout->addWidget(divider);
     cardLayout->addWidget(actualizationSection);
     cardLayout->addStretch();
     scrollArea->setWidget(cardContainer);
@@ -530,6 +558,21 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     connect(actualizationSection,
             &ActualizationNavigationSection::openDomainNodeRequested,
             this, &NavigationSidebar::openDomainNodeRequested);
+}
+
+void NavigationSidebar::setActiveView(const QString &key) {
+    NavigationCard *section = key.startsWith("domain_node:")
+        ? actualizationSection : sections.value(key);
+    if (section == activeSection) {
+        return;
+    }
+    if (activeSection) {
+        activeSection->setActive(false);
+    }
+    activeSection = section;
+    if (activeSection) {
+        activeSection->setActive(true);
+    }
 }
 
 void NavigationSidebar::setBeforeNodeActionHandler(
