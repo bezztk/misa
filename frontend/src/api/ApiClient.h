@@ -44,7 +44,6 @@ signals:
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
     void calendarEntryUpdated();
-    void calendarEntryUpdateFailed(int id);
     void calendarEntryDeleted();
     void routineExecutionsGenerated();
     void ideasReceived(const std::vector<Idea>& ideas);

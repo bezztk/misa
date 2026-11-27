@@ -228,12 +228,10 @@ void ApiClient::updateCalendarEntry(const int id, const CreateCalendarEntry &ent
         "PATCH",
         QJsonDocument(json).toJson()
     );
-    connect(reply, &QNetworkReply::finished, this, [this, reply, id] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
         if (reply->error() == QNetworkReply::NoError
             && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 204) {
             emit calendarEntryUpdated();
-        } else {
-            emit calendarEntryUpdateFailed(id);
         }
 
         reply->deleteLater();

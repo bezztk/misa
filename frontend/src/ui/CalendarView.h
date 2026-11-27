@@ -1,45 +1,16 @@
 #ifndef FRONTEND_CALENDARVIEW_H
 #define FRONTEND_CALENDARVIEW_H
 
-#include "../api/ApiClient.h"
 #include "../models/CalendarEntry.h"
 
-#include <QObject>
-#include <QString>
+#include <QDate>
 #include <QWidget>
 
-#include <optional>
 #include <vector>
 
-class QResizeEvent;
-class QWebChannel;
-class QWebEngineView;
-
-class CalendarBridge final : public QObject {
-    Q_OBJECT
-
-public:
-    using QObject::QObject;
-
-public slots:
-    void calendarReady();
-    void rangeChanged(const QString &start, const QString &end);
-    void timeRangeSelected(const QString &start, const QString &end);
-    void editEntryRequested(int id);
-    void contextMenuRequested(int id, int x, int y);
-    void entryChangeRequested(int id, const QString &start, const QString &end);
-
-signals:
-    void ready();
-    void visibleRangeChanged(const QString &start, const QString &end);
-    void createEntryForRange(const QString &start, const QString &end);
-    void editEntry(int id);
-    void showContextMenu(int id, int x, int y);
-    void changeEntry(int id, const QString &start, const QString &end);
-    void entriesChanged(const QString &entriesJson);
-    void entryChangeFailed(int id);
-    void resizeRequested();
-};
+class ApiClient;
+class QLabel;
+class QPoint;
 
 class CalendarView final : public QWidget {
     Q_OBJECT
@@ -49,23 +20,20 @@ public:
     void openCreateDialog();
     void refresh();
 
-protected:
-    void resizeEvent(QResizeEvent *event) override;
-
 private:
-    void pushEntries();
-    void openCreateDialog(const QDateTime &start, const QDateTime &end);
+    class DayGrid;
+
+    void setDate(QDate date);
+    void renderDay();
     void openEditDialog(int id);
-    void showEntryContextMenu(int id, int x, int y);
-    void updateEntryTime(int id, const QString &start, const QString &end);
+    void showEntryContextMenu(int id, const QPoint &position);
     [[nodiscard]] const CalendarEntry *findEntry(int id) const;
 
     ApiClient &apiClient;
-    QWebEngineView *webView;
-    QWebChannel *webChannel;
-    CalendarBridge *bridge;
+    QDate selectedDate;
     std::vector<CalendarEntry> entries;
-    bool calendarReady = false;
+    QLabel *dateLabel;
+    DayGrid *grid;
 };
 
 #endif // FRONTEND_CALENDARVIEW_H
