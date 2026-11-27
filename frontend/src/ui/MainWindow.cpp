@@ -198,8 +198,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, [this] { openMedia()->openImportDialog(); });
     connect(navigation, &NavigationSidebar::createRssFeedRequested,
             this, [this] { openRss()->openCreateFeedDialog(); });
-    connect(navigation, &NavigationSidebar::createRssCategoryRequested,
-            this, [this] { openRss()->openCreateCategoryDialog(); });
     connect(navigation, &NavigationSidebar::refreshAllRssRequested,
             &apiClient, &ApiClient::refreshAllRssFeeds);
     connect(navigation, &NavigationSidebar::createTaskRequested,
@@ -260,7 +258,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::ideaUpdated, this, refreshIdeas);
     connect(&apiClient, &ApiClient::ideaDeleted, this, refreshIdeas);
     const auto refreshRss = [this] {
-        apiClient.getRssCategories();
         apiClient.getRssFeeds();
         apiClient.getRssEntries();
     };
@@ -269,7 +266,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::rssFeedDeleted, this, refreshRss);
     connect(&apiClient, &ApiClient::rssFeedsRefreshed, this, refreshRss);
     connect(&apiClient, &ApiClient::rssFeedEntriesRead, this, refreshRss);
-    connect(&apiClient, &ApiClient::rssCategoriesChanged, this, refreshRss);
     connect(&apiClient, &ApiClient::rssEntryUpdated, this, refreshRss);
     connect(&apiClient, &ApiClient::nodeFlashcardsChanged, this,
             [this](const int) { apiClient.getDueFlashcards(); });
@@ -335,7 +331,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     apiClient.getIdeas();
     apiClient.getDomainTree();
     apiClient.getDueFlashcardCount();
-    apiClient.getRssCategories();
     apiClient.getRssFeeds();
     apiClient.getRssEntries();
     apiClient.refreshAllRssFeeds();

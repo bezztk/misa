@@ -3,6 +3,7 @@
 #include "CalendarEntryDialog.h"
 #include "CommentUi.h"
 #include "ContextMenuStyle.h"
+#include "NavigationListDelegate.h"
 #include "TaskEditDialog.h"
 #include "TaskPriority.h"
 #include "VersionHistoryDialog.h"
@@ -30,8 +31,6 @@
 namespace {
 constexpr int ALL_TASKS = -1;
 constexpr int WITHOUT_CONTEXT = 0;
-constexpr int OPEN_TASK_COUNT_ROLE = Qt::UserRole + 1;
-constexpr int CONTEXT_ICON_SIZE = 22;
 constexpr int TASK_IMPORTANT_ROLE = Qt::UserRole + 1;
 constexpr int TASK_STATUS_ROLE = Qt::UserRole + 2;
 constexpr int TASK_STATUS_COLOR_ROLE = Qt::UserRole + 3;
@@ -39,63 +38,6 @@ constexpr int TASK_COMMENT_COUNT_ROLE = Qt::UserRole + 4;
 constexpr int TASK_PLANNING_COUNT_ROLE = Qt::UserRole + 5;
 constexpr int TASK_OWNER_ROLE = Qt::UserRole + 6;
 
-class ContextNavigationDelegate final : public QStyledItemDelegate {
-public:
-    using QStyledItemDelegate::QStyledItemDelegate;
-
-    void paint(
-        QPainter *painter,
-        const QStyleOptionViewItem &option,
-        const QModelIndex &index
-    ) const override {
-        const QRect row(0, option.rect.top(), painter->viewport().width(), option.rect.height());
-        painter->save();
-        if (!index.flags().testFlag(Qt::ItemIsEnabled)) {
-            QColor divider = option.palette.text().color();
-            divider.setAlpha(38);
-            painter->setPen(divider);
-            painter->drawLine(row.left() + 18, row.center().y(), row.right() - 18, row.center().y());
-            painter->restore();
-            return;
-        }
-        painter->fillRect(row, index.data(Qt::BackgroundRole).value<QBrush>());
-        if (option.state.testFlag(QStyle::State_MouseOver)) {
-            painter->fillRect(row, QColor(255, 255, 255, 26));
-        }
-        if (option.state.testFlag(QStyle::State_Selected)) {
-            painter->fillRect(QRect(row.topLeft(), QSize(3, row.height())), QColor("#B8B8B8"));
-        }
-
-        QRect textRect = row.adjusted(18, 0, -18, 0);
-        const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
-        if (!icon.isNull()) {
-            const QRect iconRect(
-                textRect.left(), row.top() + (row.height() - CONTEXT_ICON_SIZE) / 2,
-                CONTEXT_ICON_SIZE, CONTEXT_ICON_SIZE
-            );
-            icon.paint(painter, iconRect);
-            textRect.adjust(CONTEXT_ICON_SIZE + 12, 0, 0, 0);
-        }
-
-        const QString count = index.data(OPEN_TASK_COUNT_ROLE).toString();
-        auto countFont = option.font;
-        countFont.setPixelSize(12);
-        const int countWidth = QFontMetrics(countFont).horizontalAdvance(count);
-        const QRect countRect(textRect.right() + 1 - countWidth, row.top(), countWidth, row.height());
-        QColor countColor = option.palette.text().color();
-        countColor.setAlpha(175);
-        painter->setFont(countFont);
-        painter->setPen(countColor);
-        painter->drawText(countRect, Qt::AlignRight | Qt::AlignVCenter, count);
-
-        textRect.setRight(countRect.left() - 12);
-        painter->setFont(option.font);
-        painter->setPen(option.palette.text().color());
-        painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-            option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, textRect.width()));
-        painter->restore();
-    }
-};
 
 constexpr int taskLineHeight = 22;
 constexpr int priorityDotSize = 7;
@@ -316,7 +258,7 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     navigation->setFont(contextFont);
     navigation->setMouseTracking(true);
     navigation->viewport()->setAttribute(Qt::WA_Hover);
-    navigation->setItemDelegate(new ContextNavigationDelegate(navigation));
+    navigation->setItemDelegate(new NavigationListDelegate(navigation));
     navigation->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     navigation->setStyleSheet(R"(
         QListWidget {
@@ -474,7 +416,7 @@ void TaskView::updateNavigationCounts() {
             continue;
         }
         const int count = openCounts.value(item->data(Qt::UserRole).toInt());
-        item->setData(OPEN_TASK_COUNT_ROLE, count);
+        item->setData(NavigationListDelegate::CountRole, count);
         item->setData(Qt::AccessibleDescriptionRole, count == 1
             ? QString("1 offene Aufgabe") : QString("%1 offene Aufgaben").arg(count));
     }

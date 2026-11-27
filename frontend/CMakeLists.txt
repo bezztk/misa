@@ -83,6 +83,7 @@ add_executable(frontend
         src/ui/ContextMenuStyle.h
         src/ui/NavigationSidebar.cpp
         src/ui/NavigationSidebar.h
+        src/ui/NavigationListDelegate.h
         src/ui/WorkspaceManager.cpp
         src/ui/WorkspaceManager.h
         src/ui/WorkspaceSplitter.cpp

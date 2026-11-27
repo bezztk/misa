@@ -1,14 +1,14 @@
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 
-use crate::models::rss::{RssCategory, RssEntry, RssFeed};
+use crate::models::rss::{RssEntry, RssFeed};
 
 pub async fn get_feeds(pool: &PgPool) -> Result<Vec<RssFeed>, sqlx::Error> {
     sqlx::query_as::<_, RssFeed>(
-        "SELECT id, category_id, url, title, last_fetched_at, enabled, is_hidden
+        "SELECT id, url, title, last_fetched_at, enabled, is_hidden
          FROM rss_feeds
          WHERE is_hidden = FALSE
-         ORDER BY title, id",
+         ORDER BY id",
     )
     .fetch_all(pool)
     .await
@@ -16,7 +16,7 @@ pub async fn get_feeds(pool: &PgPool) -> Result<Vec<RssFeed>, sqlx::Error> {
 
 pub async fn get_active_feeds(pool: &PgPool) -> Result<Vec<RssFeed>, sqlx::Error> {
     sqlx::query_as::<_, RssFeed>(
-        "SELECT id, category_id, url, title, last_fetched_at, enabled, is_hidden
+        "SELECT id, url, title, last_fetched_at, enabled, is_hidden
          FROM rss_feeds
          WHERE enabled = TRUE AND is_hidden = FALSE
          ORDER BY id",
@@ -27,7 +27,7 @@ pub async fn get_active_feeds(pool: &PgPool) -> Result<Vec<RssFeed>, sqlx::Error
 
 pub async fn get_active_feed(pool: &PgPool, id: i32) -> Result<Option<RssFeed>, sqlx::Error> {
     sqlx::query_as::<_, RssFeed>(
-        "SELECT id, category_id, url, title, last_fetched_at, enabled, is_hidden
+        "SELECT id, url, title, last_fetched_at, enabled, is_hidden
          FROM rss_feeds
          WHERE id = $1 AND enabled = TRUE AND is_hidden = FALSE",
     )
@@ -41,7 +41,7 @@ pub async fn create_or_reactivate_feed(pool: &PgPool, url: &str) -> Result<RssFe
         "INSERT INTO rss_feeds (url, title)
          VALUES ($1, $1)
          ON CONFLICT (url) DO UPDATE SET is_hidden = FALSE
-         RETURNING id, category_id, url, title, last_fetched_at, enabled, is_hidden",
+         RETURNING id, url, title, last_fetched_at, enabled, is_hidden",
     )
     .bind(url)
     .fetch_one(pool)
@@ -62,23 +62,6 @@ pub async fn update_feed(
     .bind(id)
     .bind(url)
     .bind(enabled)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
-pub async fn assign_feed_category(
-    pool: &PgPool,
-    id: i32,
-    category_id: Option<i32>,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "UPDATE rss_feeds
-         SET category_id = $2
-         WHERE id = $1 AND is_hidden = FALSE",
-    )
-    .bind(id)
-    .bind(category_id)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
@@ -138,63 +121,6 @@ pub async fn mark_feed_read(pool: &PgPool, feed_id: i32) -> Result<bool, sqlx::E
         .execute(pool)
         .await?;
     Ok(true)
-}
-
-pub async fn get_categories(pool: &PgPool) -> Result<Vec<RssCategory>, sqlx::Error> {
-    sqlx::query_as::<_, RssCategory>(
-        "SELECT id, name, icon, color
-         FROM rss_categories
-         ORDER BY name, id",
-    )
-    .fetch_all(pool)
-    .await
-}
-
-pub async fn create_category(
-    pool: &PgPool,
-    name: &str,
-    icon: Option<&[u8]>,
-    color: &str,
-) -> Result<RssCategory, sqlx::Error> {
-    sqlx::query_as::<_, RssCategory>(
-        "INSERT INTO rss_categories (name, icon, color)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, icon, color",
-    )
-    .bind(name)
-    .bind(icon)
-    .bind(color)
-    .fetch_one(pool)
-    .await
-}
-
-pub async fn update_category(
-    pool: &PgPool,
-    id: i32,
-    name: &str,
-    icon: Option<&[u8]>,
-    color: &str,
-) -> Result<Option<RssCategory>, sqlx::Error> {
-    sqlx::query_as::<_, RssCategory>(
-        "UPDATE rss_categories
-         SET name = $2, icon = $3, color = $4
-         WHERE id = $1
-         RETURNING id, name, icon, color",
-    )
-    .bind(id)
-    .bind(name)
-    .bind(icon)
-    .bind(color)
-    .fetch_optional(pool)
-    .await
-}
-
-pub async fn delete_category(pool: &PgPool, id: i32) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM rss_categories WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
-    Ok(result.rows_affected() > 0)
 }
 
 pub async fn save_fetched_feed(

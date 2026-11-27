@@ -127,7 +127,6 @@ public:
 signals:
     void openRequested();
     void createFeedRequested();
-    void createCategoryRequested();
     void refreshAllRequested();
 };
 
@@ -189,7 +188,6 @@ signals:
     void openMediaRequested();
     void importMediaRequested();
     void createRssFeedRequested();
-    void createRssCategoryRequested();
     void refreshAllRssRequested();
     void createTaskRequested();
     void createCalendarEntryRequested();

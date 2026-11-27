@@ -6,12 +6,11 @@ use sqlx::PgPool;
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::response::IdResponse;
 use crate::models::rss::{
-    AssignRssFeedCategoryRequest, CreateRssFeedRequest, RssCategory, RssEntriesQuery, RssEntry,
-    RssFeed, SaveRssCategoryRequest, UpdateRssEntryRequest, UpdateRssFeedRequest,
+    CreateRssFeedRequest, RssEntriesQuery, RssEntry, RssFeed, UpdateRssEntryRequest,
+    UpdateRssFeedRequest,
 };
 use crate::repositories::rss_repository;
 use crate::services::rss_service;
-use crate::validation::valid_name;
 
 pub async fn get_feeds(State(pool): State<PgPool>) -> ApiResult<Json<Vec<RssFeed>>> {
     Ok(Json(rss_repository::get_feeds(&pool).await?))
@@ -51,17 +50,6 @@ pub async fn update_feed(
     }
 
     if !rss_repository::update_feed(&pool, id, url, payload.enabled).await? {
-        return Err(ApiError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
-}
-
-pub async fn assign_feed_category(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-    Json(payload): Json<AssignRssFeedCategoryRequest>,
-) -> ApiResult<StatusCode> {
-    if !rss_repository::assign_feed_category(&pool, id, payload.category_id).await? {
         return Err(ApiError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
@@ -122,57 +110,6 @@ pub async fn update_entry(
     Json(payload): Json<UpdateRssEntryRequest>,
 ) -> ApiResult<StatusCode> {
     if !rss_repository::update_entry_read(&pool, id, payload.is_read).await? {
-        return Err(ApiError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
-}
-
-pub async fn get_categories(State(pool): State<PgPool>) -> ApiResult<Json<Vec<RssCategory>>> {
-    Ok(Json(rss_repository::get_categories(&pool).await?))
-}
-
-pub async fn create_category(
-    State(pool): State<PgPool>,
-    Json(payload): Json<SaveRssCategoryRequest>,
-) -> ApiResult<(StatusCode, Json<RssCategory>)> {
-    if !valid_name(&payload.name, 100) || payload.color.len() != 7 {
-        return Err(ApiError::BadRequest);
-    }
-    let category = rss_repository::create_category(
-        &pool,
-        payload.name.trim(),
-        payload.icon.as_deref(),
-        &payload.color,
-    )
-    .await?;
-    Ok((StatusCode::CREATED, Json(category)))
-}
-
-pub async fn update_category(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-    Json(payload): Json<SaveRssCategoryRequest>,
-) -> ApiResult<Json<RssCategory>> {
-    if !valid_name(&payload.name, 100) || payload.color.len() != 7 {
-        return Err(ApiError::BadRequest);
-    }
-    let category = rss_repository::update_category(
-        &pool,
-        id,
-        payload.name.trim(),
-        payload.icon.as_deref(),
-        &payload.color,
-    )
-    .await?
-    .ok_or(ApiError::NotFound)?;
-    Ok(Json(category))
-}
-
-pub async fn delete_category(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-) -> ApiResult<StatusCode> {
-    if !rss_repository::delete_category(&pool, id).await? {
         return Err(ApiError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)

@@ -388,13 +388,10 @@ RssNavigationSection::RssNavigationSection(ApiClient &apiClient, QWidget *parent
             [this](const QPoint &position) {
                 QMenu menu(this);
                 QAction *createFeedAction = menu.addAction("Feed abonnieren");
-                QAction *createCategoryAction = menu.addAction("Kategorie erstellen");
                 QAction *refreshAction = menu.addAction("Alle Feeds aktualisieren");
                 QAction *selected = menu.exec(position);
                 if (selected == createFeedAction) {
                     emit createFeedRequested();
-                } else if (selected == createCategoryAction) {
-                    emit createCategoryRequested();
                 } else if (selected == refreshAction) {
                     emit refreshAllRequested();
                 }
@@ -541,8 +538,6 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::importMediaRequested);
     connect(rssSection, &RssNavigationSection::createFeedRequested,
             this, &NavigationSidebar::createRssFeedRequested);
-    connect(rssSection, &RssNavigationSection::createCategoryRequested,
-            this, &NavigationSidebar::createRssCategoryRequested);
     connect(rssSection, &RssNavigationSection::refreshAllRequested,
             this, &NavigationSidebar::refreshAllRssRequested);
     connect(tasksSection, &TasksNavigationSection::createRequested,
