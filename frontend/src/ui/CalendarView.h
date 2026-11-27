@@ -9,8 +9,12 @@
 #include <vector>
 
 class ApiClient;
+class QAbstractButton;
+class QButtonGroup;
 class QLabel;
 class QPoint;
+class QScrollArea;
+class QStackedWidget;
 
 class CalendarView final : public QWidget {
     Q_OBJECT
@@ -21,19 +25,28 @@ public:
     void refresh();
 
 private:
-    class DayGrid;
+    enum class ViewMode { Day, Week, Month };
+    class TimeGrid;
 
-    void setDate(QDate date);
-    void renderDay();
+    void showDate(QDate date, ViewMode mode);
+    void navigate(int step);
+    void renderCalendar();
+    void renderMonth();
+    QAbstractButton *createEntryButton(const CalendarEntry &entry, QWidget *parent);
     void openEditDialog(int id);
     void showEntryContextMenu(int id, const QPoint &position);
     [[nodiscard]] const CalendarEntry *findEntry(int id) const;
 
     ApiClient &apiClient;
+    QDate today = QDate::currentDate();
     QDate selectedDate;
+    ViewMode viewMode = ViewMode::Day;
     std::vector<CalendarEntry> entries;
     QLabel *dateLabel;
-    DayGrid *grid;
+    QButtonGroup *viewButtons;
+    QStackedWidget *pages;
+    TimeGrid *grid;
+    QScrollArea *monthScroll;
 };
 
 #endif // FRONTEND_CALENDARVIEW_H
