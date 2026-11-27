@@ -72,8 +72,7 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     buttons->button(QDialogButtonBox::Save)->setText(acceptText);
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addRow(buttons);
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
 
     if (execDialog(dialog, acceptOnOutsideClick) != QDialog::Accepted
         || nameEdit->text().trimmed().isEmpty()) {

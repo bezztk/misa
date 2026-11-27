@@ -209,8 +209,7 @@ void showVersionHistoryDialog(
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     buttons->button(QDialogButtonBox::Close)->setText("Schließen");
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    prepareDialog(dialog, 820);
+    prepareFormDialog(dialog, *buttons, 820);
 
     apiClient.getEntityFieldVersions(entityId);
     execDialog(dialog);
@@ -253,7 +252,6 @@ void showDocumentVersionHistoryDialog(
     restoreButton->setEnabled(false);
     buttons->button(QDialogButtonBox::Close)->setText("Schließen");
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
 
     std::vector<DocumentVersion> versions;
     QObject::connect(
@@ -355,7 +353,7 @@ void showDocumentVersionHistoryDialog(
         }
     );
 
-    prepareDialog(dialog, 820);
+    prepareFormDialog(dialog, *buttons, 820);
     apiClient.getDocumentVersions(nodeId);
     execDialog(dialog);
 }

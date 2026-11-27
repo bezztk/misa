@@ -7,9 +7,11 @@
 #include <optional>
 
 class QDialog;
+class QDialogButtonBox;
 class QWidget;
 
 void prepareDialog(QDialog &dialog, int minimumWidth = 460);
+void prepareFormDialog(QDialog &dialog, QDialogButtonBox &buttons, int minimumWidth = 460);
 int execDialog(QDialog &dialog, bool acceptOnOutsideClick = false);
 
 std::optional<QString> showTextInputDialog(

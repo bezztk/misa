@@ -4,6 +4,7 @@
 #include "DialogUtils.h"
 
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -13,7 +14,6 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmapCache>
-#include <QPushButton>
 #include <QScreen>
 #include <QStandardPaths>
 #include <QStyle>
@@ -129,10 +129,10 @@ void showMediaImage(QWidget *parent, const QString &file) {
     picture->setFocusPolicy(Qt::NoFocus);
     picture->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     layout->addWidget(picture, 1);
-    auto *close = new QPushButton("Schließen", &dialog);
-    layout->addWidget(close, 0, Qt::AlignRight);
-    QObject::connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
-    prepareDialog(dialog);
+    auto *buttons = new QDialogButtonBox(&dialog);
+    buttons->addButton("Schließen", QDialogButtonBox::AcceptRole);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    prepareFormDialog(dialog, *buttons);
     const QSize available = dialog.screen()->availableGeometry().size();
     dialog.resize(qMin(1040, available.width() * 9 / 10), qMin(740, available.height() * 9 / 10));
     picture->setFile(file, QSize(1800, 1400));

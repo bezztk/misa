@@ -110,14 +110,14 @@ void retainHiddenSpace(QWidget &widget) {
     widget.setSizePolicy(policy);
 }
 
-QPushButton *addDialogButtons(QDialog &dialog, QVBoxLayout &layout, const QString &acceptText) {
+QPushButton *prepareLearningForm(QDialog &dialog, const QString &acceptText) {
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     auto *accept = buttons->button(QDialogButtonBox::Ok);
     accept->setText(acceptText);
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout.addWidget(buttons);
+    prepareFormDialog(dialog, *buttons);
     return accept;
 }
 
@@ -191,7 +191,7 @@ bool editCardText(QWidget *parent, ShortTermLearningCard &card, const bool creat
     form->addRow("Hinweis", cardHint);
     form->addRow("Rückseite", back);
     layout->addLayout(form);
-    auto *accept = addDialogButtons(dialog, *layout, creating ? "Erstellen" : "Speichern");
+    auto *accept = prepareLearningForm(dialog, creating ? "Erstellen" : "Speichern");
     const auto updateAccept = [accept, front, back] {
         accept->setEnabled(!front->toPlainText().trimmed().isEmpty() &&
                            !back->toPlainText().trimmed().isEmpty());
@@ -199,7 +199,6 @@ bool editCardText(QWidget *parent, ShortTermLearningCard &card, const bool creat
     QObject::connect(front, &QPlainTextEdit::textChanged, &dialog, updateAccept);
     QObject::connect(back, &QPlainTextEdit::textChanged, &dialog, updateAccept);
     updateAccept();
-    prepareDialog(dialog);
     if (execDialog(dialog) != QDialog::Accepted) {
         return false;
     }
@@ -629,12 +628,11 @@ void ShortTermLearningView::openCreateSetDialog() {
     form->addRow("Titel", title);
     form->addRow(bidirectional);
     layout->addLayout(form);
-    auto *accept = addDialogButtons(dialog, *layout, "Erstellen");
+    auto *accept = prepareLearningForm(dialog, "Erstellen");
     accept->setEnabled(false);
     connect(title, &QLineEdit::textChanged, &dialog, [accept](const QString &text) {
         accept->setEnabled(!text.trimmed().isEmpty());
     });
-    prepareDialog(dialog);
     if (execDialog(dialog) != QDialog::Accepted) {
         return;
     }

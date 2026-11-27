@@ -276,8 +276,7 @@ void ContextView::openContextDialog(std::optional<Context> context) {
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    form->addRow(buttons);
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
 
     if (execDialog(dialog) != QDialog::Accepted || title->text().trimmed().isEmpty()) {
         return;

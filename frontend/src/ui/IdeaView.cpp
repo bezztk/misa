@@ -605,8 +605,7 @@ void IdeaView::openCreateDialog() {
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addRow(buttons);
-    prepareDialog(dialog, 600);
+    prepareFormDialog(dialog, *buttons, 600);
 
     if (execDialog(dialog) != QDialog::Accepted
         || titleEdit->text().trimmed().isEmpty()) {
@@ -636,8 +635,7 @@ void IdeaView::openEditDialog(const Idea &idea) {
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addRow(buttons);
-    prepareDialog(dialog, 600);
+    prepareFormDialog(dialog, *buttons, 600);
     execDialog(dialog, true);
 
     const QString title = titleEdit->text().trimmed();
@@ -710,8 +708,7 @@ void IdeaView::openPhaseDialog(const Idea &idea) {
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    prepareDialog(dialog, 520);
+    prepareFormDialog(dialog, *buttons, 520);
 
     if (execDialog(dialog) == QDialog::Accepted
         && phaseButtons->checkedId() != idea.phaseId) {

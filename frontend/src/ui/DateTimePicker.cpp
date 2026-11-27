@@ -332,8 +332,8 @@ QDateTime DateTimeButton::dateTime() const {
 void DateTimeButton::setDateTime(const QDateTime &dateTime) {
     const bool changed = value != dateTime;
     value = dateTime;
-    setText(value.isValid() ? value.toString("dd.MM.yyyy   │   HH:mm") : "Datum und Uhrzeit auswählen");
-    setAccessibleDescription(value.isValid() ? value.toString("dd.MM.yyyy, HH:mm") : QString());
+    setText(value.isValid() ? german.toString(value, "ddd, dd.MM.yyyy   │   HH:mm") : "Datum und Uhrzeit auswählen");
+    setAccessibleDescription(value.isValid() ? german.toString(value, "dddd, dd.MM.yyyy, HH:mm") : QString());
     if (changed) {
         emit dateTimeChanged();
     }

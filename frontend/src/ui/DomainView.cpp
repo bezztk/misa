@@ -77,7 +77,7 @@ static void setDomainItemAppearance(
 ) {
     item->setData(domain.color ? QVariant(*domain.color) : QVariant(), DOMAIN_COLOR_ROLE);
     item->setData(domain.icon ? QVariant(*domain.icon) : QVariant(), DOMAIN_ICON_ROLE);
-    if (!navigationMode && domain.color) {
+    if (domain.color) {
         item->setForeground(QBrush(QColor(*domain.color)));
     } else {
         item->setData(QVariant(), Qt::ForegroundRole);
@@ -310,6 +310,15 @@ public:
         return true;
     }
 
+protected:
+    void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const override {
+        QStyledItemDelegate::initStyleOption(option, index);
+        const QVariant foreground = index.data(Qt::ForegroundRole);
+        if (foreground.isValid()) {
+            option->palette.setBrush(QPalette::HighlightedText, foreground.value<QBrush>());
+        }
+    }
+
 private:
     std::function<void(int)> openComments;
     std::function<void()> indicatorPressed;
@@ -445,8 +454,7 @@ static void showKnowledgeLevelDialog(
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    prepareDialog(dialog, 520);
+    prepareFormDialog(dialog, *buttons, 520);
 
     if (execDialog(dialog) != QDialog::Accepted) {
         return;
@@ -606,8 +614,7 @@ static void showDomainNodeDialog(
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
     execDialog(dialog, true);
 
     const QString updatedName = nameEdit->text().trimmed();
@@ -686,8 +693,7 @@ static bool showFlashcardDialog(
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     buttons->button(QDialogButtonBox::Ok)->setText("Erstellen");
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addWidget(buttons);
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
 
     if (execDialog(dialog) != QDialog::Accepted) {
         return false;
@@ -719,8 +725,7 @@ static void showFlashcardEditDialog(
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
     execDialog(dialog, true);
 
     const QString front = frontEdit->toPlainText().trimmed();
@@ -800,8 +805,7 @@ static bool showPursuitDialog(
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
-    layout->addWidget(buttons);
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
 
     if (execDialog(dialog, true) != QDialog::Accepted) {
         return false;

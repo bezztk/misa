@@ -264,7 +264,6 @@ void SourceView::showCategoryMenu(const int id, const QString &name, const QPoin
 void SourceView::openCategoryDialog(const Source &source) {
     QDialog dialog(this);
     dialog.setWindowTitle("Kategorie ändern");
-    prepareDialog(dialog);
     auto *layout = new QFormLayout(&dialog);
     auto *choices = new QComboBox(&dialog);
     choices->addItem("Ohne Kategorie", NO_CATEGORY);
@@ -277,9 +276,9 @@ void SourceView::openCategoryDialog(const Source &source) {
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
     buttons->button(QDialogButtonBox::Save)->setText("Speichern");
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addRow(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    prepareFormDialog(dialog, *buttons);
     if (execDialog(dialog) == QDialog::Accepted) {
         apiClient.assignSourceCategory(source.id, choices->currentData().toInt());
     }

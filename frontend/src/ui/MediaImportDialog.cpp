@@ -3,39 +3,32 @@
 #include "../api/ApiClient.h"
 #include "DialogUtils.h"
 
-#include <QHBoxLayout>
+#include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QVBoxLayout>
 
 MediaImportDialog::MediaImportDialog(ApiClient &apiClient, QWidget *parent)
     : QDialog(parent), apiClient(apiClient) {
     setWindowTitle("Film oder Serie importieren");
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QFormLayout(this);
 
-    auto *urlLabel = new QLabel("&TMDB-Adresse", this);
     urlField = new QLineEdit(this);
     urlField->setPlaceholderText("https://www.themoviedb.org/…");
     urlField->setClearButtonEnabled(true);
-    urlLabel->setBuddy(urlField);
-    layout->addWidget(urlLabel);
-    layout->addWidget(urlField);
+    layout->addRow("&TMDB-Adresse", urlField);
 
     importStatus = new QLabel(this);
     importStatus->setWordWrap(true);
     importStatus->hide();
-    layout->addWidget(importStatus);
+    layout->addRow(importStatus);
 
-    auto *buttons = new QHBoxLayout();
-    buttons->addStretch(1);
-    cancelButton = new QPushButton("Abbrechen", this);
+    auto *buttons = new QDialogButtonBox(this);
+    cancelButton = buttons->addButton("Abbrechen", QDialogButtonBox::RejectRole);
     cancelButton->setAutoDefault(false);
-    buttons->addWidget(cancelButton);
-    importButton = new QPushButton("Importieren", this);
+    importButton = buttons->addButton("Importieren", QDialogButtonBox::AcceptRole);
     importButton->setAutoDefault(false);
-    buttons->addWidget(importButton);
-    layout->addLayout(buttons);
 
     connect(urlField, &QLineEdit::textChanged, this, &MediaImportDialog::updateButtons);
     connect(urlField, &QLineEdit::returnPressed, importButton, &QPushButton::click);
@@ -57,7 +50,7 @@ MediaImportDialog::MediaImportDialog(ApiClient &apiClient, QWidget *parent)
                 }
             });
 
-    prepareDialog(*this);
+    prepareFormDialog(*this, *buttons);
     updateButtons();
     urlField->setFocus();
 }

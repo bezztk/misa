@@ -642,7 +642,6 @@ void MediaDetailView::openNoteDialog(ApiClient &apiClient) {
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
     buttons->button(QDialogButtonBox::Save)->setText("Speichern");
     buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     if (!media.personalNotes.isEmpty()) {
@@ -652,7 +651,7 @@ void MediaDetailView::openNoteDialog(ApiClient &apiClient) {
             dialog.accept();
         });
     }
-    prepareDialog(dialog);
+    prepareFormDialog(dialog, *buttons);
     editor->setFocus();
     if (dialog.exec() != QDialog::Accepted || editor->toPlainText() == media.personalNotes) {
         return;
