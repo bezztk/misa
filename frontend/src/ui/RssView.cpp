@@ -1,5 +1,7 @@
 #include "RssView.h"
 
+#include "ContextMenuStyle.h"
+
 #include "DialogUtils.h"
 
 #include <QCheckBox>
@@ -784,7 +786,7 @@ void RssView::showNavigationContextMenu(const QPoint &position) {
         const RssCategory selectedCategory = *category;
         QMenu menu(this);
         QAction *editAction = menu.addAction("Bearbeiten");
-        QAction *deleteAction = menu.addAction("Löschen");
+        QAction *deleteAction = menu.addAction(contextMenuDeleteIcon(), "Löschen");
         QAction *selected = menu.exec(navigationTree->viewport()->mapToGlobal(position));
         if (selected == editAction) {
             openCategoryDialog(&selectedCategory);

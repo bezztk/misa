@@ -23,7 +23,7 @@ inline constexpr auto ideas = ":/assets/icons/idea.png";
 inline constexpr auto learning = ":/assets/icons/flashcards-white.png";
 inline constexpr auto rss = ":/assets/icons/rss.png";
 inline constexpr auto sources = ":/assets/icons/text-analytics.png";
-inline constexpr auto media = ":/assets/icons/video-camera.png";
+inline constexpr auto media = ":/assets/icons/film.png";
 inline constexpr auto notes = ":/assets/icons/quill-pen.png";
 
 QIcon tabIcon(const QString &path);

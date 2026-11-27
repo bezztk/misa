@@ -2,6 +2,7 @@
 #include <QColor>
 #include <QIcon>
 #include <QPalette>
+#include "src/ui/ContextMenuStyle.h"
 #include "src/ui/MainWindow.h"
 
 #ifdef Q_OS_WIN
@@ -15,6 +16,7 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     QApplication::setApplicationName("misa");
+    installContextMenuStyle();
     app.setWindowIcon(QIcon(":/assets/icons/misa.png"));
 
     QPalette palette = app.palette();

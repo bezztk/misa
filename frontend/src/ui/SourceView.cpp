@@ -1,5 +1,7 @@
 #include "SourceView.h"
 
+#include "ContextMenuStyle.h"
+
 #include "DialogUtils.h"
 #include "../api/ApiClient.h"
 
@@ -221,7 +223,7 @@ void SourceView::showSourceMenu(const Source &source, const QPoint &position) {
     const auto *rename = menu.addAction("Titel ändern");
     const auto *assign = menu.addAction("Kategorie ändern");
     menu.addSeparator();
-    const auto *remove = menu.addAction("Quelle löschen");
+    const auto *remove = menu.addAction(contextMenuDeleteIcon(), "Quelle löschen");
     const auto *selected = menu.exec(position);
     if (selected == open) {
         QDesktopServices::openUrl(QUrl(source.url));
@@ -244,7 +246,7 @@ void SourceView::showSourceMenu(const Source &source, const QPoint &position) {
 void SourceView::showCategoryMenu(const int id, const QString &name, const QPoint &position) {
     QMenu menu(this);
     const auto *rename = menu.addAction("Kategorie umbenennen");
-    const auto *remove = menu.addAction("Kategorie löschen");
+    const auto *remove = menu.addAction(contextMenuDeleteIcon(), "Kategorie löschen");
     const auto *selected = menu.exec(position);
     if (selected == rename) {
         if (const auto newName = showTextInputDialog(

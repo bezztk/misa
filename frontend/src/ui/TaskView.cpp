@@ -2,6 +2,7 @@
 
 #include "CalendarEntryDialog.h"
 #include "CommentUi.h"
+#include "ContextMenuStyle.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
 #include "../api/ApiClient.h"
@@ -375,7 +376,7 @@ void TaskView::showTaskMenu(const QPoint &position) {
         QIcon(":/assets/icons/version_history.png"), "Versionshistorie"
     );
     menu.addSeparator();
-    const auto *remove = menu.addAction(QIcon(":/assets/icons/delete.png"), "Löschen");
+    const auto *remove = menu.addAction(contextMenuDeleteIcon(), "Löschen");
 
     const auto *selected = menu.exec(taskList->viewport()->mapToGlobal(position));
     if (selected == edit) {

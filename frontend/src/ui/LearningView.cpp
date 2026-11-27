@@ -244,6 +244,7 @@ QWidget *LearningView::createSessionScreen() {
     infoButton->setAccessibleName("Karteninformationen");
     infoButton->setPopupMode(QToolButton::InstantPopup);
     metadataMenu = new QMenu(infoButton);
+    metadataMenu->setObjectName("learningMetadataPopup");
     auto *metadataAction = new QWidgetAction(metadataMenu);
     auto *metadata = new QWidget(metadataMenu);
     auto *metadataLayout = new QGridLayout(metadata);

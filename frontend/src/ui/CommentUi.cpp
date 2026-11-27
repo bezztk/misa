@@ -1,5 +1,7 @@
 #include "CommentUi.h"
 
+#include "ContextMenuStyle.h"
+
 #include "../api/ApiClient.h"
 #include "DialogUtils.h"
 
@@ -234,7 +236,7 @@ public:
                         "Bearbeiten"
                     );
                     QAction *deleteAction = menu.addAction(
-                        QIcon(":/assets/icons/delete.png"),
+                        contextMenuDeleteIcon(),
                         "Löschen"
                     );
                     QAction *selectedAction = menu.exec(

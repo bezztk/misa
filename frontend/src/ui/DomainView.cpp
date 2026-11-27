@@ -1,6 +1,7 @@
 #include "DomainView.h"
 #include "DialogUtils.h"
 #include "CommentUi.h"
+#include "ContextMenuStyle.h"
 #include "DocumentEditor.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
@@ -1495,15 +1496,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     QIcon(":/assets/icons/speech-bubble.png"),
                     "Kommentare anzeigen"
                 );
-                QAction *deleteAction = menu.addAction(
-                    QIcon(":/assets/icons/delete.png"),
-                    "Löschen"
-                );
-                menu.addSeparator();
                 QAction *historyAction = menu.addAction(
                     QIcon(":/assets/icons/version_history.png"),
                     "Versionshistorie"
                 );
+                menu.addSeparator();
+                QAction *deleteAction = menu.addAction(contextMenuDeleteIcon(), "Löschen");
                 QAction *selectedAction = menu.exec(
                     taskListView->viewport()->mapToGlobal(position)
                 );
@@ -1535,15 +1533,12 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
                     QIcon(":/assets/icons/speech-bubble.png"),
                     "Kommentare anzeigen"
                 );
-                QAction *deleteAction = menu.addAction(
-                    QIcon(":/assets/icons/delete.png"),
-                    "Löschen"
-                );
-                menu.addSeparator();
                 QAction *historyAction = menu.addAction(
                     QIcon(":/assets/icons/version_history.png"),
                     "Versionshistorie"
                 );
+                menu.addSeparator();
+                QAction *deleteAction = menu.addAction(contextMenuDeleteIcon(), "Löschen");
                 QAction *selectedAction = menu.exec(
                     flashcardListView->viewport()->mapToGlobal(position)
                 );
@@ -1605,7 +1600,7 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
 
                 QMenu menu(attachmentListView);
                 QAction *deleteAction = menu.addAction(
-                    QIcon(":/assets/icons/delete.png"),
+                    contextMenuDeleteIcon(),
                     "Löschen"
                 );
                 if (menu.exec(attachmentListView->viewport()->mapToGlobal(position))
@@ -2043,12 +2038,8 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
     QAction *createDocumentAction = nullptr;
     QAction *deleteDocumentAction = nullptr;
     QAction *documentHistoryAction = nullptr;
-    if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
-        deleteDocumentAction = menu.addAction(
-            QIcon(":/assets/icons/delete.png"),
-            "Aufschrieb löschen"
-        );
-    } else {
+    const bool hasDocument = index.data(HAS_DOCUMENT_ROLE).toBool();
+    if (!hasDocument) {
         createDocumentAction = menu.addAction(
             QIcon(":/assets/icons/add.png"),
             "Aufschrieb erstellen"
@@ -2059,17 +2050,17 @@ void DomainView::showDomainNodeContextMenu(const QPoint &position) {
         QIcon(":/assets/icons/version_history.png"),
         "Versionshistorie"
     );
-    if (index.data(HAS_DOCUMENT_ROLE).toBool()) {
+    if (hasDocument) {
         documentHistoryAction = menu.addAction(
             QIcon(":/assets/icons/version_history.png"),
             "Aufschrieb-Versionshistorie"
         );
     }
     menu.addSeparator();
-    QAction *deleteAction = menu.addAction(
-        QIcon(":/assets/icons/delete.png"),
-        "Löschen"
-    );
+    if (hasDocument) {
+        deleteDocumentAction = menu.addAction(contextMenuDeleteIcon(), "Aufschrieb löschen");
+    }
+    QAction *deleteAction = menu.addAction(contextMenuDeleteIcon(), "Löschen");
     QAction *selectedAction = menu.exec(treeView->viewport()->mapToGlobal(position));
     const int nodeId = index.data(Qt::UserRole).toInt();
 

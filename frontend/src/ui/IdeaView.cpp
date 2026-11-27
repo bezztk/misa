@@ -1,6 +1,7 @@
 #include "IdeaView.h"
 
 #include "CommentUi.h"
+#include "ContextMenuStyle.h"
 #include "DialogUtils.h"
 
 #include <QComboBox>
@@ -558,7 +559,7 @@ void IdeaView::showCardContextMenu(
     );
     menu.addSeparator();
     QAction *deleteAction = menu.addAction(
-        QIcon(":/assets/icons/delete.png"), "Löschen"
+        contextMenuDeleteIcon(), "Löschen"
     );
     QAction *selectedAction = menu.exec(globalPosition);
     if (selectedAction == editAction) {

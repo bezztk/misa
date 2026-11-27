@@ -116,6 +116,8 @@ add_executable(frontend
         src/api/ApiClient.h
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
+        src/ui/ContextMenuStyle.cpp
+        src/ui/ContextMenuStyle.h
         src/ui/NavigationSidebar.cpp
         src/ui/NavigationSidebar.h
         src/ui/WorkspaceManager.cpp
@@ -256,7 +258,7 @@ qt_add_resources(frontend "icons"
         assets/icons/text-analytics.png
         assets/icons/quill-pen.png
         assets/icons/idea.png
-        assets/icons/video-camera.png
+        assets/icons/film.png
         assets/icons/close.png
         assets/icons/split-right.png
         assets/icons/split-down.png

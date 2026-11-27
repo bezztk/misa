@@ -1,4 +1,6 @@
 #include "CalendarView.h"
+
+#include "ContextMenuStyle.h"
 #include "CalendarEntryDialog.h"
 
 #include <QDateTime>
@@ -200,16 +202,13 @@ void CalendarView::showEntryContextMenu(const int id, const int x, const int y) 
         QIcon(":/assets/icons/edit.png"),
         "Bearbeiten"
     );
-    QAction *deleteAction = menu.addAction(
-        QIcon(":/assets/icons/delete.png"),
-        "Löschen"
-    );
     editAction->setEnabled(!entry.isLocked);
-    deleteAction->setEnabled(!entry.isLocked);
-    menu.addSeparator();
     QAction *lockAction = menu.addAction(
         entry.isLocked ? "Entsperren" : "Sperren"
     );
+    menu.addSeparator();
+    QAction *deleteAction = menu.addAction(contextMenuDeleteIcon(), "Löschen");
+    deleteAction->setEnabled(!entry.isLocked);
 
     QAction *selectedAction = menu.exec(webView->mapToGlobal(QPoint(x, y)));
     if (selectedAction == editAction) {

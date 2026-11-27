@@ -1,5 +1,7 @@
 #include "ContextView.h"
 
+#include "ContextMenuStyle.h"
+
 #include "DialogUtils.h"
 #include "../api/ApiClient.h"
 
@@ -175,7 +177,7 @@ void ContextView::renderContexts(const std::vector<Context> &contexts) {
         actions->setPopupMode(QToolButton::InstantPopup);
         auto *menu = new QMenu(actions);
         auto *edit = menu->addAction(QIcon(":/assets/icons/edit.png"), "Bearbeiten");
-        auto *remove = menu->addAction(QIcon(":/assets/icons/delete.png"), "Löschen");
+        auto *remove = menu->addAction(contextMenuDeleteIcon(), "Löschen");
         actions->setMenu(menu);
         connect(edit, &QAction::triggered, this, [this, context] { openContextDialog(context); });
         connect(remove, &QAction::triggered, this,

@@ -1,5 +1,7 @@
 #include "ShortTermLearningView.h"
 
+#include "ContextMenuStyle.h"
+
 #include "../api/ApiClient.h"
 #include "DialogUtils.h"
 
@@ -340,7 +342,7 @@ QWidget *ShortTermLearningView::createDetails() {
         const int row = item->row();
         QMenu menu(this);
         auto *edit = menu.addAction("Karte bearbeiten");
-        auto *remove = menu.addAction("Karte löschen");
+        auto *remove = menu.addAction(contextMenuDeleteIcon(), "Karte löschen");
         const auto *selected = menu.exec(cardsTable->viewport()->mapToGlobal(position));
         if (selected == edit) {
             editCard(row);
@@ -666,7 +668,7 @@ void ShortTermLearningView::showSetMenu(const int setId, const QPoint &globalPos
     auto *import = menu.addAction("JSON importieren");
     menu.addSeparator();
     auto *reset = menu.addAction("Fortschritt zurücksetzen");
-    auto *remove = menu.addAction("Lernsatz löschen");
+    auto *remove = menu.addAction(contextMenuDeleteIcon(), "Lernsatz löschen");
     const auto *selected = menu.exec(globalPosition);
     if (selected == create) {
         createCard(setId);
