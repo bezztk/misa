@@ -246,6 +246,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::calendarEntryCreated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::calendarEntryUpdated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::calendarEntryDeleted, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::routineExecutionsGenerated, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::domainNodeDeleted, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::contextsChanged, this, [this] {
         apiClient.getContexts();
         apiClient.getTasks();
@@ -285,6 +290,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             [this](const int nodeId, const DomainNodeField field,
                    const QJsonValue &value) {
                 if (field == DomainNodeField::Name) {
+                    apiClient.getTasks();
                     workspaceManager->setViewTitle(
                         "domain_node:" + QString::number(nodeId),
                         value.toString()

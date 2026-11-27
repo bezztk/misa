@@ -2226,21 +2226,22 @@ void DomainView::showDomainNodeComments(const int nodeId) {
 }
 
 void DomainView::showTaskComments(const int taskId) {
-    const auto task = std::find_if(
+    const auto existing = std::find_if(
         currentTasks.begin(), currentTasks.end(),
         [taskId](const Task &item) { return item.id == taskId; }
     );
-    if (task == currentTasks.end()) {
+    if (existing == currentTasks.end()) {
         return;
     }
+    Task task = *existing;
     showCommentsDialog(
         taskListView,
         apiClient,
-        task->id,
-        "Kommentare – " + task->name,
-        task->comments
+        task.id,
+        "Kommentare – " + task.name,
+        task.comments
     );
-    renderTasks();
+    apiClient.getTasks();
 }
 
 void DomainView::showFlashcardComments(const int flashcardId) {

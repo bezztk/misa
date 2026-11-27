@@ -45,10 +45,12 @@ pub struct TaskListItem {
     pub id: i32,
     pub name: String,
     pub domain_node_id: Option<i32>,
+    pub domain_node_name: Option<String>,
     pub context_ids: Vec<i32>,
     pub state_id: i32,
     pub priority_id: i32,
     pub due_at: Option<DateTime<Utc>>,
+    pub planning_count: i64,
     #[sqlx(skip)]
     pub comments: Vec<Comment>,
 }

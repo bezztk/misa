@@ -21,12 +21,19 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 
 namespace {
 constexpr int ALL_TASKS = -1;
 constexpr int WITHOUT_CONTEXT = 0;
 constexpr int OPEN_TASK_COUNT_ROLE = Qt::UserRole + 1;
 constexpr int CONTEXT_ICON_SIZE = 22;
+constexpr int TASK_IMPORTANT_ROLE = Qt::UserRole + 1;
+constexpr int TASK_STATUS_ROLE = Qt::UserRole + 2;
+constexpr int TASK_STATUS_COLOR_ROLE = Qt::UserRole + 3;
+constexpr int TASK_COMMENT_COUNT_ROLE = Qt::UserRole + 4;
+constexpr int TASK_PLANNING_COUNT_ROLE = Qt::UserRole + 5;
+constexpr int TASK_OWNER_ROLE = Qt::UserRole + 6;
 
 class ContextNavigationDelegate final : public QStyledItemDelegate {
 public:
@@ -40,10 +47,11 @@ public:
         const QRect row(0, option.rect.top(), painter->viewport().width(), option.rect.height());
         painter->save();
         painter->fillRect(row, index.data(Qt::BackgroundRole).value<QBrush>());
-        if (option.state & QStyle::State_Selected) {
-            QColor selection = option.palette.highlight().color();
-            selection.setAlpha(70);
-            painter->fillRect(row, selection);
+        if (option.state.testFlag(QStyle::State_MouseOver)) {
+            painter->fillRect(row, QColor(255, 255, 255, 26));
+        }
+        if (option.state.testFlag(QStyle::State_Selected)) {
+            painter->fillRect(QRect(row.topLeft(), QSize(3, row.height())), QColor("#B8B8B8"));
         }
 
         QRect textRect = row.adjusted(18, 0, -18, 0);
@@ -59,7 +67,7 @@ public:
 
         const QString count = index.data(OPEN_TASK_COUNT_ROLE).toString();
         auto countFont = option.font;
-        countFont.setPixelSize(11);
+        countFont.setPixelSize(12);
         const int countWidth = QFontMetrics(countFont).horizontalAdvance(count);
         const QRect countRect(textRect.right() + 1 - countWidth, row.top(), countWidth, row.height());
         QColor countColor = option.palette.text().color();
@@ -81,8 +89,8 @@ class TaskCardDelegate final : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
 
-    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override {
-        return {0, 72};
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &index) const override {
+        return {0, index.data(TASK_OWNER_ROLE).toString().isEmpty() ? 56 : 72};
     }
 
     void paint(
@@ -103,41 +111,119 @@ public:
         }
 
         const QColor textColor = option.palette.text().color();
+        QColor detailColor = textColor;
+        detailColor.setAlpha(185);
         auto titleFont = option.font;
+        titleFont.setPixelSize(14);
         titleFont.setWeight(QFont::DemiBold);
         const QFontMetrics titleMetrics(titleFont);
-        const QRect title = option.rect.adjusted(24, 12, -24, -34);
+        auto detailFont = option.font;
+        detailFont.setPixelSize(12);
+        const QFontMetrics detailMetrics(detailFont);
+
+        constexpr int lineHeight = 22;
+        const QString owner = index.data(TASK_OWNER_ROLE).toString();
+        const int lineTop = option.rect.top() + (owner.isEmpty()
+            ? (option.rect.height() - lineHeight) / 2 : 12);
+        const QRect line(option.rect.left() + 24, lineTop, qMax(0, option.rect.width() - 48), lineHeight);
+        int titleRight = line.right() + 1;
+
+        const QString status = index.data(TASK_STATUS_ROLE).toString();
+        if (!status.isEmpty()) {
+            const int width = qMin(detailMetrics.horizontalAdvance(status), line.width());
+            titleRight -= width;
+            painter->setFont(detailFont);
+            painter->setPen(index.data(TASK_STATUS_COLOR_ROLE).value<QColor>());
+            painter->drawText(QRect(titleRight, line.top(), width, lineHeight),
+                Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine,
+                detailMetrics.elidedText(status, Qt::ElideRight, width));
+            titleRight -= 16;
+        }
+
+        constexpr int dotSize = 7;
+        constexpr int priorityWidth = dotSize + 9;
+        if (index.data(TASK_IMPORTANT_ROLE).toBool()) {
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(QColor("#DEA760"));
+            painter->drawEllipse(QRect(line.left(), line.top() + (lineHeight - dotSize) / 2, dotSize, dotSize));
+            painter->restore();
+        }
+
+        struct Indicator {
+            const QIcon &icon;
+            QString text;
+        };
+        const std::array indicators{
+            Indicator{commentIcon, index.data(TASK_COMMENT_COUNT_ROLE).toString()},
+            Indicator{planningIcon, index.data(TASK_PLANNING_COUNT_ROLE).toString()}
+        };
+        constexpr int iconSize = 14;
+        constexpr int iconGap = 4;
+        constexpr int indicatorGap = 10;
+        int indicatorsWidth = 0;
+        for (const auto &indicator : indicators) {
+            if (!indicator.text.isEmpty()) {
+                indicatorsWidth += indicatorGap + iconSize + iconGap
+                    + detailMetrics.horizontalAdvance(indicator.text);
+            }
+        }
+
+        int x = line.left() + priorityWidth;
+        const int titleWidth = qMax(0, titleRight - x - indicatorsWidth);
+        const QString title = titleMetrics.elidedText(index.data().toString(), Qt::ElideRight, titleWidth);
+        painter->save();
+        painter->setClipRect(QRect(x, line.top(), qMax(0, titleRight - x), lineHeight), Qt::IntersectClip);
         painter->setFont(titleFont);
         painter->setPen(textColor);
-        painter->drawText(title, Qt::AlignLeft | Qt::AlignVCenter,
-            titleMetrics.elidedText(index.data().toString(), Qt::ElideRight, title.width()));
+        painter->drawText(QRect(x, line.top(), titleWidth, lineHeight),
+            Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, title);
+        x += titleMetrics.horizontalAdvance(title);
 
-        QColor detailColor = textColor;
-        detailColor.setAlpha(170);
-        const QRect details = option.rect.adjusted(24, 35, -24, -12);
-        painter->setFont(option.font);
+        painter->setFont(detailFont);
         painter->setPen(detailColor);
-        painter->drawText(details, Qt::AlignLeft | Qt::AlignVCenter,
-            option.fontMetrics.elidedText(
-                index.data(Qt::AccessibleDescriptionRole).toString(), Qt::ElideRight, details.width()
-            ));
+        for (const auto &indicator : indicators) {
+            if (!indicator.text.isEmpty()) {
+                x += indicatorGap;
+                indicator.icon.paint(painter, QRect(x, line.top() + (lineHeight - iconSize) / 2, iconSize, iconSize));
+                x += iconSize + iconGap;
+                const int width = detailMetrics.horizontalAdvance(indicator.text);
+                painter->drawText(QRect(x, line.top(), width, lineHeight),
+                    Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, indicator.text);
+                x += width;
+            }
+        }
+        painter->restore();
+
+        if (!owner.isEmpty()) {
+            const QRect ownerLine = line.translated(0, lineHeight).adjusted(priorityWidth, 0, 0, 0);
+            painter->setFont(detailFont);
+            painter->setPen(detailColor);
+            painter->drawText(ownerLine, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                detailMetrics.elidedText(owner, Qt::ElideRight, ownerLine.width()));
+        }
 
         if (index.row() + 1 < index.model()->rowCount()) {
             QColor separator = textColor;
             separator.setAlpha(34);
-            const int inset = option.rect.width() / 10;
             const int bottom = option.rect.bottom();
             painter->setPen(separator);
-            painter->drawLine(option.rect.left() + inset, bottom,
-                              option.rect.right() - inset, bottom);
+            painter->drawLine(option.rect.left(), bottom, option.rect.right(), bottom);
         }
         painter->restore();
     }
+
+private:
+    const QIcon commentIcon{":/assets/icons/speech-bubble.png"};
+    const QIcon planningIcon{":/assets/icons/clock.png"};
 };
 
-QString metadataName(const std::vector<MetadataItem> &items, const int id) {
-    const auto item = std::ranges::find(items, id, &MetadataItem::id);
-    return item == items.end() ? QString{} : item->displayName.value_or(item->name);
+QColor taskStatusColor(const QString &name) {
+    if (name == "in_progress") return QColor("#84B7EC");
+    if (name == "completed") return QColor("#83C795");
+    if (name == "cancelled") return QColor("#E68484");
+    return {};
 }
 }
 
@@ -148,7 +234,13 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     layout->setSpacing(0);
 
     navigation = new QListWidget(this);
-    navigation->setFixedWidth(240);
+    navigation->setFixedWidth(300);
+    QFont contextFont(QStringLiteral("Segoe UI"));
+    contextFont.setPixelSize(15);
+    contextFont.setWeight(QFont::Medium);
+    navigation->setFont(contextFont);
+    navigation->setMouseTracking(true);
+    navigation->viewport()->setAttribute(Qt::WA_Hover);
     navigation->setItemDelegate(new ContextNavigationDelegate(navigation));
     navigation->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     navigation->setStyleSheet(R"(
@@ -172,7 +264,7 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     searchBar->setObjectName("taskSearchBar");
     searchBar->setStyleSheet(R"(
         QWidget#taskSearchBar { border-bottom: 1px solid palette(midlight); }
-        QLineEdit { background: transparent; border: 0; border-radius: 0; padding: 0; }
+        QLineEdit { background: transparent; border: 0; border-radius: 0; padding: 0; font-size: 14px; }
     )");
     auto *searchLayout = new QHBoxLayout(searchBar);
     searchLayout->setContentsMargins(24, 8, 24, 8);
@@ -198,7 +290,6 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     taskList->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
     taskList->setFrameShape(QFrame::NoFrame);
     taskList->setStyleSheet("QListWidget { background: transparent; border: 0; }");
-    taskList->setUniformItemSizes(true);
     taskList->setMouseTracking(true);
     taskList->viewport()->setAttribute(Qt::WA_Hover);
     taskList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -214,6 +305,12 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     contentLayout->addLayout(taskListLayout, 1);
 
     connect(navigation, &QListWidget::currentRowChanged, this, &TaskView::renderTasks);
+    connect(navigation, &QListWidget::itemEntered, this, [this] {
+        navigation->viewport()->setCursor(Qt::PointingHandCursor);
+    });
+    connect(navigation, &QListWidget::viewportEntered, this, [this] {
+        navigation->viewport()->unsetCursor();
+    });
     connect(search, &QLineEdit::textChanged, this, &TaskView::renderTasks);
     connect(taskList, &QListWidget::itemActivated, this, [this](const QListWidgetItem *item) {
         showTaskEditDialog(this, apiClient, taskById(item->data(Qt::UserRole).toInt()), contexts);
@@ -308,29 +405,44 @@ void TaskView::renderTasks() {
             continue;
         }
 
+        auto *item = new QListWidgetItem(task.name);
+        item->setData(Qt::UserRole, task.id);
+
         QStringList details;
-        const QString state = metadataName(metadata.systemTaskStates, task.stateId);
-        const QString priority = metadataName(metadata.systemTaskPriorities, task.priorityId);
-        if (!state.isEmpty()) {
-            details.append(state);
-        }
-        if (!priority.isEmpty()) {
-            details.append("Priorität: " + priority);
-        }
-        for (const Context &context : contexts) {
-            if (std::ranges::contains(task.contextIds, context.id)) {
-                details.append(context.title);
+        const auto state = std::ranges::find(metadata.systemTaskStates, task.stateId, &MetadataItem::id);
+        if (state != metadata.systemTaskStates.end()) {
+            const QColor color = taskStatusColor(state->name);
+            if (color.isValid()) {
+                const QString status = state->displayName.value_or(state->name);
+                item->setData(TASK_STATUS_ROLE, status);
+                item->setData(TASK_STATUS_COLOR_ROLE, color);
+                details.append(status);
             }
         }
+        const auto priority = std::ranges::find(metadata.systemTaskPriorities, task.priorityId, &MetadataItem::id);
+        if (priority != metadata.systemTaskPriorities.end()
+            && (priority->name == "high" || priority->name == "critical")) {
+            item->setData(TASK_IMPORTANT_ROLE, true);
+            details.append("Priorität: " + priority->displayName.value_or(priority->name));
+        }
         if (!task.comments.empty()) {
+            item->setData(TASK_COMMENT_COUNT_ROLE, static_cast<qint64>(task.comments.size()));
             details.append(task.comments.size() == 1 ? "1 Kommentar"
                 : QString("%1 Kommentare").arg(task.comments.size()));
         }
-
-        auto *item = new QListWidgetItem(task.name, taskList);
-        item->setData(Qt::UserRole, task.id);
+        if (task.planningCount > 0) {
+            item->setData(TASK_PLANNING_COUNT_ROLE, task.planningCount);
+            details.append(task.planningCount == 1 ? "1 Planung"
+                : QString("%1 Planungen").arg(task.planningCount));
+        }
+        if (!task.domainNodeName.isEmpty()) {
+            const QString owner = "Aufschrieb: " + task.domainNodeName;
+            item->setData(TASK_OWNER_ROLE, owner);
+            details.append(owner);
+        }
         item->setData(Qt::AccessibleDescriptionRole, details.join("  ·  "));
         item->setToolTip(task.name);
+        taskList->addItem(item);
     }
 }
 

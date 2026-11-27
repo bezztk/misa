@@ -19,10 +19,12 @@ struct Task {
     int id;
     std::vector<int> contextIds;
     std::optional<int> domainNodeId;
+    QString domainNodeName;
     QString name;
     int stateId;
     int priorityId;
     QDateTime dueAt;
+    qint64 planningCount;
     std::vector<Comment> comments;
 
     bool isOpen() const {

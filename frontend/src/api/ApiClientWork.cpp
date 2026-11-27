@@ -46,9 +46,11 @@ void ApiClient::getTasks() {
             if (!object["domain_node_id"].isNull()) {
                 task.domainNodeId = object["domain_node_id"].toInt();
             }
+            task.domainNodeName = object["domain_node_name"].toString();
             task.stateId = object["state_id"].toInt();
             task.priorityId = object["priority_id"].toInt();
             task.dueAt = QDateTime::fromString(object["due_at"].toString(), Qt::ISODate).toLocalTime();
+            task.planningCount = object["planning_count"].toInteger();
             task.comments = parseComments(object["comments"].toArray());
 
             tasks.push_back(task);

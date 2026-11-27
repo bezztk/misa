@@ -9,8 +9,9 @@ use sqlx::{PgConnection, PgPool};
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
     let mut tasks = sqlx::query_as::<_, TaskListItem>(
-        "SELECT task.entity_id AS id, task.name, task.domain_node_id, task.state_id, task.priority_id,
-                task.due_at,
+        "SELECT task.entity_id AS id, task.name, task.domain_node_id, node.name AS domain_node_name,
+                task.state_id, task.priority_id, task.due_at,
+                COALESCE(planning.total, 0) AS planning_count,
                 ARRAY(
                     SELECT context_id
                     FROM context_entities
@@ -18,6 +19,14 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> 
                     ORDER BY context_id
                 ) AS context_ids
          FROM systemtasks task
+         LEFT JOIN domain_nodes node ON node.entity_id = task.domain_node_id
+         LEFT JOIN (
+             SELECT COALESCE(entry.systemtask_id, routine.systemtask_id) AS task_id, COUNT(*) AS total
+             FROM calendar_entries entry
+             LEFT JOIN systemtask_routine_executions execution ON execution.id = entry.routine_execution_id
+             LEFT JOIN systemtask_routines routine ON routine.id = execution.routine_id
+             GROUP BY COALESCE(entry.systemtask_id, routine.systemtask_id)
+         ) planning ON planning.task_id = task.entity_id
          ORDER BY task.entity_id DESC",
     )
     .fetch_all(pool)
