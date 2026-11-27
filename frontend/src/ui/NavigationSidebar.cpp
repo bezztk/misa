@@ -22,16 +22,16 @@
 
 static constexpr auto NAVIGATION_STYLE = R"(
     NavigationSidebar {
-        background: #1C242E;
+        background: #242424;
         border: none;
-        border-right: 1px solid #53647A;
+        border-right: 1px solid #5E5E5E;
     }
     QScrollArea#navigationScrollArea,
     QWidget#navigationCardContainer {
-        background: #1C242E;
+        background: #242424;
     }
     QFrame#navigationSectionDivider {
-        background: #344458;
+        background: #414141;
         border: none;
     }
     QWidget#navigationCardHeader {
@@ -40,11 +40,11 @@ static constexpr auto NAVIGATION_STYLE = R"(
         border-left: 2px solid transparent;
     }
     QWidget#navigationCardHeader:hover {
-        background: #273648;
+        background: #303030;
     }
     QWidget#navigationCardHeader[active="true"] {
-        background: #29415B;
-        border-left-color: #7BAAE2;
+        background: #3D3D3D;
+        border-left-color: #AAAAAA;
     }
     QWidget#navigationCardText,
     QLabel#navigationCardIcon,
@@ -55,13 +55,13 @@ static constexpr auto NAVIGATION_STYLE = R"(
         border: none;
     }
     QLabel#navigationCardTitle {
-        color: #F0F4F9;
+        color: #F4F4F4;
         font-family: "Bahnschrift";
         font-size: 17px;
         font-weight: 500;
     }
     QLabel#navigationCardSubtext {
-        color: #AAB9CA;
+        color: #B8B8B8;
         font-size: 11px;
     }
     QToolButton#navigationCardExpand {
@@ -118,7 +118,7 @@ NavigationCard::NavigationCard(
     icon->setObjectName("navigationCardIcon");
     icon->setFixedSize(26, 22);
     icon->setAlignment(Qt::AlignCenter);
-    icon->setPixmap(navigationIcon(cardIcon, 22, QColor("#BED0E3")));
+    icon->setPixmap(navigationIcon(cardIcon, 22, QColor("#CCCCCC")));
     icon->setAttribute(Qt::WA_TransparentForMouseEvents);
     headerLayout->addWidget(icon, 0, Qt::AlignVCenter);
 

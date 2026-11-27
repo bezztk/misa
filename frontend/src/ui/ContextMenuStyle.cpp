@@ -18,13 +18,13 @@ constexpr int iconSize = 16;
 constexpr int sidePadding = 16 - frameWidth;
 constexpr int iconGap = 12;
 
-const QColor background("#1C2633");
-const QColor frame("#53647A");
-const QColor separator("#45576D");
-const QColor highlight("#315984");
-const QColor textColor("#F0F4F9");
-const QColor secondaryColor("#BED0E3");
-const QColor disabledColor("#8999AB");
+const QColor background("#242424");
+const QColor frame("#5E5E5E");
+const QColor separator("#505050");
+const QColor highlight("#414141");
+const QColor textColor("#F4F4F4");
+const QColor secondaryColor("#CCCCCC");
+const QColor disabledColor("#999999");
 const QColor deleteIconColor("#FF9F99");
 
 bool isActionMenu(const QWidget *widget) {

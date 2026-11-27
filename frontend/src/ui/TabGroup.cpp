@@ -21,7 +21,7 @@ constexpr int maximumTabWidth = 240;
 
 static constexpr auto WORKSPACE_TABS_STYLE = R"(
     QTabWidget#workspaceTabs {
-        background: #1C242E;
+        background: #242424;
         border: none;
     }
     QTabWidget#workspaceTabs::pane {
@@ -29,7 +29,7 @@ static constexpr auto WORKSPACE_TABS_STYLE = R"(
         border: none;
     }
     QTabBar#workspaceTabBar {
-        background: #1C242E;
+        background: #242424;
         border: none;
         font-family: "Bahnschrift";
         font-size: 15px;
@@ -40,28 +40,28 @@ static constexpr auto WORKSPACE_TABS_STYLE = R"(
         height: 37px;
         margin: 0;
         padding: 0 8px 0 12px;
-        color: #AAB9CA;
-        background: #1C242E;
+        color: #B8B8B8;
+        background: #242424;
         border: none;
         border-bottom: 2px solid transparent;
         border-radius: 0;
     }
     QTabBar#workspaceTabBar::tab:hover {
-        color: #F0F4F9;
-        background: #273648;
+        color: #F4F4F4;
+        background: #303030;
     }
     QTabBar#workspaceTabBar::tab:selected {
-        color: #F0F4F9;
-        background: #29415B;
-        border-bottom-color: #7BAAE2;
+        color: #F4F4F4;
+        background: #3D3D3D;
+        border-bottom-color: #AAAAAA;
     }
     QTabBar#workspaceTabBar > QToolButton {
-        color: #F0F4F9;
-        background: #1C242E;
+        color: #F4F4F4;
+        background: #242424;
         border: none;
     }
     QTabBar#workspaceTabBar > QToolButton:hover {
-        background: #273648;
+        background: #303030;
     }
 )";
 
@@ -73,10 +73,10 @@ static constexpr auto TAB_CLOSE_BUTTON_STYLE = R"(
         padding: 5px;
     }
     QToolButton:hover {
-        background: #344458;
+        background: #414141;
     }
     QToolButton:pressed {
-        background: #315984;
+        background: #505050;
     }
 )";
 

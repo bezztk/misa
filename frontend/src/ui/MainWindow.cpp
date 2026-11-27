@@ -33,16 +33,16 @@
 
 static constexpr auto SIDEBAR_TOGGLE_STYLE = R"(
     QWidget#sidebarToggleRail {
-        background: #171E27;
+        background: #202020;
         border: none;
-        border-right: 1px solid #344458;
+        border-right: 1px solid #414141;
     }
     QWidget#sidebarToggleRail QToolButton {
         background: transparent;
         border: none;
     }
     QWidget#sidebarToggleRail QToolButton:hover {
-        background: #273648;
+        background: #303030;
     }
 )";
 

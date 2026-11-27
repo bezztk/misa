@@ -843,10 +843,10 @@ DomainView::DomainView(ApiClient &client, QWidget *parent)
             background: transparent;
         }
         QTreeView#domainTree[navigationMode="true"]::item:hover {
-            background: #273648;
+            background: #303030;
         }
         QTreeView#domainTree[navigationMode="true"]::item:selected {
-            background: #29415B;
+            background: #3D3D3D;
         }
         QWidget#editorHeader {
             background: rgba(255, 255, 255, 0.025);
@@ -1725,7 +1725,7 @@ void DomainView::setNodeOpenHandler(NodeOpenHandler handler) {
     treeFont.setPixelSize(13);
     treeView->setFont(treeFont);
     QPalette treePalette = treeView->palette();
-    const QColor textColor("#F0F4F9");
+    const QColor textColor("#F4F4F4");
     treePalette.setColor(QPalette::Text, textColor);
     treePalette.setColor(QPalette::HighlightedText, textColor);
     treeView->setPalette(treePalette);
