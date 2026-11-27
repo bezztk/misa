@@ -11,13 +11,7 @@ struct Source {
     QString resourceType;
     QString description;
     int resourceTypeId;
-    int categoryId;
     QByteArray favicon;
-};
-
-struct SourceCategory {
-    int id;
-    QString name;
 };
 
 #endif // FRONTEND_SOURCE_H

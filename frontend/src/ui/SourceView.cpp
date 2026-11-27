@@ -9,84 +9,171 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QDesktopServices>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QFormLayout>
-#include <QHeaderView>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMap>
 #include <QMenu>
 #include <QMessageBox>
-#include <QPixmap>
-#include <QPushButton>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QSignalBlocker>
-#include <QTreeWidget>
+#include <QStyledItemDelegate>
 #include <QUrl>
 #include <QVBoxLayout>
 
 namespace {
-constexpr int ALL_CATEGORIES = -1;
-constexpr int NO_CATEGORY = 0;
 constexpr int ALL_TYPES = 0;
+constexpr int domainRole = Qt::UserRole + 1;
+constexpr int urlRole = Qt::UserRole + 2;
+constexpr auto openIconPath = ":/assets/icons/open.png";
+
+class SourceCardDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override {
+        return {0, 58};
+    }
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        const QRect row = option.rect;
+        const QRect action = openButtonRect(row);
+        const int left = row.left() + 24;
+        const int width = qMax(0, action.left() - left - 8);
+        const bool hovered = option.state.testFlag(QStyle::State_MouseOver);
+        const QColor foreground = option.palette.text().color();
+        painter->save();
+        painter->setClipRect(row);
+        if (option.state.testFlag(QStyle::State_Selected)) {
+            QColor selection = option.palette.highlight().color();
+            selection.setAlpha(38);
+            painter->fillRect(row, selection);
+        }
+        if (hovered) {
+            painter->fillRect(row, QColor(255, 255, 255, 18));
+        }
+
+        auto font = option.font;
+        font.setPixelSize(15);
+        font.setWeight(QFont::DemiBold);
+        painter->setFont(font);
+        painter->setPen(foreground);
+        constexpr int textFlags = Qt::AlignVCenter | Qt::TextSingleLine;
+        painter->drawText(QRect(left, row.top() + 8, width, 22), textFlags,
+                          QFontMetrics(font).elidedText(index.data().toString(), Qt::ElideRight, width));
+
+        font.setPixelSize(13);
+        font.setWeight(QFont::Normal);
+        painter->setFont(font);
+        QColor secondary = foreground;
+        secondary.setAlpha(175);
+        painter->setPen(secondary);
+        painter->drawText(QRect(left, row.top() + 30, width, 18), textFlags,
+                          QFontMetrics(font).elidedText(index.data(domainRole).toString(), Qt::ElideRight, width));
+
+        painter->setOpacity(hovered ? 0.95 : 0.65);
+        openIcon.paint(painter, action.adjusted(6, 6, -6, -6));
+        painter->setOpacity(1.0);
+        QColor separator = foreground;
+        separator.setAlpha(34);
+        painter->setPen(separator);
+        painter->drawLine(row.bottomLeft(), row.bottomRight());
+        painter->restore();
+    }
+
+    bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option,
+                     const QModelIndex &index) override {
+        const auto type = event->type();
+        if (type != QEvent::MouseButtonPress && type != QEvent::MouseButtonRelease
+            && type != QEvent::MouseButtonDblClick) {
+            return QStyledItemDelegate::editorEvent(event, model, option, index);
+        }
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() != Qt::LeftButton) {
+            return false;
+        }
+
+        const bool hit = openButtonRect(option.rect).contains(mouse->position().toPoint());
+        if (type == QEvent::MouseButtonDblClick && !hit) {
+            QDesktopServices::openUrl(QUrl(index.data(urlRole).toString()));
+            return true;
+        }
+        if (type != QEvent::MouseButtonRelease) {
+            pressedItem = hit ? index : QModelIndex{};
+            return hit;
+        }
+
+        const bool pressedHere = pressedItem == index;
+        pressedItem = QModelIndex{};
+        if (pressedHere && hit) {
+            QDesktopServices::openUrl(QUrl(index.data(urlRole).toString()));
+        }
+        return pressedHere || hit;
+    }
+
+private:
+    static QRect openButtonRect(const QRect &row) {
+        return {row.right() - 24 - 28 + 1, row.top() + 6, 28, 28};
+    }
+
+    QPersistentModelIndex pressedItem;
+    const QIcon openIcon{openIconPath};
+};
 }
 
 SourceView::SourceView(ApiClient &apiClient, QWidget *parent)
     : QWidget(parent), apiClient(apiClient) {
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(8);
 
-    auto *toolbar = new QHBoxLayout;
-    search = new QLineEdit(this);
+    auto *searchBar = new QWidget(this);
+    searchBar->setObjectName("sourceSearchBar");
+    searchBar->setStyleSheet(R"(
+        QWidget#sourceSearchBar { border-bottom: 1px solid palette(midlight); }
+        QLineEdit { background: transparent; border: 0; border-radius: 0; padding: 0; font-size: 14px; }
+    )");
+    auto *toolbar = new QHBoxLayout(searchBar);
+    toolbar->setContentsMargins(24, 8, 24, 8);
+    search = new QLineEdit(searchBar);
+    search->setFrame(false);
+    search->setMinimumHeight(42);
     search->setPlaceholderText("Quellen suchen");
-    typeFilter = new QComboBox(this);
-    categoryFilter = new QComboBox(this);
+    search->setAccessibleName("Quellen suchen");
+    search->setClearButtonEnabled(true);
+    typeFilter = new QComboBox(searchBar);
     toolbar->addWidget(search, 1);
     toolbar->addWidget(typeFilter);
-    toolbar->addWidget(categoryFilter);
-    layout->addLayout(toolbar);
+    layout->addWidget(searchBar);
 
-    tree = new QTreeWidget(this);
-    tree->setHeaderLabels({"Titel", "Typ", "Domain", "Beschreibung"});
-    tree->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tree->setContextMenuPolicy(Qt::CustomContextMenu);
-    auto *header = tree->header();
-    header->setStretchLastSection(false);
-    header->setSectionResizeMode(QHeaderView::Stretch);
-    header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    layout->addWidget(tree);
+    list = new QListWidget(this);
+    list->setAccessibleName("Quellen");
+    list->setFrameShape(QFrame::NoFrame);
+    list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    list->setContextMenuPolicy(Qt::CustomContextMenu);
+    list->setMouseTracking(true);
+    list->viewport()->setAttribute(Qt::WA_Hover);
+    list->setItemDelegate(new SourceCardDelegate(list));
+    list->setStyleSheet("QListWidget { background: transparent; border: 0; outline: 0; }");
+    layout->addWidget(list);
 
     connect(search, &QLineEdit::textChanged, this, &SourceView::applyFilters);
     connect(typeFilter, &QComboBox::currentIndexChanged, this, &SourceView::applyFilters);
-    connect(categoryFilter, &QComboBox::currentIndexChanged, this, &SourceView::applyFilters);
-    connect(tree, &QTreeWidget::customContextMenuRequested,
+    connect(list, &QListWidget::customContextMenuRequested,
             this, &SourceView::showContextMenu);
-    connect(tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item) {
-        if (item->parent()) {
-            const Source &source = sources[item->data(0, Qt::UserRole).toInt()];
-            QDesktopServices::openUrl(QUrl(source.url));
-        }
-    });
 
     connect(&apiClient, &ApiClient::sourcesReceived, this,
             [this](const std::vector<Source> &received) {
                 sources = received;
-                rebuildTree();
-            });
-    connect(&apiClient, &ApiClient::sourceCategoriesReceived, this,
-            [this](const std::vector<SourceCategory> &received) {
-                categories = received;
-                rebuildTree();
+                rebuildList();
             });
     connect(&apiClient, &ApiClient::sourcesChanged, this, [this] {
         this->apiClient.getSources();
     });
-    connect(&apiClient, &ApiClient::sourceCategoriesChanged, this, &SourceView::refresh);
-    rebuildTree();
-    refresh();
-}
-
-void SourceView::refresh() {
-    apiClient.getSourceCategories();
+    rebuildList();
     apiClient.getSources();
 }
 
@@ -97,189 +184,66 @@ void SourceView::openCreateDialog() {
     }
 }
 
-void SourceView::openCreateCategoryDialog() {
-    if (const auto name = showTextInputDialog(this, "Kategorie erstellen", "Name")) {
-        apiClient.createSourceCategory(*name);
-    }
-}
-
-void SourceView::rebuildTree() {
-    const QSignalBlocker blockTypeFilter(typeFilter);
-    const QSignalBlocker blockCategoryFilter(categoryFilter);
+void SourceView::rebuildList() {
+    const QSignalBlocker blocker(typeFilter);
     const QVariant selectedType = typeFilter->currentData();
-    const QVariant selectedCategory = categoryFilter->currentData();
     typeFilter->clear();
     typeFilter->addItem("Alle Ressourcentypen", ALL_TYPES);
+
     QMap<QString, int> resourceTypes;
+    list->clear();
     for (const Source &source : sources) {
         resourceTypes.insert(source.resourceType, source.resourceTypeId);
+        auto *item = new QListWidgetItem(source.title, list);
+        const QString domain = QUrl(source.url).host();
+        item->setData(domainRole, domain);
+        item->setData(urlRole, source.url);
+        item->setData(Qt::AccessibleDescriptionRole, domain);
     }
     for (auto type = resourceTypes.cbegin(); type != resourceTypes.cend(); ++type) {
         typeFilter->addItem(type.key(), type.value());
     }
-    const int typeIndex = typeFilter->findData(selectedType);
-    typeFilter->setCurrentIndex(qMax(0, typeIndex));
-
-    categoryFilter->clear();
-    categoryFilter->addItem("Alle Kategorien", ALL_CATEGORIES);
-    categoryFilter->addItem("Ohne Kategorie", NO_CATEGORY);
-    for (const SourceCategory &category : categories) {
-        categoryFilter->addItem(category.name, category.id);
-    }
-    const int categoryIndex = categoryFilter->findData(selectedCategory);
-    categoryFilter->setCurrentIndex(qMax(0, categoryIndex));
-
-    QMap<int, bool> expandedGroups;
-    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
-        const auto *group = tree->topLevelItem(i);
-        expandedGroups.insert(group->data(0, Qt::UserRole).toInt(), group->isExpanded());
-    }
-    tree->clear();
-
-    QMap<int, QTreeWidgetItem *> groups;
-    const auto addGroup = [&](const int id, const QString &name) {
-        auto *group = new QTreeWidgetItem(tree, {name});
-        group->setData(0, Qt::UserRole, id);
-        group->setFirstColumnSpanned(true);
-        auto font = group->font(0);
-        font.setBold(true);
-        group->setFont(0, font);
-        groups.insert(id, group);
-    };
-    for (const SourceCategory &category : categories) {
-        addGroup(category.id, category.name);
-    }
-    addGroup(NO_CATEGORY, "Ohne Kategorie");
-
-    const QIcon standardIcon(":/assets/icons/file.png");
-    for (std::size_t i = 0; i < sources.size(); ++i) {
-        const Source &source = sources[i];
-        auto *group = groups.value(source.categoryId);
-        if (!group) {
-            continue;
-        }
-        auto *item = new QTreeWidgetItem(group, {
-            source.title, source.resourceType, QUrl(source.url).host(), source.description
-        });
-        item->setData(0, Qt::UserRole, static_cast<int>(i));
-        item->setToolTip(2, source.url);
-        QPixmap favicon;
-        const bool hasFavicon = !source.favicon.isEmpty() && favicon.loadFromData(source.favicon);
-        item->setIcon(0, hasFavicon ? QIcon(favicon) : standardIcon);
-    }
-    for (auto group = groups.cbegin(); group != groups.cend(); ++group) {
-        group.value()->setExpanded(expandedGroups.value(group.key(), true));
-    }
+    typeFilter->setCurrentIndex(qMax(0, typeFilter->findData(selectedType)));
     applyFilters();
 }
 
 void SourceView::applyFilters() {
-    const int categoryId = categoryFilter->currentData().toInt();
     const int typeId = typeFilter->currentData().toInt();
     const QString query = search->text().trimmed();
-    const bool filterSources = !query.isEmpty() || typeId != ALL_TYPES;
-    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
-        auto *group = tree->topLevelItem(i);
-        const int groupId = group->data(0, Qt::UserRole).toInt();
-        bool hasMatch = false;
-        for (int row = 0; row < group->childCount(); ++row) {
-            auto *item = group->child(row);
-            const Source &source = sources[item->data(0, Qt::UserRole).toInt()];
-            const bool typeMatches = typeId == ALL_TYPES || source.resourceTypeId == typeId;
-            const bool searchMatches = query.isEmpty()
-                || source.title.contains(query, Qt::CaseInsensitive)
-                || source.url.contains(query, Qt::CaseInsensitive)
-                || source.description.contains(query, Qt::CaseInsensitive);
-            const bool visible = typeMatches && searchMatches;
-            item->setHidden(!visible);
-            hasMatch |= visible;
-        }
-        const bool categoryMatches = categoryId == ALL_CATEGORIES || groupId == categoryId;
-        const bool showEmpty = !filterSources && (groupId != NO_CATEGORY || categoryId == NO_CATEGORY);
-        group->setHidden(!categoryMatches || (!hasMatch && !showEmpty));
+    for (int row = 0; row < list->count(); ++row) {
+        auto *item = list->item(row);
+        const bool matchesType = typeId == ALL_TYPES || sources[row].resourceTypeId == typeId;
+        const bool matchesSearch = item->text().contains(query, Qt::CaseInsensitive)
+            || item->data(domainRole).toString().contains(query, Qt::CaseInsensitive);
+        item->setHidden(!matchesType || !matchesSearch);
     }
 }
 
 void SourceView::showContextMenu(const QPoint &position) {
-    const auto *item = tree->itemAt(position);
-    if (!item) {
+    const QModelIndex index = list->indexAt(position);
+    if (!index.isValid()) {
         return;
     }
-    const QPoint globalPosition = tree->viewport()->mapToGlobal(position);
-    const int index = item->data(0, Qt::UserRole).toInt();
-    if (item->parent()) {
-        const Source source = sources[index];
-        showSourceMenu(source, globalPosition);
-    } else if (index != NO_CATEGORY) {
-        const QString name = item->text(0);
-        showCategoryMenu(index, name, globalPosition);
-    }
-}
-
-void SourceView::showSourceMenu(const Source &source, const QPoint &position) {
+    const Source source = sources[index.row()];
     QMenu menu(this);
-    const auto *open = menu.addAction("Quelle öffnen");
-    const auto *copy = menu.addAction("URL kopieren");
-    const auto *rename = menu.addAction("Titel ändern");
-    const auto *assign = menu.addAction("Kategorie ändern");
+    const auto *open = menu.addAction(QIcon(openIconPath), "Website öffnen");
+    const auto *copy = menu.addAction(QIcon(":/assets/icons/copy.png"), "URL kopieren");
+    const auto *edit = menu.addAction(QIcon(":/assets/icons/edit.png"), "Bearbeiten");
     menu.addSeparator();
     const auto *remove = menu.addAction(contextMenuDeleteIcon(), "Quelle löschen");
-    const auto *selected = menu.exec(position);
+    const auto *selected = menu.exec(list->viewport()->mapToGlobal(position));
     if (selected == open) {
         QDesktopServices::openUrl(QUrl(source.url));
     } else if (selected == copy) {
         QApplication::clipboard()->setText(source.url);
-    } else if (selected == rename) {
+    } else if (selected == edit) {
         if (const auto title = showTextInputDialog(
-                this, "Titel ändern", "Titel", "Speichern", source.title)) {
+                this, "Quelle bearbeiten", "Titel", "Speichern", source.title)) {
             apiClient.updateSourceTitle(source.id, *title);
         }
-    } else if (selected == assign) {
-        openCategoryDialog(source);
     } else if (selected == remove && QMessageBox::question(
                    this, "Quelle löschen", "Diese Quelle löschen?",
                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) {
         apiClient.deleteSource(source.id);
-    }
-}
-
-void SourceView::showCategoryMenu(const int id, const QString &name, const QPoint &position) {
-    QMenu menu(this);
-    const auto *rename = menu.addAction("Kategorie umbenennen");
-    const auto *remove = menu.addAction(contextMenuDeleteIcon(), "Kategorie löschen");
-    const auto *selected = menu.exec(position);
-    if (selected == rename) {
-        if (const auto newName = showTextInputDialog(
-                this, "Kategorie umbenennen", "Name", "Speichern", name)) {
-            apiClient.renameSourceCategory(id, *newName);
-        }
-    } else if (selected == remove && QMessageBox::question(
-                   this, "Kategorie löschen",
-                   "Diese Kategorie löschen? Ihre Quellen erscheinen danach unter „Ohne Kategorie“.",
-                   QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) {
-        apiClient.deleteSourceCategory(id);
-    }
-}
-
-void SourceView::openCategoryDialog(const Source &source) {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Kategorie ändern");
-    auto *layout = new QFormLayout(&dialog);
-    auto *choices = new QComboBox(&dialog);
-    choices->addItem("Ohne Kategorie", NO_CATEGORY);
-    for (const SourceCategory &category : categories) {
-        choices->addItem(category.name, category.id);
-    }
-    const int categoryIndex = choices->findData(source.categoryId);
-    choices->setCurrentIndex(qMax(0, categoryIndex));
-    layout->addRow("Kategorie", choices);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
-    buttons->button(QDialogButtonBox::Save)->setText("Speichern");
-    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    prepareFormDialog(dialog, *buttons);
-    if (execDialog(dialog) == QDialog::Accepted) {
-        apiClient.assignSourceCategory(source.id, choices->currentData().toInt());
     }
 }

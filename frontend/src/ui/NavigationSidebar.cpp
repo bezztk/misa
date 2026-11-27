@@ -524,12 +524,8 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             [this](const QPoint &position) {
                 QMenu menu(this);
                 QAction *addAction = menu.addAction("Quelle hinzufügen");
-                QAction *categoryAction = menu.addAction("Kategorie erstellen");
-                const QAction *selected = menu.exec(position);
-                if (selected == addAction) {
+                if (menu.exec(position) == addAction) {
                     emit createSourceRequested();
-                } else if (selected == categoryAction) {
-                    emit createSourceCategoryRequested();
                 }
             });
     connect(mediaSection, &MediaNavigationSection::openRequested,

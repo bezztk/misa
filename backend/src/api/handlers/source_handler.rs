@@ -6,8 +6,7 @@ use uuid::Uuid;
 
 use crate::api::error::{ApiError, ApiResult};
 use crate::models::source::{
-    AssignSourceCategoryRequest, CreateSourceRequest, CreateSourceResponse,
-    SaveSourceCategoryRequest, Source, SourceCategory, UpdateSourceTitleRequest,
+    CreateSourceRequest, CreateSourceResponse, Source, UpdateSourceTitleRequest,
 };
 use crate::repositories::source_repository;
 use crate::services::{favicon_service, zotero_client};
@@ -67,72 +66,4 @@ pub async fn update_title(
         return Err(ApiError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
-}
-
-pub async fn assign_category(
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-    Json(payload): Json<AssignSourceCategoryRequest>,
-) -> ApiResult<StatusCode> {
-    match source_repository::assign_category(&pool, id, payload.category_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(ApiError::NotFound),
-        Err(sqlx::Error::Database(error)) if error.is_foreign_key_violation() => {
-            Err(ApiError::NotFound)
-        }
-        Err(error) => Err(error.into()),
-    }
-}
-
-pub async fn get_categories(State(pool): State<PgPool>) -> ApiResult<Json<Vec<SourceCategory>>> {
-    Ok(Json(source_repository::get_categories(&pool).await?))
-}
-
-pub async fn create_category(
-    State(pool): State<PgPool>,
-    Json(payload): Json<SaveSourceCategoryRequest>,
-) -> ApiResult<(StatusCode, Json<SourceCategory>)> {
-    let name = payload.name.trim();
-    if name.is_empty() {
-        return Err(ApiError::BadRequest);
-    }
-    let category = source_repository::create_category(&pool, name)
-        .await
-        .map_err(category_error)?;
-    Ok((StatusCode::CREATED, Json(category)))
-}
-
-pub async fn rename_category(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-    Json(payload): Json<SaveSourceCategoryRequest>,
-) -> ApiResult<StatusCode> {
-    let name = payload.name.trim();
-    if name.is_empty() {
-        return Err(ApiError::BadRequest);
-    }
-    if !source_repository::rename_category(&pool, id, name)
-        .await
-        .map_err(category_error)?
-    {
-        return Err(ApiError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
-}
-
-pub async fn delete_category(
-    State(pool): State<PgPool>,
-    Path(id): Path<i32>,
-) -> ApiResult<StatusCode> {
-    if !source_repository::delete_category(&pool, id).await? {
-        return Err(ApiError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
-}
-
-fn category_error(error: sqlx::Error) -> ApiError {
-    match &error {
-        sqlx::Error::Database(error) if error.is_unique_violation() => ApiError::Conflict,
-        _ => error.into(),
-    }
 }

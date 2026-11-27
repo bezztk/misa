@@ -184,7 +184,6 @@ signals:
     void openRssRequested();
     void openSourcesRequested();
     void createSourceRequested();
-    void createSourceCategoryRequested();
     void openMediaRequested();
     void importMediaRequested();
     void createRssFeedRequested();

@@ -21,19 +21,6 @@ pub fn create_router(pool: PgPool) -> Router {
             "/sources/{id}/title",
             axum::routing::patch(source_handler::update_title),
         )
-        .route(
-            "/sources/{id}/category",
-            axum::routing::put(source_handler::assign_category),
-        )
-        .route(
-            "/source-categories",
-            get(source_handler::get_categories).post(source_handler::create_category),
-        )
-        .route(
-            "/source-categories/{id}",
-            axum::routing::put(source_handler::rename_category)
-                .delete(source_handler::delete_category),
-        )
         .route("/media", get(media_handler::get_all))
         .route(
             "/media/import",

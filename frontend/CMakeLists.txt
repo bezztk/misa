@@ -206,6 +206,7 @@ qt_add_resources(frontend "icons"
         assets/icons/file.png
         assets/icons/rss.png
         assets/icons/open.png
+        assets/icons/copy.png
         assets/icons/clock.png
         assets/icons/infinity.png
         assets/icons/add.png

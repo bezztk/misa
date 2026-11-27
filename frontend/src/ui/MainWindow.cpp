@@ -190,8 +190,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             this, &MainWindow::openSources);
     connect(navigation, &NavigationSidebar::createSourceRequested,
             this, [this] { openSources()->openCreateDialog(); });
-    connect(navigation, &NavigationSidebar::createSourceCategoryRequested,
-            this, [this] { openSources()->openCreateCategoryDialog(); });
     connect(navigation, &NavigationSidebar::openMediaRequested,
             this, &MainWindow::openMedia);
     connect(navigation, &NavigationSidebar::importMediaRequested,

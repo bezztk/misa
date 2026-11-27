@@ -12,7 +12,6 @@ pub struct Source {
     pub url: String,
     pub description: Option<String>,
     pub thumbnail_url: Option<String>,
-    pub category_id: Option<i32>,
     pub favicon: Option<Vec<u8>>,
     pub favicon_mime_type: Option<String>,
     pub metadata: Value,
@@ -30,25 +29,9 @@ pub struct CreateSourceResponse {
     pub id: Uuid,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct SourceCategory {
-    pub id: i32,
-    pub name: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SaveSourceCategoryRequest {
-    pub name: String,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct UpdateSourceTitleRequest {
     pub title: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AssignSourceCategoryRequest {
-    pub category_id: Option<i32>,
 }
 
 pub struct Favicon {

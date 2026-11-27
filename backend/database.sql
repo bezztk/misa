@@ -910,12 +910,6 @@ VALUES (1, 'annotation', 'Anmerkung'),
        (39, 'videoRecording', 'Videoaufnahme'),
        (40, 'webpage', 'Webseite');
 
-CREATE TABLE source_categories
-(
-    id   integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name text NOT NULL UNIQUE
-);
-
 CREATE TABLE sources
 (
     id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -927,7 +921,6 @@ CREATE TABLE sources
     metadata         jsonb NOT NULL,
     created_at       timestamptz NOT NULL DEFAULT now(),
     updated_at       timestamptz NOT NULL DEFAULT now(),
-    category_id      integer REFERENCES source_categories (id) ON DELETE SET NULL,
     favicon          bytea,
     favicon_mime_type text
 );
