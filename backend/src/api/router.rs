@@ -269,7 +269,7 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/contexts/{id}",
-            axum::routing::put(context_handler::rename_context)
+            axum::routing::put(context_handler::update_context)
                 .delete(context_handler::delete_context),
         )
         .route(

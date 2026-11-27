@@ -141,8 +141,8 @@ public:
     void updateTaskContexts(int id, const std::vector<int> &contextIds);
     void deleteTask(int id);
     void getContexts();
-    void createContext(const QString &title);
-    void renameContext(int id, const QString &title);
+    void createContext(const QString &title, const QByteArray &icon, const QColor &color);
+    void updateContext(int id, const QString &title, const QByteArray &icon, const QColor &color);
     void deleteContext(int id);
     void getCalendarEntries();
     void createCalendarEntry(const CreateCalendarEntry& entry);

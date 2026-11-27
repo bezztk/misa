@@ -27,7 +27,9 @@ CREATE TABLE entities
 CREATE TABLE contexts
 (
     id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    title varchar(150) NOT NULL
+    title varchar(150) NOT NULL,
+    icon  bytea,
+    color varchar(7)
 );
 
 CREATE TABLE context_entities

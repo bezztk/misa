@@ -93,6 +93,7 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
 
     navigation = new QListWidget(this);
     navigation->setFixedWidth(240);
+    navigation->setIconSize(QSize(22, 22));
     navigation->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     navigation->setStyleSheet(R"(
         QListWidget {
@@ -185,11 +186,17 @@ void TaskView::renderNavigation() {
         if (id == selectedId) {
             navigation->setCurrentItem(item);
         }
+        return item;
     };
     addEntry("Alle Aufgaben", ALL_TASKS);
     addEntry("Ohne Kontext", WITHOUT_CONTEXT);
     for (const Context &context : contexts) {
-        addEntry(context.title, context.id);
+        auto *item = addEntry(context.title, context.id);
+        item->setIcon(contextIcon(context.icon));
+        item->setToolTip(context.title);
+        if (context.color.isValid()) {
+            item->setBackground(contextTint(context.color));
+        }
     }
     if (!navigation->currentItem()) {
         navigation->setCurrentRow(0);
