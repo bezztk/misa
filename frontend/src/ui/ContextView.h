@@ -10,10 +10,15 @@
 
 class ApiClient;
 class QListWidget;
+class QResizeEvent;
 
 class ContextView final : public QWidget {
 public:
     explicit ContextView(ApiClient &apiClient, QWidget *parent = nullptr);
+    void openCreateDialog();
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void renderContexts(const std::vector<Context> &contexts);

@@ -21,6 +21,10 @@ struct Task {
     int stateId;
     int priorityId;
     std::vector<Comment> comments;
+
+    bool isOpen() const {
+        return stateId == 1 || stateId == 2;
+    }
 };
 
 struct CreateTask {

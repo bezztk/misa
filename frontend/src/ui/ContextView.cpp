@@ -17,15 +17,43 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <utility>
+
 namespace {
-constexpr QSize CARD_SIZE(268, 112);
+constexpr QSize MAX_CARD_SIZE(536, 112);
 constexpr int CARD_GAP = 12;
+constexpr QSize CELL_GAP(CARD_GAP, CARD_GAP);
 constexpr int CARD_MARGIN = 14;
 constexpr int MENU_SIZE = 28;
 constexpr int ICON_SIZE = 24;
+
+class ContextCardTitle final : public QLabel {
+public:
+    ContextCardTitle(QString title, QWidget *parent) : QLabel(parent), title(std::move(title)) {
+        setTextFormat(Qt::PlainText);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        auto titleFont = font();
+        titleFont.setPixelSize(22);
+        titleFont.setWeight(QFont::DemiBold);
+        setFont(titleFont);
+        setText(this->title);
+        setToolTip(this->title);
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        setText(fontMetrics().elidedText(title, Qt::ElideRight, contentsRect().width()));
+    }
+
+private:
+    QString title;
+};
 
 QString cardBackground(const QColor &color) {
     if (!color.isValid()) {
@@ -41,10 +69,6 @@ ContextView::ContextView(ApiClient &apiClient, QWidget *parent)
     : QWidget(parent), apiClient(apiClient), grid(new QListWidget(this)) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(16, 14, 16, 8);
-    layout->setSpacing(16);
-
-    auto *create = new QPushButton(QIcon(":/assets/icons/add.png"), "Kontext erstellen", this);
-    layout->addWidget(create, 0, Qt::AlignLeft);
 
     grid->setAccessibleName("Kontexte");
     grid->setFrameShape(QFrame::NoFrame);
@@ -53,15 +77,13 @@ ContextView::ContextView(ApiClient &apiClient, QWidget *parent)
     grid->setWrapping(true);
     grid->setResizeMode(QListView::Adjust);
     grid->setMovement(QListView::Static);
-    grid->setGridSize(CARD_SIZE + QSize(CARD_GAP, CARD_GAP));
-    grid->setUniformItemSizes(true);
+    grid->setGridSize(MAX_CARD_SIZE + CELL_GAP);
     grid->setSelectionMode(QAbstractItemView::NoSelection);
     grid->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     grid->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     grid->setStyleSheet("QListWidget { background: transparent; }");
     layout->addWidget(grid);
 
-    connect(create, &QPushButton::clicked, this, [this] { openContextDialog(std::nullopt); });
     connect(&apiClient, &ApiClient::contextsReceived, this, &ContextView::renderContexts);
     const auto refreshCounts = [this] { this->apiClient.getContexts(); };
     connect(&apiClient, &ApiClient::taskCreated, this, refreshCounts);
@@ -70,22 +92,49 @@ ContextView::ContextView(ApiClient &apiClient, QWidget *parent)
     apiClient.getContexts();
 }
 
+void ContextView::openCreateDialog() {
+    openContextDialog(std::nullopt);
+}
+
+void ContextView::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    const QMargins margins = layout()->contentsMargins();
+    const int scrollBarWidth = grid->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    const int cardWidth = std::clamp(
+        width() - margins.left() - margins.right() - scrollBarWidth - CARD_GAP,
+        1, MAX_CARD_SIZE.width()
+    );
+    const QSize cardSize(cardWidth, MAX_CARD_SIZE.height());
+    const QSize cellSize = cardSize + CELL_GAP;
+    if (cellSize == grid->gridSize()) {
+        return;
+    }
+
+    grid->setGridSize(cellSize);
+    for (int row = 0; row < grid->count(); ++row) {
+        auto *item = grid->item(row);
+        item->setSizeHint(cardSize);
+        grid->itemWidget(item)->setFixedWidth(cardWidth);
+    }
+}
+
 void ContextView::renderContexts(const std::vector<Context> &contexts) {
     const int scrollPosition = grid->verticalScrollBar()->value();
+    const QSize cardSize = grid->gridSize() - CELL_GAP;
     grid->clear();
     for (const Context &context : contexts) {
         const QString countText = context.entityCount == 1
             ? "1 verknüpfter Eintrag"
             : QString("%1 verknüpfte Einträge").arg(context.entityCount);
         auto *item = new QListWidgetItem(grid);
-        item->setSizeHint(CARD_SIZE);
+        item->setSizeHint(cardSize);
         item->setData(Qt::AccessibleTextRole, context.title);
         item->setData(Qt::AccessibleDescriptionRole, countText);
         item->setToolTip(context.title);
 
         auto *card = new QFrame(grid->viewport());
         card->setObjectName("contextCard");
-        card->setFixedSize(CARD_SIZE);
+        card->setFixedSize(cardSize);
         card->setAttribute(Qt::WA_StyledBackground);
         card->setStyleSheet(QString(R"(
             QFrame#contextCard {
@@ -97,7 +146,6 @@ void ContextView::renderContexts(const std::vector<Context> &contexts) {
                 background: transparent;
                 border: 0;
                 border-radius: 4px;
-                font-size: 20px;
             }
             QToolButton:hover, QToolButton:focus {
                 background: rgba(128, 128, 128, 45);
@@ -110,15 +158,17 @@ void ContextView::renderContexts(const std::vector<Context> &contexts) {
         cardLayout->setSpacing(3);
 
         auto *top = new QHBoxLayout;
+        top->setSpacing(10);
         const QIcon icon = contextIcon(context.icon);
         if (!icon.isNull()) {
             auto *iconLabel = new QLabel(card);
             iconLabel->setPixmap(icon.pixmap(QSize(ICON_SIZE, ICON_SIZE), card->devicePixelRatioF()));
             top->addWidget(iconLabel);
         }
-        top->addStretch(1);
+        top->addWidget(new ContextCardTitle(context.title, card), 1);
         auto *actions = new QToolButton(card);
-        actions->setText("⋯");
+        actions->setIcon(QIcon(":/assets/icons/option.png"));
+        actions->setIconSize(QSize(18, 18));
         actions->setAccessibleName("Aktionen für " + context.title);
         actions->setToolTip("Kontextaktionen");
         actions->setFixedSize(MENU_SIZE, MENU_SIZE);
@@ -132,22 +182,11 @@ void ContextView::renderContexts(const std::vector<Context> &contexts) {
                 [this, id = context.id] { apiClient.deleteContext(id); });
         top->addWidget(actions);
         cardLayout->addLayout(top);
-
-        auto *title = new QLabel(card);
-        title->setTextFormat(Qt::PlainText);
-        auto titleFont = title->font();
-        titleFont.setPixelSize(22);
-        titleFont.setWeight(QFont::DemiBold);
-        title->setFont(titleFont);
-        title->setText(QFontMetrics(titleFont).elidedText(
-            context.title, Qt::ElideRight, CARD_SIZE.width() - 2 * CARD_MARGIN
-        ));
-        cardLayout->addWidget(title);
+        cardLayout->addStretch();
 
         auto *count = new QLabel(countText, card);
         count->setForegroundRole(QPalette::PlaceholderText);
         cardLayout->addWidget(count);
-        cardLayout->addStretch();
 
         grid->setItemWidget(item, card);
     }

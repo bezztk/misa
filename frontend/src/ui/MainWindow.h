@@ -10,6 +10,7 @@ class QResizeEvent;
 class QTimer;
 class WorkspaceManager;
 class TaskView;
+class ContextView;
 class CalendarView;
 class IdeaView;
 class LearningArea;
@@ -29,7 +30,7 @@ private:
     void showToast(const QString &message);
     void positionToast();
     TaskView *openTasks();
-    void openContexts();
+    ContextView *openContexts();
     CalendarView *openCalendar();
     IdeaView *openIdeas();
     LearningArea *openLearning();

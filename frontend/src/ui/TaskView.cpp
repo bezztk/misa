@@ -7,15 +7,16 @@
 #include "../api/ApiClient.h"
 
 #include <QDateTime>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QPainter>
-#include <QPushButton>
 #include <QSignalBlocker>
 #include <QStringList>
 #include <QStyledItemDelegate>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -23,6 +24,57 @@
 namespace {
 constexpr int ALL_TASKS = -1;
 constexpr int WITHOUT_CONTEXT = 0;
+constexpr int OPEN_TASK_COUNT_ROLE = Qt::UserRole + 1;
+constexpr int CONTEXT_ICON_SIZE = 22;
+
+class ContextNavigationDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(
+        QPainter *painter,
+        const QStyleOptionViewItem &option,
+        const QModelIndex &index
+    ) const override {
+        const QRect row(0, option.rect.top(), painter->viewport().width(), option.rect.height());
+        painter->save();
+        painter->fillRect(row, index.data(Qt::BackgroundRole).value<QBrush>());
+        if (option.state & QStyle::State_Selected) {
+            QColor selection = option.palette.highlight().color();
+            selection.setAlpha(70);
+            painter->fillRect(row, selection);
+        }
+
+        QRect textRect = row.adjusted(18, 0, -18, 0);
+        const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
+        if (!icon.isNull()) {
+            const QRect iconRect(
+                textRect.left(), row.top() + (row.height() - CONTEXT_ICON_SIZE) / 2,
+                CONTEXT_ICON_SIZE, CONTEXT_ICON_SIZE
+            );
+            icon.paint(painter, iconRect);
+            textRect.adjust(CONTEXT_ICON_SIZE + 12, 0, 0, 0);
+        }
+
+        const QString count = index.data(OPEN_TASK_COUNT_ROLE).toString();
+        auto countFont = option.font;
+        countFont.setPixelSize(11);
+        const int countWidth = QFontMetrics(countFont).horizontalAdvance(count);
+        const QRect countRect(textRect.right() + 1 - countWidth, row.top(), countWidth, row.height());
+        QColor countColor = option.palette.text().color();
+        countColor.setAlpha(175);
+        painter->setFont(countFont);
+        painter->setPen(countColor);
+        painter->drawText(countRect, Qt::AlignRight | Qt::AlignVCenter, count);
+
+        textRect.setRight(countRect.left() - 12);
+        painter->setFont(option.font);
+        painter->setPen(option.palette.text().color());
+        painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+            option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, textRect.width()));
+        painter->restore();
+    }
+};
 
 class TaskCardDelegate final : public QStyledItemDelegate {
 public:
@@ -44,6 +96,9 @@ public:
             QColor selection = option.palette.highlight().color();
             selection.setAlpha(38);
             painter->fillRect(option.rect, selection);
+        }
+        if (option.state & QStyle::State_MouseOver) {
+            painter->fillRect(option.rect, QColor(255, 255, 255, 18));
         }
 
         const QColor textColor = option.palette.text().color();
@@ -93,7 +148,7 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
 
     navigation = new QListWidget(this);
     navigation->setFixedWidth(240);
-    navigation->setIconSize(QSize(22, 22));
+    navigation->setItemDelegate(new ContextNavigationDelegate(navigation));
     navigation->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     navigation->setStyleSheet(R"(
         QListWidget {
@@ -103,7 +158,6 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
             outline: 0;
             padding: 8px 0;
         }
-        QListWidget::item { padding-left: 18px; }
     )");
     layout->addWidget(navigation);
 
@@ -128,7 +182,11 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     search->setAccessibleName("Aufgaben suchen");
     search->setClearButtonEnabled(true);
     searchLayout->addWidget(search, 1);
-    auto *filter = new QPushButton("Filter", searchBar);
+    auto *filter = new QToolButton(searchBar);
+    filter->setIcon(QIcon(":/assets/icons/filter.png"));
+    filter->setIconSize(QSize(20, 20));
+    filter->setAutoRaise(true);
+    filter->setAccessibleName("Filter");
     filter->setEnabled(false);
     searchLayout->addWidget(filter);
     contentLayout->addWidget(searchBar);
@@ -140,11 +198,19 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     taskList->setFrameShape(QFrame::NoFrame);
     taskList->setStyleSheet("QListWidget { background: transparent; border: 0; }");
     taskList->setUniformItemSizes(true);
+    taskList->setMouseTracking(true);
+    taskList->viewport()->setAttribute(Qt::WA_Hover);
     taskList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     taskList->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     taskList->setContextMenuPolicy(Qt::CustomContextMenu);
     taskList->setItemDelegate(new TaskCardDelegate(taskList));
-    contentLayout->addWidget(taskList, 1);
+    auto *taskListLayout = new QHBoxLayout;
+    taskListLayout->setContentsMargins(0, 0, 0, 0);
+    taskListLayout->setSpacing(0);
+    taskListLayout->addStretch();
+    taskListLayout->addWidget(taskList, 1);
+    taskListLayout->addStretch();
+    contentLayout->addLayout(taskListLayout, 1);
 
     connect(navigation, &QListWidget::currentRowChanged, this, &TaskView::renderTasks);
     connect(search, &QLineEdit::textChanged, this, &TaskView::renderTasks);
@@ -155,6 +221,7 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     connect(&apiClient, &ApiClient::taskReceived, this,
             [this](const std::vector<Task> &received) {
                 tasks = received;
+                updateNavigationCounts();
                 renderTasks();
             });
     connect(&apiClient, &ApiClient::contextsReceived, this,
@@ -200,6 +267,30 @@ void TaskView::renderNavigation() {
     }
     if (!navigation->currentItem()) {
         navigation->setCurrentRow(0);
+    }
+    updateNavigationCounts();
+}
+
+void TaskView::updateNavigationCounts() {
+    QHash<int, int> openCounts;
+    for (const Task &task : tasks) {
+        if (!task.isOpen()) {
+            continue;
+        }
+        ++openCounts[ALL_TASKS];
+        if (task.contextIds.empty()) {
+            ++openCounts[WITHOUT_CONTEXT];
+        }
+        for (const int id : task.contextIds) {
+            ++openCounts[id];
+        }
+    }
+    for (int row = 0; row < navigation->count(); ++row) {
+        auto *item = navigation->item(row);
+        const int count = openCounts.value(item->data(Qt::UserRole).toInt());
+        item->setData(OPEN_TASK_COUNT_ROLE, count);
+        item->setData(Qt::AccessibleDescriptionRole, count == 1
+            ? QString("1 offene Aufgabe") : QString("%1 offene Aufgaben").arg(count));
     }
 }
 

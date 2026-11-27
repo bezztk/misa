@@ -237,6 +237,9 @@ qt_add_resources(frontend "icons"
         assets/icons/flashcards-white.png
         assets/icons/calendar.png
         assets/icons/folder.png
+        assets/icons/category.png
+        assets/icons/filter.png
+        assets/icons/option.png
         assets/icons/file.png
         assets/icons/rss.png
         assets/icons/open.png

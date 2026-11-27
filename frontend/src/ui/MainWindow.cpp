@@ -223,6 +223,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
             &apiClient, &ApiClient::refreshAllRssFeeds);
     connect(navigation, &NavigationSidebar::createTaskRequested,
             this, [this] { openTasks()->openCreateDialog(); });
+    connect(navigation, &NavigationSidebar::createContextRequested,
+            this, [this] { openContexts()->openCreateDialog(); });
     connect(navigation, &NavigationSidebar::createCalendarEntryRequested,
             this, [this] { openCalendar()->openCreateDialog(); });
     connect(navigation, &NavigationSidebar::refreshCalendarRequested,
@@ -367,11 +369,11 @@ TaskView *MainWindow::openTasks() {
     return view;
 }
 
-void MainWindow::openContexts() {
-    workspaceManager->openView(
+ContextView *MainWindow::openContexts() {
+    return static_cast<ContextView *>(workspaceManager->openView(
         "contexts", "Kontexte", NavigationIcons::tabIcon(NavigationIcons::contexts),
         [this] { return new ContextView(apiClient); }
-    );
+    ));
 }
 
 CalendarView *MainWindow::openCalendar() {

@@ -236,11 +236,8 @@ TasksNavigationSection::TasksNavigationSection(
     setSubtext("Aufgaben werden geladen …");
     connect(&apiClient, &ApiClient::taskReceived, this,
             [this](const std::vector<Task> &tasks) {
-                const int count = static_cast<int>(std::count_if(
-                    tasks.begin(), tasks.end(),
-                    [](const Task &task) {
-                        return task.stateId == 1 || task.stateId == 2;
-                    }
+                const int count = static_cast<int>(std::ranges::count_if(
+                    tasks, &Task::isOpen
                 ));
                 if (count == 0) {
                     setSubtext("Keine offenen Aufgaben");
@@ -476,6 +473,16 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
             this, &NavigationSidebar::openTasksRequested);
     connect(contextsSection, &NavigationCard::activated,
             this, &NavigationSidebar::openContextsRequested);
+    connect(contextsSection, &NavigationCard::contextMenuRequested, this,
+            [this](const QPoint &position) {
+                QMenu menu(this);
+                const auto *create = menu.addAction(
+                    QIcon(":/assets/icons/add.png"), "Kontext erstellen"
+                );
+                if (menu.exec(position) == create) {
+                    emit createContextRequested();
+                }
+            });
     connect(calendarSection, &CalendarNavigationSection::openRequested,
             this, &NavigationSidebar::openCalendarRequested);
     connect(ideasSection, &IdeasNavigationSection::openRequested,

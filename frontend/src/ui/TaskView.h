@@ -17,6 +17,7 @@ public:
 
 private:
     void renderNavigation();
+    void updateNavigationCounts();
     void renderTasks();
     int selectedContextId() const;
     const Task &taskById(int id) const;
