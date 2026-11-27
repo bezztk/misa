@@ -8,19 +8,98 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QFrame>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QVBoxLayout>
 
 #include <algorithm>
 
-static QListWidget *addContextSelection(
-    QFormLayout *layout,
+static constexpr auto TASK_CREATE_STYLE = R"(
+    QLabel#taskFieldLabel {
+        color: #D2D2D2;
+        font-family: "Bahnschrift";
+        font-size: 13px;
+        font-weight: 500;
+    }
+    QLineEdit#taskNameField {
+        background: #2B2B2B;
+        color: #F4F4F4;
+        border: 1px solid #5E5E5E;
+        border-radius: 0;
+        padding: 0 12px;
+        font-family: "Bahnschrift";
+        font-size: 14px;
+        selection-background-color: #626262;
+        selection-color: #FFFFFF;
+    }
+    QLineEdit#taskNameField:focus {
+        border-color: #B8B8B8;
+    }
+    QFrame#taskCreateFooter {
+        border: 0;
+        border-top: 1px solid #414141;
+    }
+    QPushButton#taskCreateCancel, QPushButton#taskClearDueDate,
+    QPushButton#taskCreateSubmit {
+        min-height: 36px;
+        padding: 0 15px;
+        font-family: "Bahnschrift";
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid #5E5E5E;
+        border-radius: 0;
+        color: #F4F4F4;
+        background: transparent;
+    }
+    QPushButton#taskCreateCancel:hover, QPushButton#taskClearDueDate:hover {
+        background: #353535;
+    }
+    QPushButton#taskCreateCancel:pressed, QPushButton#taskClearDueDate:pressed {
+        background: #414141;
+    }
+    QPushButton#taskClearDueDate:disabled {
+        color: #929292;
+        border-color: #414141;
+    }
+    QPushButton#taskCreateSubmit {
+        min-width: 80px;
+        color: #202020;
+        background: #D2D2D2;
+        border-color: #D2D2D2;
+    }
+    QPushButton#taskCreateSubmit:hover {
+        background: #E6E6E6;
+    }
+    QPushButton#taskCreateSubmit:pressed {
+        background: #B8B8B8;
+    }
+    QPushButton#taskCreateCancel:focus, QPushButton#taskClearDueDate:focus,
+    QPushButton#taskCreateSubmit:focus {
+        border-color: #FFFFFF;
+    }
+)";
+
+static void addTaskField(QVBoxLayout *layout, const QString &title, QWidget *field) {
+    auto *group = new QVBoxLayout;
+    group->setSpacing(6);
+    auto *label = new QLabel(title, layout->parentWidget());
+    label->setObjectName("taskFieldLabel");
+    label->setBuddy(field);
+    group->addWidget(label);
+    group->addWidget(field);
+    layout->addLayout(group);
+}
+
+static QListWidget *createContextSelection(
+    QWidget *parent,
     const std::vector<Context> &contexts,
     const std::vector<int> &selectedIds
 ) {
-    auto *list = new QListWidget;
+    auto *list = new QListWidget(parent);
     list->setMaximumHeight(150);
     list->setSelectionMode(QAbstractItemView::NoSelection);
     for (const Context &context : contexts) {
@@ -29,7 +108,6 @@ static QListWidget *addContextSelection(
         const bool checked = std::ranges::contains(selectedIds, context.id);
         item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
     }
-    layout->addRow("Kontexte", list);
     return list;
 }
 
@@ -45,13 +123,14 @@ static std::vector<int> selectedContextIds(const QListWidget &list) {
     return ids;
 }
 
-static DateTimeButton *addDueDate(QFormLayout *layout, const QDateTime &dueAt = {}) {
-    auto *row = new QWidget(layout->parentWidget());
+static DateTimeButton *createDueDate(QWidget *row, const QDateTime &dueAt = {}) {
     auto *rowLayout = new QHBoxLayout(row);
     rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(8);
 
     auto *dueDate = new DateTimeButton("Fälligkeit auswählen", dueAt, row);
     auto *clear = new QPushButton("Entfernen", row);
+    clear->setObjectName("taskClearDueDate");
     clear->setAccessibleName("Fälligkeit entfernen");
     clear->setAutoDefault(false);
     clear->setEnabled(dueAt.isValid());
@@ -64,7 +143,6 @@ static DateTimeButton *addDueDate(QFormLayout *layout, const QDateTime &dueAt = 
     rowLayout->addWidget(dueDate, 1);
     rowLayout->addWidget(clear);
     row->setFocusProxy(dueDate);
-    layout->addRow("&Fälligkeit", row);
     return dueDate;
 }
 
@@ -77,29 +155,52 @@ void showTaskCreateDialog(
 ) {
     QDialog dialog(parent);
     dialog.setWindowTitle("Aufgabe erstellen");
-    auto *layout = new QFormLayout(&dialog);
+    dialog.setStyleSheet(TASK_CREATE_STYLE);
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(14);
 
     auto *nameEdit = new QLineEdit(&dialog);
-    layout->addRow("Name", nameEdit);
+    nameEdit->setObjectName("taskNameField");
+    nameEdit->setFixedHeight(38);
+    addTaskField(layout, "&Name", nameEdit);
 
-    const auto *contextSelection = domainNodeId ? nullptr : addContextSelection(layout, contexts, selectedIds);
+    auto *contextSelection = domainNodeId ? nullptr : createContextSelection(&dialog, contexts, selectedIds);
+    if (contextSelection) {
+        addTaskField(layout, "&Kontexte", contextSelection);
+    }
 
     auto *priorityEdit = new QComboBox(&dialog);
     for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
         priorityEdit->addItem(priority.displayName.value_or(priority.name), priority.id);
     }
-    layout->addRow("Priorität", priorityEdit);
-    const auto *dueDate = addDueDate(layout);
+    addTaskField(layout, "&Priorität", priorityEdit);
+    auto *dueDateRow = new QWidget(&dialog);
+    const auto *dueDate = createDueDate(dueDateRow);
+    addTaskField(layout, "&Fälligkeit", dueDateRow);
 
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
-    );
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
-    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addRow(buttons);
-    prepareDialog(dialog);
+    auto *footer = new QFrame(&dialog);
+    footer->setObjectName("taskCreateFooter");
+    auto *actions = new QHBoxLayout(footer);
+    actions->setContentsMargins(0, 12, 0, 0);
+    actions->setSpacing(8);
+    actions->addStretch();
+    auto *cancel = new QPushButton("Abbrechen", footer);
+    cancel->setObjectName("taskCreateCancel");
+    cancel->setAutoDefault(false);
+    actions->addWidget(cancel);
+    auto *create = new QPushButton("Erstellen", footer);
+    create->setObjectName("taskCreateSubmit");
+    create->setDefault(true);
+    actions->addWidget(create);
+    layout->addSpacing(4);
+    layout->addWidget(footer);
+    QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+    QObject::connect(create, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    dialog.setMinimumWidth(460);
+    dialog.resize(460, dialog.minimumSizeHint().height());
+    nameEdit->setFocus();
 
     if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
         return;
@@ -127,8 +228,11 @@ void showTaskEditDialog(
     auto *nameEdit = new QLineEdit(task.name, &dialog);
     layout->addRow("Name", nameEdit);
 
-    const auto *contextSelection = task.domainNodeId || contexts.empty()
-        ? nullptr : addContextSelection(layout, contexts, task.contextIds);
+    auto *contextSelection = task.domainNodeId || contexts.empty()
+        ? nullptr : createContextSelection(&dialog, contexts, task.contextIds);
+    if (contextSelection) {
+        layout->addRow("Kontexte", contextSelection);
+    }
 
     auto *stateEdit = new QComboBox(&dialog);
     for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
@@ -143,7 +247,9 @@ void showTaskEditDialog(
     }
     priorityEdit->setCurrentIndex(priorityEdit->findData(task.priorityId));
     layout->addRow("Priorität", priorityEdit);
-    const auto *dueDate = addDueDate(layout, task.dueAt);
+    auto *dueDateRow = new QWidget(&dialog);
+    const auto *dueDate = createDueDate(dueDateRow, task.dueAt);
+    layout->addRow("&Fälligkeit", dueDateRow);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");

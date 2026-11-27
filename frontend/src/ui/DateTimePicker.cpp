@@ -9,6 +9,7 @@
 #include <QDialogButtonBox>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
@@ -285,6 +286,33 @@ DateTimeButton::DateTimeButton(
     const QString &title, const QDateTime &dateTime, QWidget *parent
 ) : QPushButton(parent) {
     setAccessibleName(title);
+    setObjectName("dateTimeField");
+    setCursor(Qt::PointingHandCursor);
+    setIcon(QIcon(":/assets/icons/calendar.png"));
+    setIconSize(QSize(16, 16));
+    setStyleSheet(R"(
+        QPushButton#dateTimeField {
+            min-height: 36px;
+            padding: 0 12px;
+            text-align: left;
+            font-family: "Bahnschrift";
+            font-size: 14px;
+            font-weight: 500;
+            color: #F4F4F4;
+            background: #2B2B2B;
+            border: 1px solid #5E5E5E;
+            border-radius: 0;
+        }
+        QPushButton#dateTimeField:hover {
+            background: #353535;
+        }
+        QPushButton#dateTimeField:pressed {
+            background: #414141;
+        }
+        QPushButton#dateTimeField:focus {
+            border-color: #B8B8B8;
+        }
+    )");
     setDateTime(dateTime);
     setAutoDefault(false);
     connect(this, &QPushButton::clicked, this, [this, title] {
@@ -304,7 +332,8 @@ QDateTime DateTimeButton::dateTime() const {
 void DateTimeButton::setDateTime(const QDateTime &dateTime) {
     const bool changed = value != dateTime;
     value = dateTime;
-    setText(value.isValid() ? value.toString("dd.MM.yyyy HH:mm") : "Datum und Uhrzeit auswählen");
+    setText(value.isValid() ? value.toString("dd.MM.yyyy   │   HH:mm") : "Datum und Uhrzeit auswählen");
+    setAccessibleDescription(value.isValid() ? value.toString("dd.MM.yyyy, HH:mm") : QString());
     if (changed) {
         emit dateTimeChanged();
     }
