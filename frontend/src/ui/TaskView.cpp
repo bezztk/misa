@@ -135,6 +135,8 @@ struct TaskCardLine {
         titleRect = QRect(titleLeft, lineTop, titleWidth, taskLineHeight);
         indicatorsLeft = titleLeft + titleMetrics.horizontalAdvance(title);
         commentRect = QRect(indicatorsLeft + indicatorGap, lineTop, commentWidth, taskLineHeight).intersected(content);
+        const int planningLeft = indicatorsLeft + indicatorGap + (commentWidth > 0 ? indicatorGap + commentWidth : 0);
+        planningRect = QRect(planningLeft, lineTop, planningWidth, taskLineHeight).intersected(content);
     }
 
     QFont titleFont;
@@ -147,13 +149,14 @@ struct TaskCardLine {
     QRect statusRect;
     QRect titleRect;
     QRect commentRect;
+    QRect planningRect;
     int indicatorsLeft;
 };
 
 class TaskCardDelegate final : public QStyledItemDelegate {
 public:
-    explicit TaskCardDelegate(std::function<void(int)> openComments, QObject *parent)
-        : QStyledItemDelegate(parent), openComments(std::move(openComments)) {}
+    TaskCardDelegate(std::function<void(int)> openComments, std::function<void(int)> openPlanning, QObject *parent)
+        : QStyledItemDelegate(parent), openComments(std::move(openComments)), openPlanning(std::move(openPlanning)) {}
 
     QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &index) const override {
         return {0, index.data(TASK_OWNER_ROLE).toString().isEmpty() ? 56 : 72};
@@ -264,22 +267,28 @@ public:
         if (mouse->button() != Qt::LeftButton) {
             return false;
         }
-        const bool hit = TaskCardLine(option, index).commentRect.contains(mouse->position().toPoint());
+        const TaskCardLine line(option, index);
+        const auto point = mouse->position().toPoint();
+        const bool planning = line.planningRect.contains(point);
+        const bool hit = planning || line.commentRect.contains(point);
         if (type == QEvent::MouseButtonRelease) {
-            const bool clicked = hit && pressedComment == index;
-            pressedComment = QModelIndex{};
+            const bool clicked = hit && pressedItem == index && pressedPlanning == planning;
+            pressedItem = QModelIndex{};
             if (clicked) {
-                openComments(index.data(Qt::UserRole).toInt());
+                (planning ? openPlanning : openComments)(index.data(Qt::UserRole).toInt());
             }
         } else {
-            pressedComment = hit ? index : QModelIndex{};
+            pressedItem = hit ? index : QModelIndex{};
+            pressedPlanning = planning;
         }
         return hit;
     }
 
 private:
     std::function<void(int)> openComments;
-    QPersistentModelIndex pressedComment;
+    std::function<void(int)> openPlanning;
+    QPersistentModelIndex pressedItem;
+    bool pressedPlanning = false;
     const QIcon commentIcon{":/assets/icons/speech-bubble.png"};
     const QIcon planningIcon{":/assets/icons/clock.png"};
 };
@@ -362,6 +371,8 @@ TaskView::TaskView(ApiClient &client, QWidget *parent)
     taskList->setContextMenuPolicy(Qt::CustomContextMenu);
     taskList->setItemDelegate(new TaskCardDelegate([this](const int id) {
         showTaskComments(taskById(id));
+    }, [this](const int id) {
+        showTaskPlanningDialog(this, apiClient, taskById(id));
     }, taskList));
     auto *taskListLayout = new QHBoxLayout;
     taskListLayout->setContentsMargins(0, 0, 0, 0);
@@ -555,6 +566,7 @@ void TaskView::showTaskMenu(const QPoint &position) {
     const auto *reminder = scheduleMenu->addAction("Erinnerung");
     const auto *appointment = scheduleMenu->addAction("Termin");
     scheduleMenu->addAction("Routine")->setEnabled(false);
+    const auto *planning = menu.addAction(QIcon(":/assets/icons/calendar.png"), "Zeitplanung anzeigen");
     const auto *comments = menu.addAction(
         QIcon(":/assets/icons/speech-bubble.png"),
         task.comments.empty() ? "Kommentare anzeigen"
@@ -572,6 +584,8 @@ void TaskView::showTaskMenu(const QPoint &position) {
         showTaskEditDialog(this, apiClient, task, contexts);
     } else if (selected == reminder || selected == appointment) {
         openScheduleDialog(task, selected == reminder);
+    } else if (selected == planning) {
+        showTaskPlanningDialog(this, apiClient, task);
     } else if (selected == comments) {
         showTaskComments(task);
     } else if (selected == history) {

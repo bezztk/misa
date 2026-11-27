@@ -21,11 +21,10 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> 
          FROM systemtasks task
          LEFT JOIN domain_nodes node ON node.entity_id = task.domain_node_id
          LEFT JOIN (
-             SELECT COALESCE(entry.systemtask_id, routine.systemtask_id) AS task_id, COUNT(*) AS total
-             FROM calendar_entries entry
-             LEFT JOIN systemtask_routine_executions execution ON execution.id = entry.routine_execution_id
-             LEFT JOIN systemtask_routines routine ON routine.id = execution.routine_id
-             GROUP BY COALESCE(entry.systemtask_id, routine.systemtask_id)
+             SELECT systemtask_id AS task_id, COUNT(*) AS total
+             FROM calendar_entries
+             WHERE systemtask_id IS NOT NULL
+             GROUP BY systemtask_id
          ) planning ON planning.task_id = task.entity_id
          ORDER BY task.entity_id DESC",
     )

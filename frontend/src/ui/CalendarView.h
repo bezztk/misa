@@ -59,7 +59,6 @@ private:
     void showEntryContextMenu(int id, int x, int y);
     void updateEntryTime(int id, const QString &start, const QString &end);
     [[nodiscard]] const CalendarEntry *findEntry(int id) const;
-    static CreateCalendarEntry editableEntry(const CalendarEntry &entry);
 
     ApiClient &apiClient;
     QWebEngineView *webView;

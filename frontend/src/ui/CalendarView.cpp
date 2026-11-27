@@ -172,21 +172,8 @@ void CalendarView::openCreateDialog(const QDateTime &start, const QDateTime &end
 }
 
 void CalendarView::openEditDialog(const int id) {
-    const CalendarEntry *entryPointer = findEntry(id);
-    if (entryPointer == nullptr || entryPointer->isLocked) {
-        return;
-    }
-    const CalendarEntry entry = *entryPointer;
-
-    const auto updatedEntry = showCalendarEntryDialog(
-        this,
-        "Kalendereintrag bearbeiten",
-        editableEntry(entry),
-        "Fertig",
-        true
-    );
-    if (updatedEntry) {
-        apiClient.updateCalendarEntry(id, *updatedEntry);
+    if (const auto *entry = findEntry(id)) {
+        editCalendarEntry(this, apiClient, *entry);
     }
 }
 
@@ -216,7 +203,7 @@ void CalendarView::showEntryContextMenu(const int id, const int x, const int y) 
     } else if (selectedAction == deleteAction) {
         apiClient.deleteCalendarEntry(id);
     } else if (selectedAction == lockAction) {
-        CreateCalendarEntry updatedEntry = editableEntry(entry);
+        CreateCalendarEntry updatedEntry = editableCalendarEntry(entry);
         updatedEntry.isLocked = !entry.isLocked;
         apiClient.updateCalendarEntry(id, updatedEntry);
     }
@@ -239,7 +226,7 @@ void CalendarView::updateEntryTime(
         return;
     }
 
-    CreateCalendarEntry updatedEntry = editableEntry(*entry);
+    CreateCalendarEntry updatedEntry = editableCalendarEntry(*entry);
     updatedEntry.startAt = startAt;
     updatedEntry.endAt = endAt;
     updatedEntry.isReminder = !endAt.has_value();
@@ -253,17 +240,4 @@ const CalendarEntry *CalendarView::findEntry(const int id) const {
         }
     }
     return nullptr;
-}
-
-CreateCalendarEntry CalendarView::editableEntry(const CalendarEntry &entry) {
-    return {
-        .name = entry.name,
-        .startAt = entry.startAt.toLocalTime(),
-        .endAt = entry.endAt.has_value()
-            ? std::optional(entry.endAt->toLocalTime())
-            : std::nullopt,
-        .isReminder = entry.isReminder(),
-        .systemTaskId = entry.systemTaskId,
-        .isLocked = entry.isLocked
-    };
 }

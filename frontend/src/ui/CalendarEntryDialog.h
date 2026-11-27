@@ -7,6 +7,7 @@
 
 #include <optional>
 
+class ApiClient;
 class QWidget;
 struct Task;
 
@@ -19,5 +20,8 @@ std::optional<CreateCalendarEntry> showCalendarEntryDialog(
 );
 
 std::optional<CreateCalendarEntry> showTaskScheduleDialog(QWidget *parent, const Task &task, bool isReminder);
+void showTaskPlanningDialog(QWidget *parent, ApiClient &apiClient, const Task &task);
+CreateCalendarEntry editableCalendarEntry(const CalendarEntry &entry);
+void editCalendarEntry(QWidget *parent, ApiClient &apiClient, CalendarEntry entry);
 
 #endif // FRONTEND_CALENDARENTRYDIALOG_H
