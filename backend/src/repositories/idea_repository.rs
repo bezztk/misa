@@ -1,6 +1,6 @@
 use crate::models::entity::EntityType;
 use crate::models::idea::{
-    ACTIVE_IDEA_STATE_ID, Idea, IdeaField, IdeaFieldUpdate, PREPARATION_IDEA_PHASE_ID,
+    ACTIVE_IDEA_STATE_ID, BOOKMARKED_IDEA_PHASE_ID, Idea, IdeaField, IdeaFieldUpdate,
 };
 use crate::repositories::{comment_repository, entity_repository};
 use serde_json::json;
@@ -9,9 +9,10 @@ use sqlx::PgPool;
 pub async fn get_ideas(pool: &PgPool) -> Result<Vec<Idea>, sqlx::Error> {
     let mut ideas = sqlx::query_as::<_, Idea>(
         "SELECT idea.id, idea.title, idea.content, idea.phase_id, idea.state_id,
-                idea.completed_at, entity.created_at
+                link.context_id, idea.completed_at, entity.created_at
          FROM ideas idea
          JOIN entities entity ON entity.id = idea.id
+         LEFT JOIN context_entities link ON link.entity_id = idea.id
          ORDER BY entity.created_at DESC",
     )
     .fetch_all(pool)
@@ -38,12 +39,41 @@ pub async fn create_idea(pool: &PgPool, title: &str, content: &str) -> Result<i3
     .bind(entity_id)
     .bind(title)
     .bind(content)
-    .bind(PREPARATION_IDEA_PHASE_ID)
+    .bind(BOOKMARKED_IDEA_PHASE_ID)
     .bind(ACTIVE_IDEA_STATE_ID)
     .execute(&mut *transaction)
     .await?;
     transaction.commit().await?;
     Ok(entity_id)
+}
+
+pub async fn update_idea_context(
+    pool: &PgPool,
+    id: i32,
+    context_id: Option<i32>,
+) -> Result<bool, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    let idea = sqlx::query_scalar::<_, i32>("SELECT id FROM ideas WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *transaction)
+        .await?;
+    if idea.is_none() {
+        return Ok(false);
+    }
+
+    sqlx::query("DELETE FROM context_entities WHERE entity_id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await?;
+    if let Some(context_id) = context_id {
+        sqlx::query("INSERT INTO context_entities (entity_id, context_id) VALUES ($1, $2)")
+            .bind(id)
+            .bind(context_id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+    transaction.commit().await?;
+    Ok(true)
 }
 
 pub async fn update_idea_field(

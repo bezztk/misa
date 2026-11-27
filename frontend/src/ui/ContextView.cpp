@@ -91,6 +91,8 @@ ContextView::ContextView(ApiClient &apiClient, QWidget *parent)
     connect(&apiClient, &ApiClient::taskCreated, this, refreshCounts);
     connect(&apiClient, &ApiClient::taskUpdated, this, refreshCounts);
     connect(&apiClient, &ApiClient::taskDeleted, this, refreshCounts);
+    connect(&apiClient, &ApiClient::ideaUpdated, this, refreshCounts);
+    connect(&apiClient, &ApiClient::ideaDeleted, this, refreshCounts);
     apiClient.getContexts();
 }
 

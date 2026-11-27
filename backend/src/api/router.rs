@@ -105,6 +105,10 @@ pub fn create_router(pool: PgPool) -> Router {
             axum::routing::patch(idea_handler::update_idea_field),
         )
         .route(
+            "/ideas/{id}/context",
+            axum::routing::put(idea_handler::update_idea_context),
+        )
+        .route(
             "/entities/{entity_id}/comments",
             axum::routing::post(comment_handler::create_comment),
         )

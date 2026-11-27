@@ -1,7 +1,7 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::response::IdResponse;
 use crate::models::idea::{
-    CreateIdeaRequest, Idea, IdeaField, IdeaFieldUpdate, IdeaFieldUpdateRequest,
+    CreateIdeaRequest, Idea, IdeaContextRequest, IdeaField, IdeaFieldUpdate, IdeaFieldUpdateRequest,
 };
 use crate::repositories::idea_repository;
 use crate::validation::valid_name;
@@ -56,6 +56,17 @@ pub async fn update_idea_field(
         return Err(ApiError::NotFound);
     }
 
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn update_idea_context(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<IdeaContextRequest>,
+) -> ApiResult<StatusCode> {
+    if !idea_repository::update_idea_context(&pool, id, payload.context_id).await? {
+        return Err(ApiError::NotFound);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

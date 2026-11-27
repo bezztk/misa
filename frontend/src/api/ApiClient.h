@@ -147,6 +147,7 @@ public:
     void getIdeas();
     void createIdea(const CreateIdea& idea);
     void updateIdeaField(int id, IdeaField field, const QJsonValue& value);
+    void updateIdeaContext(int id, std::optional<int> contextId);
     void deleteIdea(int id);
     int getMedia();
     int importMedia(const QString &url);

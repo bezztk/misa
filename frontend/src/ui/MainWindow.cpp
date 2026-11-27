@@ -250,6 +250,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::contextsChanged, this, [this] {
         apiClient.getContexts();
         apiClient.getTasks();
+        apiClient.getIdeas();
     });
     const auto refreshIdeas = [this] { apiClient.getIdeas(); };
     connect(&apiClient, &ApiClient::ideaCreated, this, refreshIdeas);

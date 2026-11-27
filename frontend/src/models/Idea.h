@@ -22,6 +22,7 @@ struct Idea {
     QString content;
     int phaseId;
     int stateId;
+    std::optional<int> contextId;
     QDateTime createdAt;
     std::optional<QDateTime> completedAt;
     std::vector<Comment> comments;

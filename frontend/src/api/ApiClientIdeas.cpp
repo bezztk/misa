@@ -33,6 +33,9 @@ void ApiClient::getIdeas() {
                 ),
                 .comments = parseComments(object["comments"].toArray())
             };
+            if (const QJsonValue contextId = object["context_id"]; !contextId.isNull()) {
+                idea.contextId = contextId.toInt();
+            }
             if (!object["completed_at"].isNull()) {
                 idea.completedAt = QDateTime::fromString(
                     object["completed_at"].toString(), Qt::ISODate
@@ -87,6 +90,14 @@ void ApiClient::updateIdeaField(
         }
         reply->deleteLater();
     });
+}
+
+void ApiClient::updateIdeaContext(const int id, const std::optional<int> contextId) {
+    sendChange(
+        QString("%1/%2/context").arg(PATH_IDEAS).arg(id), "PUT",
+        {{"context_id", contextId ? QJsonValue(*contextId) : QJsonValue(QJsonValue::Null)}},
+        &ApiClient::ideaUpdated
+    );
 }
 
 void ApiClient::deleteIdea(const int id) {

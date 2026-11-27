@@ -98,17 +98,14 @@ CREATE INDEX idx_comments_entity_id ON comments (entity_id);
 --region Ideen
 CREATE TABLE idea_phases
 (
-    id           integer PRIMARY KEY,
-    name         varchar(50) NOT NULL UNIQUE,
-    display_name varchar(50) NOT NULL UNIQUE,
-    description  text        NOT NULL
+    id   integer PRIMARY KEY,
+    name varchar(50) NOT NULL UNIQUE
 );
-INSERT INTO idea_phases (id, name, display_name, description)
-VALUES (1, 'preparation', 'Vorbereitung', 'Die Idee wird erstmals erfasst und bewusst betrachtet. Erste Gedanken, Informationen und mögliche Ansätze werden gesammelt.'),
-       (2, 'incubation', 'Inkubation', 'Die Idee ruht, ohne dass eine aktive Beschäftigung erforderlich ist. Weitere Gedanken und Zusammenhänge können sich mit zeitlichem Abstand entwickeln.'),
-       (3, 'intimation', 'Vorahnung', 'Es entsteht das Gefühl, dass sich eine neue Erkenntnis oder Lösung anbahnt, ohne dass diese bereits vollständig formuliert werden kann.'),
-       (4, 'illumination', 'Erkenntnis', 'Eine neue Erkenntnis, ein Zusammenhang oder ein Lösungsansatz wird bewusst erkannt und kann festgehalten werden.'),
-       (5, 'verification', 'Überprüfung', 'Die Idee wird kritisch überprüft und hinsichtlich ihrer Umsetzbarkeit, ihres Nutzens und ihrer möglichen Konsequenzen bewertet.');
+INSERT INTO idea_phases (id, name)
+VALUES (1, 'Vormerkung'),
+       (2, 'Reifung'),
+       (3, 'Ausarbeitung'),
+       (5, 'Überprüfung');
 
 CREATE TABLE idea_states
 (

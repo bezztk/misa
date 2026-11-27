@@ -4,15 +4,13 @@ use serde_json::Value;
 
 use crate::models::comment::Comment;
 
-pub const PREPARATION_IDEA_PHASE_ID: i32 = 1;
+pub const BOOKMARKED_IDEA_PHASE_ID: i32 = 1;
 pub const ACTIVE_IDEA_STATE_ID: i32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct IdeaPhase {
     pub id: i32,
     pub name: String,
-    pub display_name: String,
-    pub description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
@@ -30,6 +28,7 @@ pub struct Idea {
     pub content: String,
     pub phase_id: i32,
     pub state_id: i32,
+    pub context_id: Option<i32>,
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     #[sqlx(skip)]
@@ -45,6 +44,11 @@ pub struct CreateIdeaRequest {
 #[derive(Debug, Deserialize)]
 pub struct IdeaFieldUpdateRequest {
     pub value: Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IdeaContextRequest {
+    pub context_id: Option<i32>,
 }
 
 #[repr(i32)]

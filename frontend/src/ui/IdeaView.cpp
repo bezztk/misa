@@ -4,84 +4,35 @@
 #include "ContextMenuStyle.h"
 #include "DialogUtils.h"
 
+#include <QAbstractButton>
 #include <QComboBox>
-#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QButtonGroup>
-#include <QFont>
-#include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
-#include <QLocale>
 #include <QMenu>
-#include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QRadioButton>
 #include <QResizeEvent>
 #include <QScrollArea>
-#include <QScrollBar>
-#include <QTimer>
+#include <QStyleOption>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <array>
-#include <functional>
 
-static QString metadataName(const std::vector<MetadataItem> &items, const int id) {
-    for (const MetadataItem &item : items) {
-        if (item.id == id) {
-            return item.displayName.value_or(item.name);
-        }
-    }
-    return QString::number(id);
-}
-
-static QString phaseColor(const int index) {
-    static const std::array colors{
-        QString("#78A6D8"),
-        QString("#9083D8"),
-        QString("#C58BD4"),
-        QString("#D7A64A"),
-        QString("#6FB18A")
-    };
-    return colors[index];
-}
-
-static QString phaseColor(
-    const std::vector<MetadataItem> &phases,
-    const int phaseId
-) {
-    for (int index = 0; index < static_cast<int>(phases.size()); ++index) {
-        if (phases[index].id == phaseId) {
-            return phaseColor(index);
-        }
-    }
-    return "#E5E5E5";
-}
-
-static void clearLayout(QLayout *layout) {
-    while (QLayoutItem *item = layout->takeAt(0)) {
-        if (QWidget *widget = item->widget()) {
-            delete widget;
-        }
-        if (QLayout *childLayout = item->layout()) {
-            clearLayout(childLayout);
-            delete childLayout;
-        }
-        delete item;
-    }
-}
+namespace {
 
 class ElidedLabel final : public QLabel {
 public:
-    explicit ElidedLabel(const QString &text, QWidget *parent)
+    ElidedLabel(const QString &text, QWidget *parent)
         : QLabel(parent), fullText(text.simplified()) {
+        setTextFormat(Qt::PlainText);
         setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         setText(fullText);
     }
@@ -89,504 +40,269 @@ public:
 protected:
     void resizeEvent(QResizeEvent *event) override {
         QLabel::resizeEvent(event);
-        setText(fontMetrics().elidedText(
-            fullText,
-            Qt::ElideRight,
-            event->size().width()
-        ));
+        setText(fontMetrics().elidedText(fullText, Qt::ElideRight, contentsRect().width()));
     }
 
 private:
     QString fullText;
 };
 
-class IdeaCard final : public QFrame {
+class IdeaCard final : public QAbstractButton {
 public:
-    IdeaCard(
-        const Idea &idea,
-        const bool selected,
-        std::function<void()> activate,
-        std::function<void(const QPoint &)> openContextMenu,
-        QWidget *parent
-    ) : QFrame(parent),
-        activate(std::move(activate)),
-        openContextMenu(std::move(openContextMenu)) {
+    explicit IdeaCard(QWidget *parent) : QAbstractButton(parent) {
         setObjectName("ideaCard");
-        const bool hasDescription = !idea.content.simplified().isEmpty();
-        setFixedHeight(hasDescription ? 52 : 30);
         setCursor(Qt::PointingHandCursor);
-        setStyleSheet(selected
-            ? "QFrame#ideaCard { background: rgba(120, 150, 210, 0.14); "
-              "border: none; border-left: 2px solid #7896D2; "
-              "}"
-            : "QFrame#ideaCard { background: transparent; border: none; }"
-              "QFrame#ideaCard:hover { background: rgba(255, 255, 255, 0.04); }");
-
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(10, 5, 10, 5);
-        layout->setSpacing(1);
-
-        auto *titleRow = new QWidget(this);
-        titleRow->setAttribute(Qt::WA_TransparentForMouseEvents);
-        auto *titleLayout = new QHBoxLayout(titleRow);
-        titleLayout->setContentsMargins(0, 0, 0, 0);
-        titleLayout->setSpacing(8);
-        auto *title = new ElidedLabel(idea.title, titleRow);
-        QFont titleFont = title->font();
-        titleFont.setBold(true);
-        title->setFont(titleFont);
-        title->setAttribute(Qt::WA_TransparentForMouseEvents);
-        titleLayout->addWidget(title, 1);
-        auto *date = new QLabel(
-            idea.createdAt.toLocalTime().toString("dd.MM.yyyy"), titleRow
-        );
-        date->setStyleSheet("color: #888888; border: none; background: transparent;");
-        date->setAttribute(Qt::WA_TransparentForMouseEvents);
-        titleLayout->addWidget(date);
-        layout->addWidget(titleRow);
-
-        if (hasDescription) {
-            auto *description = new ElidedLabel(idea.content, this);
-            description->setAttribute(Qt::WA_TransparentForMouseEvents);
-            description->setStyleSheet(
-                "color: #B8B8B8; border: none; background: transparent;"
-            );
-            layout->addWidget(description);
-        }
     }
 
 protected:
-    void mousePressEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton) {
-            event->accept();
-            return;
-        }
-        QFrame::mousePressEvent(event);
+    void paintEvent(QPaintEvent *) override {
+        QStyleOption option;
+        option.initFrom(this);
+        QPainter painter(this);
+        style()->drawPrimitive(QStyle::PE_Widget, &option, &painter, this);
     }
-
-    void mouseReleaseEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton) {
-            activate();
-            event->accept();
-            return;
-        }
-        QFrame::mouseReleaseEvent(event);
-    }
-
-    void contextMenuEvent(QContextMenuEvent *event) override {
-        openContextMenu(event->globalPos());
-        event->accept();
-    }
-
-private:
-    std::function<void()> activate;
-    std::function<void(const QPoint &)> openContextMenu;
 };
+
+} // namespace
 
 IdeaView::IdeaView(ApiClient &client, QWidget *parent)
     : QWidget(parent), apiClient(client) {
     auto *outerLayout = new QHBoxLayout(this);
-    outerLayout->setContentsMargins(20, 20, 20, 20);
+    outerLayout->setContentsMargins(20, 0, 20, 0);
 
-    content = new QWidget(this);
-    content->setFixedWidth(520);
-    content->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    outerLayout->addWidget(content);
-    outerLayout->setAlignment(content, Qt::AlignHCenter);
+    auto *scroll = new QScrollArea(this);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet("QScrollArea { background: transparent; }");
+    outerLayout->addWidget(scroll);
 
-    auto *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(14);
-
-    body = new QWidget(content);
-    bodyLayout = new QHBoxLayout(body);
-    bodyLayout->setContentsMargins(0, 0, 0, 0);
-    bodyLayout->setSpacing(24);
-
-    auto *phaseArea = new QScrollArea(body);
-    phaseArea->setFixedWidth(520);
-    phaseArea->setWidgetResizable(true);
-    phaseArea->setFrameShape(QFrame::NoFrame);
-    phaseArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    auto *phaseContent = new QWidget(phaseArea);
+    auto *phaseContent = new QWidget;
+    phaseContent->setStyleSheet(R"(
+        QLabel#ideaPhaseName[phaseId="1"] { color: #AAB8CC; }
+        QLabel#ideaPhaseName[phaseId="2"] { color: #C3AED8; }
+        QLabel#ideaPhaseName[phaseId="3"] { color: #D8BE91; }
+        QLabel#ideaPhaseName[phaseId="5"] { color: #A8C5B0; }
+        QFrame#ideaSeparator {
+            background: rgba(255, 255, 255, 34);
+        }
+        QAbstractButton#ideaCard:hover {
+            background: rgba(255, 255, 255, 18);
+        }
+        QLabel#ideaDescription, QLabel#ideaDate, QLabel#ideaCommentCount, QLabel#ideaContext,
+        QLabel#ideaPhaseEmpty {
+            color: #B8B8B8;
+        }
+        QToolButton#ideaActions {
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+        }
+        QToolButton#ideaActions:hover, QToolButton#ideaActions:focus {
+            background: #414141;
+        }
+        QToolButton#ideaActions::menu-indicator {
+            image: none;
+        }
+    )");
     phaseLayout = new QVBoxLayout(phaseContent);
-    phaseLayout->setContentsMargins(0, 0, 16, 0);
-    phaseLayout->setSpacing(0);
-    phaseLayout->addStretch();
-    phaseArea->setWidget(phaseContent);
-    bodyLayout->addWidget(phaseArea);
-    contentLayout->addWidget(body, 1);
+    phaseLayout->setContentsMargins(0, 32, 0, 20);
+    phaseLayout->setSpacing(28);
+    scroll->setWidget(phaseContent);
+    phaseContent->setAutoFillBackground(false);
+    scroll->viewport()->setAutoFillBackground(false);
 
     connect(&apiClient, &ApiClient::ideasReceived, this,
             [this](const std::vector<Idea> &receivedIdeas) {
                 ideas = receivedIdeas;
-                Idea *selected = ideaById(selectedIdeaId);
-                if (!selected || selected->stateId != 1) {
-                    selectedIdeaId = 0;
-                    versions.clear();
-                    versionsLoading = false;
-                } else {
-                    versionsLoading = true;
-                    apiClient.getEntityFieldVersions(selectedIdeaId);
-                }
-                updateDetailVisibility();
                 renderIdeas();
-                renderDetail();
             });
-    connect(&apiClient, &ApiClient::entityFieldVersionsReceived, this,
-            [this](const int entityId,
-                   const std::vector<EntityFieldVersion> &receivedVersions) {
-                if (entityId != selectedIdeaId) {
-                    return;
-                }
-                versions = receivedVersions;
-                versionsLoading = false;
-                renderDetail();
-            });
-    connect(&apiClient, &ApiClient::entityFieldVersionsLoadFailed, this,
-            [this](const int entityId) {
-                if (entityId != selectedIdeaId) {
-                    return;
-                }
-                versions.clear();
-                versionsLoading = false;
-                renderDetail();
+    connect(&apiClient, &ApiClient::contextsReceived, this,
+            [this](const std::vector<Context> &receivedContexts) {
+                contexts = receivedContexts;
+                renderIdeas();
             });
     connect(&apiClient, &ApiClient::commentCreated, this,
             [this](const int entityId, const Comment &comment) {
-                Idea *idea = ideaById(entityId);
-                if (!idea) {
-                    return;
-                }
-                idea->comments.push_back(comment);
-                if (entityId == selectedIdeaId) {
-                    renderDetail();
+                if (Idea *idea = ideaById(entityId)) {
+                    idea->comments.push_back(comment);
+                    renderIdeas();
                 }
             });
-
-    renderIdeas();
-    updateDetailVisibility();
+    connect(&apiClient, &ApiClient::commentUpdated, this, [this](const Comment &comment) {
+        if (Idea *idea = ideaById(comment.entityId)) {
+            const auto existing = std::ranges::find(idea->comments, comment.id, &Comment::id);
+            if (existing != idea->comments.end()) {
+                *existing = comment;
+            }
+        }
+    });
+    connect(&apiClient, &ApiClient::commentDeleted, this, [this](const int id) {
+        for (Idea &idea : ideas) {
+            if (std::erase_if(idea.comments, [id](const Comment &comment) { return comment.id == id; })) {
+                renderIdeas();
+                break;
+            }
+        }
+    });
+    apiClient.getContexts();
 }
 
 void IdeaView::refreshMetadata() {
     renderIdeas();
-    renderDetail();
-}
-
-void IdeaView::resizeEvent(QResizeEvent *event) {
-    QWidget::resizeEvent(event);
-    updateDetailVisibility();
-}
-
-void IdeaView::updateDetailVisibility() {
-    const Idea *idea = ideaById(selectedIdeaId);
-    const bool shouldShowDetail = idea && idea->stateId == 1 && width() >= 800;
-    const int contentWidth = shouldShowDetail
-        ? qMin(900, width() - 40)
-        : 520;
-    content->setFixedWidth(contentWidth);
-    content->updateGeometry();
-
-    if (shouldShowDetail && !detail) {
-        detail = new QFrame(body);
-        detail->setMaximumWidth(356);
-        detail->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-        detailLayout = new QVBoxLayout(detail);
-        detailLayout->setContentsMargins(0, 0, 0, 0);
-        detailLayout->setSpacing(12);
-        bodyLayout->addWidget(detail, 1);
-        renderDetail();
-    } else if (!shouldShowDetail && detail) {
-        bodyLayout->removeWidget(detail);
-        delete detail;
-        detail = nullptr;
-        detailLayout = nullptr;
-    }
 }
 
 void IdeaView::renderIdeas() {
-    clearLayout(phaseLayout);
+    while (QLayoutItem *item = phaseLayout->takeAt(0)) {
+        delete item->widget();
+        delete item;
+    }
 
-    for (int phaseIndex = 0;
-         phaseIndex < static_cast<int>(apiClient.metadata().ideaPhases.size());
-         ++phaseIndex) {
-        const MetadataItem &phase = apiClient.metadata().ideaPhases[phaseIndex];
-        const QString color = phaseColor(phaseIndex);
-        auto *section = new QWidget();
-        section->setMinimumHeight(58);
-        auto *sectionLayout = new QHBoxLayout(section);
+    auto phaseFont = font();
+    phaseFont.setPixelSize(20);
+    phaseFont.setWeight(QFont::DemiBold);
+    for (const MetadataItem &phase : apiClient.metadata().ideaPhases) {
+        auto *section = new QWidget;
+        auto *sectionLayout = new QVBoxLayout(section);
         sectionLayout->setContentsMargins(0, 0, 0, 0);
-        sectionLayout->setSpacing(8);
+        sectionLayout->setSpacing(6);
 
-        auto *phaseLabel = new QLabel(phase.displayName.value_or(phase.name), section);
-        phaseLabel->setFixedWidth(110);
-        phaseLabel->setAlignment(Qt::AlignRight | Qt::AlignTop);
-        QFont phaseFont = phaseLabel->font();
-        phaseFont.setBold(true);
-        phaseLabel->setFont(phaseFont);
-        phaseLabel->setStyleSheet("color: " + color + ";");
-        phaseLabel->setContentsMargins(0, 7, 0, 0);
-        sectionLayout->addWidget(phaseLabel);
+        auto *name = new QLabel(phase.name, section);
+        name->setObjectName("ideaPhaseName");
+        name->setProperty("phaseId", phase.id);
+        name->setFont(phaseFont);
+        name->setContentsMargins(12, 0, 0, 0);
+        sectionLayout->addWidget(name);
 
-        auto *track = new QWidget(section);
-        track->setFixedWidth(22);
-        auto *dot = new QLabel(track);
-        dot->setFixedSize(10, 10);
-        dot->move(5, 9);
-        dot->setStyleSheet(
-            "background: " + color + "; border: none; border-radius: 5px;"
-        );
-        sectionLayout->addWidget(track);
-
-        auto *cards = new QWidget(section);
-        auto *cardsLayout = new QVBoxLayout(cards);
-        cardsLayout->setContentsMargins(0, 14, 0, 6);
-        cardsLayout->setSpacing(0);
-        auto *separator = new QFrame(cards);
-        separator->setFixedHeight(1);
-        separator->setStyleSheet(
-            "background: " + color + "; border: none;"
-        );
-        cardsLayout->addWidget(separator);
-        cardsLayout->addSpacing(8);
-
-        auto *ideaList = new QWidget(cards);
-        auto *ideaListLayout = new QVBoxLayout(ideaList);
-        ideaListLayout->setContentsMargins(0, 0, 0, 0);
-        ideaListLayout->setSpacing(4);
-        cardsLayout->addWidget(ideaList);
-
-        std::vector<const Idea *> phaseIdeas;
+        auto *rows = new QVBoxLayout;
+        rows->setSpacing(0);
         for (const Idea &idea : ideas) {
-            if (idea.stateId == 1 && idea.phaseId == phase.id) {
-                phaseIdeas.push_back(&idea);
+            if (idea.stateId != 1 || idea.phaseId != phase.id) {
+                continue;
             }
+            if (rows->count() > 0) {
+                auto *separator = new QFrame(section);
+                separator->setObjectName("ideaSeparator");
+                separator->setFixedHeight(1);
+                rows->addWidget(separator);
+            }
+            rows->addWidget(createCard(idea, section));
         }
-        std::ranges::sort(phaseIdeas, [](const Idea *left, const Idea *right) {
-            return left->createdAt > right->createdAt;
-        });
-        for (const Idea *idea : phaseIdeas) {
-            ideaListLayout->addWidget(new IdeaCard(
-                *idea,
-                idea->id == selectedIdeaId,
-                [this, id = idea->id] { selectIdea(id); },
-                [this, id = idea->id](const QPoint &position) {
-                    showCardContextMenu(id, position);
-                },
-                ideaList
-            ));
+        if (rows->count() == 0) {
+            auto *empty = new QLabel(QString("Keine Idee in %1").arg(phase.name), section);
+            empty->setObjectName("ideaPhaseEmpty");
+            empty->setContentsMargins(12, 3, 0, 3);
+            rows->addWidget(empty);
         }
-        sectionLayout->addWidget(cards, 1);
+        sectionLayout->addLayout(rows);
         phaseLayout->addWidget(section);
-
-        if (phaseIndex + 1
-            < static_cast<int>(apiClient.metadata().ideaPhases.size())) {
-            phaseLayout->addSpacing(60);
-        }
     }
     phaseLayout->addStretch();
 }
 
-void IdeaView::renderDetail() {
-    if (!detailLayout) {
-        return;
-    }
-    clearLayout(detailLayout);
-    Idea *idea = ideaById(selectedIdeaId);
-    if (!idea || idea->stateId != 1) {
-        return;
-    }
+QWidget *IdeaView::createCard(const Idea &idea, QWidget *parent) {
+    auto *card = new IdeaCard(parent);
+    card->setAccessibleName("Idee bearbeiten: " + idea.title);
+    auto *row = new QHBoxLayout(card);
+    row->setContentsMargins(12, 8, 8, 8);
+    row->setSpacing(12);
 
-    auto *header = new QWidget();
-    auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(0, 0, 0, 0);
-    auto *title = new QLabel(idea->title, header);
-    title->setWordWrap(true);
-    QFont titleFont = title->font();
-    titleFont.setBold(true);
-    titleFont.setPointSize(titleFont.pointSize() + 3);
+    auto *content = new QWidget(card);
+    content->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto *lines = new QVBoxLayout(content);
+    lines->setContentsMargins(0, 0, 0, 0);
+    lines->setSpacing(4);
+    row->addWidget(content, 1);
+
+    auto *topLine = new QHBoxLayout;
+    topLine->setSpacing(12);
+    lines->addLayout(topLine);
+    auto *title = new ElidedLabel(idea.title, content);
+    auto titleFont = title->font();
+    titleFont.setPixelSize(14);
+    titleFont.setWeight(QFont::Normal);
     title->setFont(titleFont);
-    headerLayout->addWidget(title, 1);
-    detailLayout->addWidget(header);
+    topLine->addWidget(title, 1);
 
-    auto *activityScroll = new QScrollArea(this);
-    activityScroll->setWidgetResizable(true);
-    activityScroll->setFrameShape(QFrame::NoFrame);
-    auto *activityContent = new QWidget(activityScroll);
-    auto *activityLayout = new QVBoxLayout(activityContent);
-    activityLayout->setContentsMargins(0, 0, 4, 0);
-    activityLayout->setSpacing(0);
+    if (!idea.comments.empty()) {
+        auto *count = new QLabel(
+            QString("<img src=\":/assets/icons/speech-bubble.png\" width=\"14\" height=\"14\">"
+                    "&nbsp;%1").arg(idea.comments.size()), content
+        );
+        count->setObjectName("ideaCommentCount");
+        count->setTextFormat(Qt::RichText);
+        count->setAccessibleName(QString("%1 Kommentare").arg(idea.comments.size()));
+        topLine->addWidget(count);
+    }
 
-    if (versionsLoading) {
-        auto *loading = new QLabel("Verlauf wird geladen …", activityContent);
-        loading->setStyleSheet("color: #969696;");
-        activityLayout->addWidget(loading);
-    } else {
-        struct ActivityEvent {
-            QDateTime at;
-            const Comment *comment = nullptr;
-            const EntityFieldVersion *version = nullptr;
-        };
-        std::vector<ActivityEvent> events;
-        events.reserve(idea->comments.size() + versions.size());
-        for (const Comment &comment : idea->comments) {
-            events.push_back({.at = comment.createdAt, .comment = &comment});
+    auto *date = new QLabel(idea.createdAt.toLocalTime().toString("dd.MM.yyyy"), content);
+    date->setObjectName("ideaDate");
+    topLine->addWidget(date);
+
+    const auto context = std::ranges::find(contexts, idea.contextId.value_or(0), &Context::id);
+    const bool hasDescription = !idea.content.simplified().isEmpty();
+    if (hasDescription || context != contexts.end()) {
+        auto *bottomLine = new QHBoxLayout;
+        bottomLine->setSpacing(12);
+        lines->addLayout(bottomLine);
+        if (hasDescription) {
+            auto *description = new ElidedLabel(idea.content, content);
+            description->setObjectName("ideaDescription");
+            bottomLine->addWidget(description, 2);
         }
-        for (const EntityFieldVersion &version : versions) {
-            if (version.fieldName == "phase_id") {
-                events.push_back({.at = version.changedAt, .version = &version});
+        if (context != contexts.end()) {
+            auto *contextName = new ElidedLabel(context->title, content);
+            contextName->setObjectName("ideaContext");
+            contextName->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            if (context->color.isValid()) {
+                contextName->setStyleSheet("color: " + context->color.name() + ";");
             }
-        }
-        std::ranges::sort(events, [](const ActivityEvent &left,
-                                    const ActivityEvent &right) {
-            return left.at < right.at;
-        });
-
-        QDate currentDay;
-        const QLocale german(QLocale::German, QLocale::Germany);
-        bool hasEventOnCurrentDay = false;
-        for (const ActivityEvent &event : events) {
-            const QDateTime localTime = event.at.toLocalTime();
-            if (localTime.date() != currentDay) {
-                if (currentDay.isValid()) {
-                    activityLayout->addSpacing(18);
-                }
-                currentDay = localTime.date();
-                auto *dayHeader = new QWidget(activityContent);
-                auto *dayHeaderLayout = new QHBoxLayout(dayHeader);
-                dayHeaderLayout->setContentsMargins(0, 0, 0, 8);
-                dayHeaderLayout->setSpacing(10);
-                auto *dayLabel = new QLabel(
-                    german.toString(currentDay, "dddd, d. MMMM"), dayHeader
-                );
-                QFont dayFont = dayLabel->font();
-                dayFont.setBold(true);
-                dayLabel->setFont(dayFont);
-                dayHeaderLayout->addWidget(dayLabel);
-                auto *daySeparator = new QFrame(dayHeader);
-                daySeparator->setFixedHeight(1);
-                daySeparator->setStyleSheet(
-                    "background: #505050; border: none;"
-                );
-                dayHeaderLayout->addWidget(daySeparator, 1);
-                activityLayout->addWidget(dayHeader);
-                hasEventOnCurrentDay = false;
+            if (hasDescription) {
+                contextName->setMaximumWidth(contextName->fontMetrics().horizontalAdvance(contextName->text()));
             }
-
-            if (hasEventOnCurrentDay) {
-                activityLayout->addSpacing(16);
-            }
-            hasEventOnCurrentDay = true;
-
-            QString text;
-            if (event.comment) {
-                QString comment = event.comment->content.toHtmlEscaped();
-                comment.replace("\n", "<br>");
-                text = "<img src=\":/assets/icons/speech-bubble.png\" "
-                    "width=\"14\" height=\"14\">&nbsp;" + comment;
-            } else if (event.version) {
-                const EntityFieldVersion &version = *event.version;
-                const int phaseId = version.newValue.toInt();
-                text = "<img src=\":/assets/icons/edit.png\" "
-                    "width=\"14\" height=\"14\">&nbsp;Phase geändert zu "
-                    "<span style=\"color: "
-                    + phaseColor(apiClient.metadata().ideaPhases, phaseId)
-                    + "; font-weight: 600;\">"
-                    + metadataName(apiClient.metadata().ideaPhases, phaseId).toHtmlEscaped()
-                    + "</span>";
-            }
-            text += " <span style=\"color: #858585;\">· "
-                + localTime.toString("HH:mm") + "</span>";
-
-            auto *eventText = new QLabel(text, activityContent);
-            eventText->setTextFormat(Qt::RichText);
-            eventText->setWordWrap(true);
-            eventText->setTextInteractionFlags(Qt::TextSelectableByMouse);
-            activityLayout->addWidget(eventText);
-        }
-
-        if (events.empty()) {
-            auto *empty = new QLabel("Noch keine Ereignisse vorhanden.", activityContent);
-            empty->setStyleSheet("color: #969696;");
-            activityLayout->addWidget(empty);
+            bottomLine->addWidget(contextName, 1);
         }
     }
-    activityLayout->addStretch();
-    activityScroll->setWidget(activityContent);
-    detailLayout->addWidget(activityScroll, 1);
 
-    QTimer::singleShot(0, activityScroll, [activityScroll] {
-        activityScroll->verticalScrollBar()->setValue(
-            activityScroll->verticalScrollBar()->maximum()
-        );
+    auto *actions = new QToolButton(card);
+    actions->setObjectName("ideaActions");
+    actions->setIcon(QIcon(":/assets/icons/option.png"));
+    actions->setIconSize(QSize(18, 18));
+    actions->setFixedSize(28, 28);
+    actions->setAccessibleName("Aktionen für " + idea.title);
+    actions->setPopupMode(QToolButton::InstantPopup);
+    row->addWidget(actions);
+
+    auto *menu = new QMenu(actions);
+    actions->setMenu(menu);
+    auto *edit = menu->addAction(QIcon(":/assets/icons/edit.png"), "Bearbeiten");
+    auto *comments = menu->addAction(QIcon(":/assets/icons/speech-bubble.png"), "Kommentare anzeigen");
+    menu->addSeparator();
+    auto *remove = menu->addAction(contextMenuDeleteIcon(), "Löschen");
+    connect(card, &QAbstractButton::clicked, edit, &QAction::trigger);
+    connect(edit, &QAction::triggered, this, [this, id = idea.id] { openEditDialog(id); },
+            Qt::QueuedConnection);
+    connect(comments, &QAction::triggered, this, [this, id = idea.id] { openComments(id); },
+            Qt::QueuedConnection);
+    connect(remove, &QAction::triggered, this, [this, id = idea.id] { apiClient.deleteIdea(id); });
+
+    card->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(card, &QWidget::customContextMenuRequested, menu, [card, menu](const QPoint &position) {
+        menu->popup(card->mapToGlobal(position));
     });
-}
-
-void IdeaView::selectIdea(const int id) {
-    if (selectedIdeaId == id) {
-        return;
-    }
-    selectedIdeaId = id;
-    versions.clear();
-    versionsLoading = true;
-    renderIdeas();
-    updateDetailVisibility();
-    renderDetail();
-    apiClient.getEntityFieldVersions(id);
-}
-
-void IdeaView::showCardContextMenu(
-    const int id,
-    const QPoint &globalPosition
-) {
-    Idea *idea = ideaById(id);
-    if (!idea) {
-        return;
-    }
-
-    QMenu menu(this);
-    QAction *editAction = menu.addAction(
-        QIcon(":/assets/icons/edit.png"), "Bearbeiten"
-    );
-    QAction *phaseAction = menu.addAction(
-        QIcon(":/assets/icons/knowledge.png"), "Phase ändern"
-    );
-    QAction *commentsAction = menu.addAction(
-        QIcon(":/assets/icons/speech-bubble.png"),
-        idea->comments.empty()
-            ? "Kommentare anzeigen"
-            : "Kommentare anzeigen (" + QString::number(idea->comments.size()) + ")"
-    );
-    menu.addSeparator();
-    QAction *deleteAction = menu.addAction(
-        contextMenuDeleteIcon(), "Löschen"
-    );
-    QAction *selectedAction = menu.exec(globalPosition);
-    if (selectedAction == editAction) {
-        openEditDialog(*idea);
-    } else if (selectedAction == phaseAction) {
-        openPhaseDialog(*idea);
-    } else if (selectedAction == commentsAction) {
-        showCommentsDialog(
-            this,
-            apiClient,
-            idea->id,
-            "Kommentare – " + idea->title,
-            idea->comments
-        );
-        if (selectedIdeaId == idea->id) {
-            renderDetail();
-        }
-    } else if (selectedAction == deleteAction) {
-        apiClient.deleteIdea(idea->id);
-    }
+    return card;
 }
 
 Idea *IdeaView::ideaById(const int id) {
-    const auto idea = std::find_if(
-        ideas.begin(), ideas.end(), [id](const Idea &item) { return item.id == id; }
-    );
+    const auto idea = std::ranges::find(ideas, id, &Idea::id);
     return idea == ideas.end() ? nullptr : &*idea;
+}
+
+void IdeaView::openComments(const int id) {
+    if (const Idea *idea = ideaById(id)) {
+        auto comments = idea->comments;
+        showCommentsDialog(this, apiClient, id, "Kommentare – " + idea->title, comments);
+    }
 }
 
 void IdeaView::openCreateDialog() {
@@ -617,105 +333,69 @@ void IdeaView::openCreateDialog() {
     });
 }
 
-void IdeaView::openEditDialog(const Idea &idea) {
+void IdeaView::openEditDialog(const int id) {
+    const Idea *current = ideaById(id);
+    if (!current) {
+        return;
+    }
+    const Idea idea = *current;
     QDialog dialog(this);
     dialog.setWindowTitle("Idee bearbeiten");
     auto *layout = new QFormLayout(&dialog);
     auto *titleEdit = new QLineEdit(idea.title, &dialog);
     auto *contentEdit = new QPlainTextEdit(idea.content, &dialog);
     contentEdit->setMinimumHeight(180);
+    layout->addRow("Titel", titleEdit);
+    layout->addRow("Beschreibung", contentEdit);
+
+    auto *phaseEdit = new QComboBox(&dialog);
+    for (const MetadataItem &phase : apiClient.metadata().ideaPhases) {
+        phaseEdit->addItem(phase.name, phase.id);
+    }
+    phaseEdit->setCurrentIndex(phaseEdit->findData(idea.phaseId));
+    layout->addRow("Phase", phaseEdit);
+
+    auto *contextEdit = new QComboBox(&dialog);
+    contextEdit->addItem("Ohne Kontext", 0);
+    for (const Context &context : contexts) {
+        contextEdit->addItem(context.title, context.id);
+    }
+    contextEdit->setCurrentIndex(contextEdit->findData(idea.contextId.value_or(0)));
+    layout->addRow("Kontext", contextEdit);
+
     auto *stateEdit = new QComboBox(&dialog);
     for (const MetadataItem &state : apiClient.metadata().ideaStates) {
         stateEdit->addItem(state.displayName.value_or(state.name), state.id);
     }
     stateEdit->setCurrentIndex(stateEdit->findData(idea.stateId));
-    layout->addRow("Titel", titleEdit);
-    layout->addRow("Beschreibung", contentEdit);
     layout->addRow("Status", stateEdit);
+
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     buttons->button(QDialogButtonBox::Ok)->setText("Fertig");
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     prepareFormDialog(dialog, *buttons, 600);
-    execDialog(dialog, true);
+    if (execDialog(dialog, true) != QDialog::Accepted) {
+        return;
+    }
 
     const QString title = titleEdit->text().trimmed();
     if (!title.isEmpty() && title != idea.title) {
-        apiClient.updateIdeaField(idea.id, IdeaField::Title, title);
+        apiClient.updateIdeaField(id, IdeaField::Title, title);
     }
     const QString content = contentEdit->toPlainText();
     if (content != idea.content) {
-        apiClient.updateIdeaField(idea.id, IdeaField::Content, content);
+        apiClient.updateIdeaField(id, IdeaField::Content, content);
+    }
+    const int phaseId = phaseEdit->currentData().toInt();
+    if (phaseId != idea.phaseId) {
+        apiClient.updateIdeaField(id, IdeaField::PhaseId, phaseId);
     }
     const int stateId = stateEdit->currentData().toInt();
     if (stateId != idea.stateId) {
-        apiClient.updateIdeaField(idea.id, IdeaField::StateId, stateId);
+        apiClient.updateIdeaField(id, IdeaField::StateId, stateId);
     }
-}
-
-void IdeaView::openPhaseDialog(const Idea &idea) {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Phase ändern");
-    dialog.setMinimumSize(520, 420);
-    dialog.resize(620, 600);
-
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *scrollArea = new QScrollArea(&dialog);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    auto *selection = new QWidget(scrollArea);
-    auto *selectionLayout = new QVBoxLayout(selection);
-    selectionLayout->setContentsMargins(0, 0, 0, 0);
-    selectionLayout->setSpacing(14);
-    auto *phaseButtons = new QButtonGroup(selection);
-    phaseButtons->setExclusive(true);
-
-    for (int index = 0;
-         index < static_cast<int>(apiClient.metadata().ideaPhases.size());
-         ++index) {
-        const MetadataItem &phase = apiClient.metadata().ideaPhases[index];
-        auto *entry = new QWidget(selection);
-        auto *entryLayout = new QVBoxLayout(entry);
-        entryLayout->setContentsMargins(0, 0, 0, 0);
-        entryLayout->setSpacing(3);
-
-        auto *radio = new QRadioButton(
-            phase.displayName.value_or(phase.name), entry
-        );
-        radio->setChecked(phase.id == idea.phaseId);
-        radio->setStyleSheet("color: " + phaseColor(index) + ";");
-        phaseButtons->addButton(radio, phase.id);
-        entryLayout->addWidget(radio);
-
-        if (phase.description.has_value()) {
-            auto *description = new QLabel(*phase.description, entry);
-            description->setWordWrap(true);
-            description->setContentsMargins(26, 0, 0, 0);
-            entryLayout->addWidget(description);
-        }
-        selectionLayout->addWidget(entry);
-    }
-    selectionLayout->addStretch();
-    scrollArea->setWidget(selection);
-    layout->addWidget(scrollArea, 1);
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel,
-        &dialog
-    );
-    buttons->button(QDialogButtonBox::Save)->setText("Speichern");
-    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    prepareFormDialog(dialog, *buttons, 520);
-
-    if (execDialog(dialog) == QDialog::Accepted
-        && phaseButtons->checkedId() != idea.phaseId) {
-        apiClient.updateIdeaField(
-            idea.id,
-            IdeaField::PhaseId,
-            phaseButtons->checkedId()
-        );
+    const int contextId = contextEdit->currentData().toInt();
+    if (contextEdit->currentIndex() >= 0 && contextId != idea.contextId.value_or(0)) {
+        apiClient.updateIdeaContext(id, contextId == 0 ? std::nullopt : std::optional(contextId));
     }
 }
