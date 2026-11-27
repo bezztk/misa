@@ -77,7 +77,7 @@ void ApiClient::sendChange(
     });
 }
 
-void ApiClient::createComment(const int entityId, const QString &content) {
+QNetworkReply *ApiClient::createComment(const int entityId, const QString &content) {
     QNetworkRequest request(buildUrl(
         "/entities/" + QString::number(entityId) + "/comments"
     ));
@@ -94,9 +94,10 @@ void ApiClient::createComment(const int entityId, const QString &content) {
         }
         reply->deleteLater();
     });
+    return reply;
 }
 
-void ApiClient::updateComment(const int id, const QString &content) {
+QNetworkReply *ApiClient::updateComment(const int id, const QString &content) {
     QNetworkRequest request(buildUrl("/comments/" + QString::number(id)));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     QNetworkReply *reply = manager.sendCustomRequest(
@@ -112,6 +113,7 @@ void ApiClient::updateComment(const int id, const QString &content) {
         }
         reply->deleteLater();
     });
+    return reply;
 }
 
 void ApiClient::deleteComment(const int id) {

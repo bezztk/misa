@@ -239,8 +239,8 @@ public:
     void getDocumentVersions(int nodeId);
     void restoreDocumentVersion(int nodeId, int version);
     void getEntityFieldVersions(int entityId);
-    void createComment(int entityId, const QString& content);
-    void updateComment(int id, const QString& content);
+    QNetworkReply *createComment(int entityId, const QString& content);
+    QNetworkReply *updateComment(int id, const QString& content);
     void deleteComment(int id);
 
 private:
