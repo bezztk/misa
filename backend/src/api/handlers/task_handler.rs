@@ -1,7 +1,8 @@
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::response::IdResponse;
 use crate::models::system_task::{
-    CreateTaskRequest, TaskField, TaskFieldUpdate, TaskFieldUpdateRequest, TaskListItem,
+    CreateTaskRequest, TaskContextsRequest, TaskField, TaskFieldUpdate, TaskFieldUpdateRequest,
+    TaskListItem,
 };
 use crate::repositories::task_repository;
 use crate::validation::valid_name;
@@ -18,20 +19,33 @@ pub async fn create_task(
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTaskRequest>,
 ) -> ApiResult<(StatusCode, Json<IdResponse>)> {
-    if !valid_name(&payload.name, 150) {
+    if !valid_name(&payload.name, 150)
+        || (payload.domain_node_id.is_some() && !payload.context_ids.is_empty())
+    {
         return Err(ApiError::BadRequest);
     }
 
     let id = task_repository::create_task(
         &pool,
         payload.name.trim(),
-        payload.group_id,
+        &payload.context_ids,
         payload.priority_id,
         payload.domain_node_id,
     )
     .await?;
 
     Ok((StatusCode::CREATED, Json(IdResponse { id })))
+}
+
+pub async fn update_task_contexts(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<TaskContextsRequest>,
+) -> ApiResult<StatusCode> {
+    if !task_repository::update_task_contexts(&pool, id, &payload.context_ids).await? {
+        return Err(ApiError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn update_task_field(

@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "CalendarView.h"
+#include "ContextView.h"
 #include "DomainView.h"
 #include "IdeaView.h"
 #include "LearningView.h"
@@ -192,6 +193,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
 
     connect(navigation, &NavigationSidebar::openTasksRequested,
             this, &MainWindow::openTasks);
+    connect(navigation, &NavigationSidebar::openContextsRequested,
+            this, &MainWindow::openContexts);
     connect(navigation, &NavigationSidebar::openCalendarRequested,
             this, &MainWindow::openCalendar);
     connect(navigation, &NavigationSidebar::openIdeasRequested,
@@ -260,6 +263,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), apiClient(this) {
     connect(&apiClient, &ApiClient::taskCreated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskUpdated, this, refreshSharedTasks);
     connect(&apiClient, &ApiClient::taskDeleted, this, refreshSharedTasks);
+    connect(&apiClient, &ApiClient::contextsChanged, this, [this] {
+        apiClient.getContexts();
+        apiClient.getTasks();
+    });
     const auto refreshIdeas = [this] { apiClient.getIdeas(); };
     connect(&apiClient, &ApiClient::ideaCreated, this, refreshIdeas);
     connect(&apiClient, &ApiClient::ideaUpdated, this, refreshIdeas);
@@ -351,18 +358,20 @@ TaskView *MainWindow::openTasks() {
     auto *view = static_cast<TaskView *>(workspaceManager->openView(
         "tasks", "Aufgaben", NavigationIcons::tabIcon(NavigationIcons::tasks), [this, &created] {
             created = true;
-            auto *view = new TaskView(apiClient);
-            connect(&apiClient, &ApiClient::metadataReceived,
-                    view, &TaskView::refreshMetadata);
-            view->refreshMetadata();
-            return view;
+            return new TaskView(apiClient);
         }
     ));
     if (created && startupComplete) {
         apiClient.getTasks();
-        apiClient.getDomainTree();
     }
     return view;
+}
+
+void MainWindow::openContexts() {
+    workspaceManager->openView(
+        "contexts", "Kontexte", NavigationIcons::tabIcon(NavigationIcons::contexts),
+        [this] { return new ContextView(apiClient); }
+    );
 }
 
 CalendarView *MainWindow::openCalendar() {

@@ -5,7 +5,7 @@ use crate::models::idea::{IdeaPhase, IdeaState};
 use crate::models::pursuit::PursuitRequirementType;
 use crate::models::routine::SystemTaskRoutineExecutionState;
 use crate::models::session::{SystemTaskSessionPreset, SystemTaskSessionState};
-use crate::models::system_task::{SystemTaskGroup, SystemTaskPriority, SystemTaskState};
+use crate::models::system_task::{SystemTaskPriority, SystemTaskState};
 
 macro_rules! lookup_model {
     ($name:ident) => {
@@ -49,7 +49,6 @@ pub struct Metadata {
     pub idea_states: Vec<IdeaState>,
     pub media_ratings: Vec<MediaRatingLookup>,
     pub pursuit_requirement_types: Vec<PursuitRequirementType>,
-    pub systemtask_groups: Vec<SystemTaskGroup>,
     pub systemtask_states: Vec<SystemTaskState>,
     pub systemtask_priorities: Vec<SystemTaskPriority>,
     pub systemtask_routine_execution_states: Vec<SystemTaskRoutineExecutionState>,

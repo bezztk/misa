@@ -41,7 +41,6 @@ struct Metadata {
     std::vector<MetadataItem> ideaPhases;
     std::vector<MetadataItem> ideaStates;
     std::vector<MetadataItem> mediaRatings;
-    std::vector<MetadataItem> systemTaskGroups;
     std::vector<MetadataItem> systemTaskStates;
     std::vector<MetadataItem> systemTaskPriorities;
 };

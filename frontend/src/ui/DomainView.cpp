@@ -2421,7 +2421,7 @@ void DomainView::createTask(const int nodeId) {
 
     apiClient.createTask(CreateTask{
         .name = nameEdit->text().trimmed(),
-        .groupId = std::nullopt,
+        .contextIds = {},
         .priorityId = priorityEdit->currentData().toInt(),
         .domainNodeId = nodeId
     });

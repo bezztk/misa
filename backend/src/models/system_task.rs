@@ -7,12 +7,6 @@ use crate::models::comment::Comment;
 pub const OPEN_SYSTEM_TASK_STATE_ID: i32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
-pub struct SystemTaskGroup {
-    pub id: i32,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow, Serialize, Deserialize)]
 pub struct SystemTaskState {
     pub id: i32,
     pub name: String,
@@ -34,7 +28,6 @@ pub struct SystemTaskPriority {
 pub struct SystemTask {
     pub id: i32,
     pub domain_node_id: Option<i32>,
-    pub group_id: Option<i32>,
     pub name: String,
     pub description: Option<String>,
     pub motivation: Option<String>,
@@ -52,7 +45,7 @@ pub struct TaskListItem {
     pub id: i32,
     pub name: String,
     pub domain_node_id: Option<i32>,
-    pub group_id: Option<i32>,
+    pub context_ids: Vec<i32>,
     pub state_id: i32,
     pub priority_id: i32,
     #[sqlx(skip)]
@@ -62,9 +55,14 @@ pub struct TaskListItem {
 #[derive(Debug, Deserialize)]
 pub struct CreateTaskRequest {
     pub name: String,
-    pub group_id: Option<i32>,
+    pub context_ids: Vec<i32>,
     pub priority_id: i32,
     pub domain_node_id: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskContextsRequest {
+    pub context_ids: Vec<i32>,
 }
 
 #[derive(Debug, Deserialize)]

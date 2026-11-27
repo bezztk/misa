@@ -56,9 +56,6 @@ async fn load_metadata(pool: &PgPool) -> Result<Metadata, sqlx::Error> {
              'pursuit_requirement_types',
                  (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
                   FROM (SELECT id, name FROM pursuit_requirement_types) value),
-             'systemtask_groups',
-                 (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
-                  FROM (SELECT id, name FROM systemtask_groups) value),
              'systemtask_states',
                  (SELECT COALESCE(jsonb_agg(value ORDER BY id), '[]'::jsonb)
                   FROM (SELECT id, name, display_name FROM systemtask_states) value),

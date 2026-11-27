@@ -56,6 +56,27 @@ bool ApiClient::readJson(
     return false;
 }
 
+void ApiClient::sendChange(
+    const QString &path,
+    const QByteArray &method,
+    const QJsonObject &body,
+    void (ApiClient::*changed)()
+) {
+    QNetworkRequest request(buildUrl(path));
+    QByteArray data;
+    if (!body.isEmpty()) {
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        data = QJsonDocument(body).toJson();
+    }
+    auto *reply = manager.sendCustomRequest(request, method, data);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, changed] {
+        if (requestSucceeded(reply)) {
+            emit (this->*changed)();
+        }
+        reply->deleteLater();
+    });
+}
+
 void ApiClient::createComment(const int entityId, const QString &content) {
     QNetworkRequest request(buildUrl(
         "/entities/" + QString::number(entityId) + "/comments"
@@ -413,7 +434,6 @@ void ApiClient::getMetadata() {
         metadata.ideaPhases = parseMetadataItems(object["idea_phases"].toArray());
         metadata.ideaStates = parseMetadataItems(object["idea_states"].toArray());
         metadata.mediaRatings = parseMetadataItems(object["media_ratings"].toArray());
-        metadata.systemTaskGroups = parseMetadataItems(object["systemtask_groups"].toArray());
         metadata.systemTaskStates = parseMetadataItems(object["systemtask_states"].toArray());
         metadata.systemTaskPriorities = parseMetadataItems(object["systemtask_priorities"].toArray());
 

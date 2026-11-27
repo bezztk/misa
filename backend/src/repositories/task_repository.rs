@@ -4,13 +4,19 @@ use crate::models::system_task::{
 };
 use crate::repositories::{comment_repository, entity_repository};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 
 pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> {
     let mut tasks = sqlx::query_as::<_, TaskListItem>(
-        "SELECT entity_id AS id, name, domain_node_id, group_id, state_id, priority_id
-         FROM systemtasks
-         ORDER BY entity_id DESC",
+        "SELECT task.entity_id AS id, task.name, task.domain_node_id, task.state_id, task.priority_id,
+                ARRAY(
+                    SELECT context_id
+                    FROM context_entities
+                    WHERE entity_id = task.entity_id
+                    ORDER BY context_id
+                ) AS context_ids
+         FROM systemtasks task
+         ORDER BY task.entity_id DESC",
     )
     .fetch_all(pool)
     .await?;
@@ -29,7 +35,7 @@ pub async fn get_tasks(pool: &PgPool) -> Result<Vec<TaskListItem>, sqlx::Error> 
 pub async fn create_task(
     pool: &PgPool,
     name: &str,
-    group_id: Option<i32>,
+    context_ids: &[i32],
     priority_id: i32,
     domain_node_id: Option<i32>,
 ) -> Result<i32, sqlx::Error> {
@@ -38,19 +44,62 @@ pub async fn create_task(
         entity_repository::create_entity(&mut transaction, EntityType::SystemTask).await?;
     sqlx::query(
         "INSERT INTO systemtasks
-            (entity_id, name, group_id, state_id, priority_id, domain_node_id)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+            (entity_id, name, state_id, priority_id, domain_node_id)
+         VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(entity_id)
     .bind(name)
-    .bind(group_id)
     .bind(OPEN_SYSTEM_TASK_STATE_ID)
     .bind(priority_id)
     .bind(domain_node_id)
     .execute(&mut *transaction)
     .await?;
+    insert_task_contexts(&mut transaction, entity_id, context_ids).await?;
     transaction.commit().await?;
     Ok(entity_id)
+}
+
+async fn insert_task_contexts(
+    connection: &mut PgConnection,
+    id: i32,
+    context_ids: &[i32],
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO context_entities (context_id, entity_id)
+         SELECT DISTINCT context_id, $1 FROM unnest($2::integer[]) AS selection(context_id)",
+    )
+    .bind(id)
+    .bind(context_ids)
+    .execute(connection)
+    .await?;
+    Ok(())
+}
+
+pub async fn update_task_contexts(
+    pool: &PgPool,
+    id: i32,
+    context_ids: &[i32],
+) -> Result<bool, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    let task = sqlx::query_scalar::<_, i32>(
+        "SELECT entity_id FROM systemtasks
+         WHERE entity_id = $1 AND domain_node_id IS NULL
+         FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_optional(&mut *transaction)
+    .await?;
+    if task.is_none() {
+        return Ok(false);
+    }
+
+    sqlx::query("DELETE FROM context_entities WHERE entity_id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await?;
+    insert_task_contexts(&mut transaction, id, context_ids).await?;
+    transaction.commit().await?;
+    Ok(true)
 }
 
 pub async fn update_task_field(

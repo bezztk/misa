@@ -15,7 +15,7 @@ enum class TaskField {
 
 struct Task {
     int id;
-    std::optional<int> groupId;
+    std::vector<int> contextIds;
     std::optional<int> domainNodeId;
     QString name;
     int stateId;
@@ -25,7 +25,7 @@ struct Task {
 
 struct CreateTask {
     QString name;
-    std::optional<int> groupId;
+    std::vector<int> contextIds;
     int priorityId;
     std::optional<int> domainNodeId;
 };

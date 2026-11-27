@@ -444,6 +444,9 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     cardLayout->setSpacing(8);
 
     auto *tasksSection = new TasksNavigationSection(apiClient, cardContainer);
+    auto *contextsSection = new NavigationCard(
+        "Kontexte", NavigationIcons::contexts, false, cardContainer
+    );
     auto *calendarSection = new CalendarNavigationSection(cardContainer);
     auto *ideasSection = new IdeasNavigationSection(apiClient, cardContainer);
     auto *learningSection = new LearningNavigationSection(apiClient, cardContainer);
@@ -457,6 +460,7 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
     );
 
     cardLayout->addWidget(tasksSection);
+    cardLayout->addWidget(contextsSection);
     cardLayout->addWidget(calendarSection);
     cardLayout->addWidget(ideasSection);
     cardLayout->addWidget(learningSection);
@@ -470,6 +474,8 @@ NavigationSidebar::NavigationSidebar(ApiClient &apiClient, QWidget *parent)
 
     connect(tasksSection, &TasksNavigationSection::openRequested,
             this, &NavigationSidebar::openTasksRequested);
+    connect(contextsSection, &NavigationCard::activated,
+            this, &NavigationSidebar::openContextsRequested);
     connect(calendarSection, &CalendarNavigationSection::openRequested,
             this, &NavigationSidebar::openCalendarRequested);
     connect(ideasSection, &IdeasNavigationSection::openRequested,

@@ -37,11 +37,11 @@ void ApiClient::getSources() {
 }
 
 void ApiClient::createSource(const QString &url) {
-    sendSourceChange(PATH_SOURCES, "POST", {{"url", url}}, &ApiClient::sourcesChanged);
+    sendChange(PATH_SOURCES, "POST", {{"url", url}}, &ApiClient::sourcesChanged);
 }
 
 void ApiClient::updateSourceTitle(const QString &id, const QString &title) {
-    sendSourceChange(
+    sendChange(
         QString("%1/%2/title").arg(PATH_SOURCES, id), "PATCH",
         {{"title", title}}, &ApiClient::sourcesChanged
     );
@@ -49,14 +49,14 @@ void ApiClient::updateSourceTitle(const QString &id, const QString &title) {
 
 void ApiClient::assignSourceCategory(const QString &id, const int categoryId) {
     const QJsonValue category = categoryId == 0 ? QJsonValue(QJsonValue::Null) : QJsonValue(categoryId);
-    sendSourceChange(
+    sendChange(
         QString("%1/%2/category").arg(PATH_SOURCES, id), "PUT",
         {{"category_id", category}}, &ApiClient::sourcesChanged
     );
 }
 
 void ApiClient::deleteSource(const QString &id) {
-    sendSourceChange(
+    sendChange(
         QString("%1/%2").arg(PATH_SOURCES, id), "DELETE", {}, &ApiClient::sourcesChanged
     );
 }
@@ -81,42 +81,21 @@ void ApiClient::getSourceCategories() {
 }
 
 void ApiClient::createSourceCategory(const QString &name) {
-    sendSourceChange(
+    sendChange(
         PATH_SOURCE_CATEGORIES, "POST", {{"name", name}}, &ApiClient::sourceCategoriesChanged
     );
 }
 
 void ApiClient::renameSourceCategory(const int id, const QString &name) {
-    sendSourceChange(
+    sendChange(
         QString("%1/%2").arg(PATH_SOURCE_CATEGORIES).arg(id), "PUT",
         {{"name", name}}, &ApiClient::sourceCategoriesChanged
     );
 }
 
 void ApiClient::deleteSourceCategory(const int id) {
-    sendSourceChange(
+    sendChange(
         QString("%1/%2").arg(PATH_SOURCE_CATEGORIES).arg(id), "DELETE", {},
         &ApiClient::sourceCategoriesChanged
     );
-}
-
-void ApiClient::sendSourceChange(
-    const QString &path,
-    const QByteArray &method,
-    const QJsonObject &body,
-    void (ApiClient::*changed)()
-) {
-    QNetworkRequest request(buildUrl(path));
-    QByteArray data;
-    if (!body.isEmpty()) {
-        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-        data = QJsonDocument(body).toJson();
-    }
-    auto *reply = manager.sendCustomRequest(request, method, data);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, changed] {
-        if (requestSucceeded(reply)) {
-            emit (this->*changed)();
-        }
-        reply->deleteLater();
-    });
 }

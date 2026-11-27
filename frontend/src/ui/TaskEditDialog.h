@@ -1,14 +1,24 @@
 #ifndef FRONTEND_TASKEDITDIALOG_H
 #define FRONTEND_TASKEDITDIALOG_H
 
+#include "../models/Context.h"
+#include "../models/Task.h"
+
 class ApiClient;
 class QWidget;
-struct Task;
+
+void showTaskCreateDialog(
+    QWidget *parent,
+    ApiClient &apiClient,
+    const std::vector<Context> &contexts,
+    int selectedContextId
+);
 
 void showTaskEditDialog(
     QWidget *parent,
     ApiClient &apiClient,
-    const Task &task
+    Task task,
+    const std::vector<Context> &contexts = {}
 );
 
 #endif // FRONTEND_TASKEDITDIALOG_H

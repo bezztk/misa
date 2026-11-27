@@ -17,6 +17,7 @@ class QWidget;
 
 namespace NavigationIcons {
 inline constexpr auto tasks = ":/assets/icons/task-white.png";
+inline constexpr auto contexts = ":/assets/icons/folder.png";
 inline constexpr auto calendar = ":/assets/icons/calendar.png";
 inline constexpr auto ideas = ":/assets/icons/idea.png";
 inline constexpr auto learning = ":/assets/icons/flashcards-white.png";
@@ -172,6 +173,7 @@ public:
 
 signals:
     void openTasksRequested();
+    void openContextsRequested();
     void openCalendarRequested();
     void openIdeasRequested();
     void openLearningRequested();

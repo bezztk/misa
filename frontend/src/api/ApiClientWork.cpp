@@ -6,6 +6,14 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
+static QJsonArray contextIdsJson(const std::vector<int> &contextIds) {
+    QJsonArray values;
+    for (const int contextId : contextIds) {
+        values.append(contextId);
+    }
+    return values;
+}
+
 void ApiClient::getTasks() {
     const QNetworkRequest networkRequest(buildUrl(PATH_TASKS));
 
@@ -32,8 +40,8 @@ void ApiClient::getTasks() {
 
             task.id = object["id"].toInt();
             task.name = object["name"].toString();
-            if (!object["group_id"].isNull()) {
-                task.groupId = object["group_id"].toInt();
+            for (const QJsonValue &contextId : object["context_ids"].toArray()) {
+                task.contextIds.push_back(contextId.toInt());
             }
             if (!object["domain_node_id"].isNull()) {
                 task.domainNodeId = object["domain_node_id"].toInt();
@@ -57,9 +65,7 @@ void ApiClient::createTask(const CreateTask &task) {
 
     QJsonObject json;
     json["name"] = task.name;
-    json["group_id"] = task.groupId.has_value()
-        ? QJsonValue(*task.groupId)
-        : QJsonValue(QJsonValue::Null);
+    json["context_ids"] = contextIdsJson(task.contextIds);
     json["priority_id"] = task.priorityId;
     json["domain_node_id"] = task.domainNodeId.has_value()
         ? QJsonValue(*task.domainNodeId)
@@ -119,6 +125,13 @@ void ApiClient::deleteTask(const int id) {
 
         reply->deleteLater();
     });
+}
+
+void ApiClient::updateTaskContexts(const int id, const std::vector<int> &contextIds) {
+    sendChange(
+        QString("%1/%2/contexts").arg(PATH_TASKS).arg(id), "PUT",
+        {{"context_ids", contextIdsJson(contextIds)}}, &ApiClient::taskUpdated
+    );
 }
 
 void ApiClient::getCalendarEntries() {

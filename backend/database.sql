@@ -24,6 +24,21 @@ CREATE TABLE entities
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE contexts
+(
+    id    integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title varchar(150) NOT NULL
+);
+
+CREATE TABLE context_entities
+(
+    context_id integer NOT NULL REFERENCES contexts (id) ON DELETE CASCADE,
+    entity_id  integer NOT NULL REFERENCES entities (id) ON DELETE CASCADE,
+
+    PRIMARY KEY (context_id, entity_id)
+);
+CREATE INDEX idx_context_entities_entity_id ON context_entities (entity_id);
+
 CREATE TABLE entity_fields
 (
     id             integer PRIMARY KEY,
@@ -515,16 +530,6 @@ CREATE TABLE pursuit_requirements
 --region Systemaufgaben
 
 --region Metadaten der Systemtaufgaben
-CREATE TABLE systemtask_groups
-(
-    id   integer PRIMARY KEY,
-    name varchar(50) NOT NULL UNIQUE
-);
-INSERT INTO systemtask_groups (id, name)
-VALUES (1, 'Persönliches'),
-       (2, 'Einkauf'),
-       (3, 'Schule');
-
 CREATE TABLE systemtask_states
 (
     id           integer PRIMARY KEY,
@@ -554,7 +559,6 @@ CREATE TABLE systemtasks
 (
     entity_id                integer PRIMARY KEY REFERENCES entities (id) ON DELETE CASCADE,
     domain_node_id           integer REFERENCES domain_nodes (entity_id) ON DELETE CASCADE,
-    group_id                 integer REFERENCES systemtask_groups (id),
 
     name                     varchar(150) NOT NULL,
     description              text,

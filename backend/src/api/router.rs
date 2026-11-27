@@ -1,8 +1,8 @@
 use crate::api::handlers::{
-    attachment_handler, calendar_entry_handler, comment_handler, document_handler, domain_handler,
-    entity_handler, flashcard_handler, idea_handler, media_handler, metadata_handler,
-    progression_handler, pursuit_handler, routine_handler, rss_handler, short_term_learning_handler,
-    source_handler, task_handler,
+    attachment_handler, calendar_entry_handler, comment_handler, context_handler, document_handler,
+    domain_handler, entity_handler, flashcard_handler, idea_handler, media_handler,
+    metadata_handler, progression_handler, pursuit_handler, routine_handler, rss_handler,
+    short_term_learning_handler, source_handler, task_handler,
 };
 use axum::{Router, routing::get};
 use sqlx::PgPool;
@@ -200,7 +200,8 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/short-term-learning/sets",
-            get(short_term_learning_handler::get_sets).post(short_term_learning_handler::create_set),
+            get(short_term_learning_handler::get_sets)
+                .post(short_term_learning_handler::create_set),
         )
         .route(
             "/short-term-learning/sets/{id}",
@@ -212,7 +213,8 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route(
             "/short-term-learning/sets/{id}/cards",
-            get(short_term_learning_handler::get_cards).post(short_term_learning_handler::import_cards),
+            get(short_term_learning_handler::get_cards)
+                .post(short_term_learning_handler::import_cards),
         )
         .route(
             "/short-term-learning/cards/{id}",
@@ -262,12 +264,25 @@ pub fn create_router(pool: PgPool) -> Router {
         )
         .route("/metadata", get(metadata_handler::get_metadata))
         .route(
+            "/contexts",
+            get(context_handler::get_contexts).post(context_handler::create_context),
+        )
+        .route(
+            "/contexts/{id}",
+            axum::routing::put(context_handler::rename_context)
+                .delete(context_handler::delete_context),
+        )
+        .route(
             "/tasks/{id}",
             axum::routing::delete(task_handler::delete_task),
         )
         .route(
             "/tasks/{id}/fields/{field_id}",
             axum::routing::patch(task_handler::update_task_field),
+        )
+        .route(
+            "/tasks/{id}/contexts",
+            axum::routing::put(task_handler::update_task_contexts),
         )
         .route(
             "/tasks",

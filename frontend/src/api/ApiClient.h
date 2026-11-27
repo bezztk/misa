@@ -1,6 +1,7 @@
 ﻿#ifndef FRONTEND_APICLIENT_H
 #define FRONTEND_APICLIENT_H
 #include "../models/Task.h"
+#include "../models/Context.h"
 #include "../models/Flashcard.h"
 #include "../models/Attachment.h"
 #include "../models/Metadata.h"
@@ -38,6 +39,8 @@ signals:
     void taskCreated();
     void taskUpdated();
     void taskDeleted();
+    void contextsReceived(const std::vector<Context> &contexts);
+    void contextsChanged();
     void calendarEntriesReceived(const std::vector<CalendarEntry>& entries);
     void calendarEntryCreated();
     void calendarEntryUpdated();
@@ -135,7 +138,12 @@ public:
     void getTasks();
     void createTask(const CreateTask& task);
     void updateTaskField(int id, TaskField field, const QJsonValue& value);
+    void updateTaskContexts(int id, const std::vector<int> &contextIds);
     void deleteTask(int id);
+    void getContexts();
+    void createContext(const QString &title);
+    void renameContext(int id, const QString &title);
+    void deleteContext(int id);
     void getCalendarEntries();
     void createCalendarEntry(const CreateCalendarEntry& entry);
     void updateCalendarEntry(int id, const CreateCalendarEntry& entry);
@@ -242,6 +250,7 @@ private:
     static constexpr int PORT = 3000;
     static constexpr auto BASE_PATH = "/api";
     static constexpr auto PATH_TASKS = "/tasks";
+    static constexpr auto PATH_CONTEXTS = "/contexts";
     static constexpr auto PATH_METADATA = "/metadata";
     static constexpr auto PATH_CALENDAR_ENTRIES = "/calendar-entries";
     static constexpr auto PATH_IDEAS = "/ideas";
@@ -257,8 +266,8 @@ private:
     void requestDueFlashcards(bool includeFlashcards);
     bool requestSucceeded(const QNetworkReply *reply) const;
     bool readJson(QNetworkReply *reply, const QString& operation, QJsonDocument& document);
-    void sendSourceChange(const QString &path, const QByteArray &method,
-                          const QJsonObject &body, void (ApiClient::*changed)());
+    void sendChange(const QString &path, const QByteArray &method,
+                    const QJsonObject &body, void (ApiClient::*changed)());
     void sendShortTermLearningChange(const QString &path, const QByteArray &method,
         const QJsonDocument &body, QObject &context, std::function<void(bool)> finished);
     int getMediaJson(const QString &path, const QString &operation,

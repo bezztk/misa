@@ -29,6 +29,7 @@ private:
     void showToast(const QString &message);
     void positionToast();
     TaskView *openTasks();
+    void openContexts();
     CalendarView *openCalendar();
     IdeaView *openIdeas();
     LearningArea *openLearning();

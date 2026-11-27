@@ -1,295 +1,246 @@
 #include "TaskView.h"
+
 #include "CalendarEntryDialog.h"
 #include "CommentUi.h"
-#include "DialogUtils.h"
 #include "TaskEditDialog.h"
 #include "VersionHistoryDialog.h"
+#include "../api/ApiClient.h"
 
-#include <QComboBox>
 #include <QDateTime>
-#include <QDialog>
-#include <QDialogButtonBox>
-#include <QFormLayout>
-#include <QIcon>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
+#include <QHBoxLayout>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
+#include <QPainter>
 #include <QPushButton>
-#include <QResizeEvent>
-#include <QUrl>
-#include <QWebChannel>
-#include <QWebEnginePage>
-#include <QWebEngineView>
+#include <QSignalBlocker>
+#include <QStringList>
+#include <QStyledItemDelegate>
+#include <QVBoxLayout>
 
 #include <algorithm>
 
-void TaskBridge::kanbanReady() {
-    emit ready();
-}
+namespace {
+constexpr int ALL_TASKS = -1;
+constexpr int WITHOUT_CONTEXT = 0;
 
-void TaskBridge::taskStateChangeRequested(const int id, const int stateId) {
-    emit changeTaskState(id, stateId);
-}
+class TaskCardDelegate final : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
 
-void TaskBridge::editTaskRequested(const int id) {
-    emit editTask(id);
-}
-
-void TaskBridge::contextMenuRequested(const int id, const int x, const int y) {
-    emit showContextMenu(id, x, y);
-}
-
-static QString metadataName(const MetadataItem &item) {
-    return item.displayName.has_value() && !item.displayName->isEmpty()
-        ? *item.displayName
-        : item.name;
-}
-
-static QString taskPriorityColor(const Metadata &metadata, const int id) {
-    for (const MetadataItem &priority : metadata.systemTaskPriorities) {
-        if (priority.id != id) {
-            continue;
-        }
-        if (priority.name == "low") {
-            return "#64b5f6";
-        }
-        if (priority.name == "high") {
-            return "#ffb74d";
-        }
-        if (priority.name == "critical") {
-            return "#ef5350";
-        }
-    }
-    return "#a0a0a0";
-}
-
-static QString taskAssignment(
-    const Task &task,
-    const Metadata &metadata,
-    const std::vector<DomainNode> &domainNodes
-) {
-    if (task.domainNodeId.has_value()) {
-        const auto node = std::find_if(
-            domainNodes.begin(), domainNodes.end(),
-            [&task](const DomainNode &item) {
-                return item.id == *task.domainNodeId;
-            }
-        );
-        if (node != domainNodes.end()) {
-            return node->name;
-        }
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override {
+        return {0, 72};
     }
 
-    if (task.groupId.has_value()) {
-        const auto group = std::find_if(
-            metadata.systemTaskGroups.begin(), metadata.systemTaskGroups.end(),
-            [&task](const MetadataItem &item) {
-                return item.id == *task.groupId;
-            }
-        );
-        if (group != metadata.systemTaskGroups.end()) {
-            return metadataName(*group);
-        }
-    }
+    void paint(
+        QPainter *painter,
+        const QStyleOptionViewItem &option,
+        const QModelIndex &index
+    ) const override {
+        painter->save();
+        painter->setClipRect(option.rect);
 
-    return {};
+        if (option.state & QStyle::State_Selected) {
+            QColor selection = option.palette.highlight().color();
+            selection.setAlpha(38);
+            painter->fillRect(option.rect, selection);
+        }
+
+        const QColor textColor = option.palette.text().color();
+        auto titleFont = option.font;
+        titleFont.setWeight(QFont::DemiBold);
+        const QFontMetrics titleMetrics(titleFont);
+        const QRect title = option.rect.adjusted(24, 12, -24, -34);
+        painter->setFont(titleFont);
+        painter->setPen(textColor);
+        painter->drawText(title, Qt::AlignLeft | Qt::AlignVCenter,
+            titleMetrics.elidedText(index.data().toString(), Qt::ElideRight, title.width()));
+
+        QColor detailColor = textColor;
+        detailColor.setAlpha(170);
+        const QRect details = option.rect.adjusted(24, 35, -24, -12);
+        painter->setFont(option.font);
+        painter->setPen(detailColor);
+        painter->drawText(details, Qt::AlignLeft | Qt::AlignVCenter,
+            option.fontMetrics.elidedText(
+                index.data(Qt::AccessibleDescriptionRole).toString(), Qt::ElideRight, details.width()
+            ));
+
+        if (index.row() + 1 < index.model()->rowCount()) {
+            QColor separator = textColor;
+            separator.setAlpha(34);
+            const int inset = option.rect.width() / 10;
+            const int bottom = option.rect.bottom();
+            painter->setPen(separator);
+            painter->drawLine(option.rect.left() + inset, bottom,
+                              option.rect.right() - inset, bottom);
+        }
+        painter->restore();
+    }
+};
+
+QString metadataName(const std::vector<MetadataItem> &items, const int id) {
+    const auto item = std::ranges::find(items, id, &MetadataItem::id);
+    return item == items.end() ? QString{} : item->displayName.value_or(item->name);
+}
 }
 
 TaskView::TaskView(ApiClient &client, QWidget *parent)
-    : QWidget(parent),
-      apiClient(client),
-      webView(new QWebEngineView(this)),
-      webChannel(new QWebChannel(this)),
-      bridge(new TaskBridge(this)) {
-    webView->setGeometry(rect());
-    webChannel->registerObject(QStringLiteral("taskBridge"), bridge);
-    webView->page()->setWebChannel(webChannel);
+    : QWidget(parent), apiClient(client) {
+    auto *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
-    connect(bridge, &TaskBridge::ready, this, [this] {
-        kanbanReady = true;
-        pushBoardData();
-    });
-    connect(bridge, &TaskBridge::changeTaskState, this,
-            [this](const int id, const int stateId) {
-                apiClient.updateTaskField(id, TaskField::StateId, stateId);
-            });
-    connect(bridge, &TaskBridge::editTask, this, [this](const int id) {
-        const Task *task = taskById(id);
-        if (task) {
-            openEditDialog(*task);
+    navigation = new QListWidget(this);
+    navigation->setFixedWidth(240);
+    navigation->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    navigation->setStyleSheet(R"(
+        QListWidget {
+            background: transparent;
+            border: 0;
+            border-right: 1px solid palette(midlight);
+            outline: 0;
+            padding: 8px 0;
         }
-    });
-    connect(bridge, &TaskBridge::showContextMenu,
-            this, &TaskView::showTaskContextMenu);
+        QListWidget::item { padding-left: 18px; }
+    )");
+    layout->addWidget(navigation);
 
+    auto *content = new QWidget(this);
+    auto *contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
+    layout->addWidget(content, 1);
+
+    auto *searchBar = new QWidget(content);
+    searchBar->setObjectName("taskSearchBar");
+    searchBar->setStyleSheet(R"(
+        QWidget#taskSearchBar { border-bottom: 1px solid palette(midlight); }
+        QLineEdit { background: transparent; border: 0; border-radius: 0; padding: 0; }
+    )");
+    auto *searchLayout = new QHBoxLayout(searchBar);
+    searchLayout->setContentsMargins(24, 8, 24, 8);
+    search = new QLineEdit(searchBar);
+    search->setFrame(false);
+    search->setMinimumHeight(42);
+    search->setPlaceholderText("Aufgaben suchen");
+    search->setAccessibleName("Aufgaben suchen");
+    search->setClearButtonEnabled(true);
+    searchLayout->addWidget(search, 1);
+    auto *filter = new QPushButton("Filter", searchBar);
+    filter->setEnabled(false);
+    searchLayout->addWidget(filter);
+    contentLayout->addWidget(searchBar);
+    contentLayout->addSpacing(18);
+
+    taskList = new QListWidget(content);
+    taskList->setMaximumWidth(800);
+    taskList->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
+    taskList->setFrameShape(QFrame::NoFrame);
+    taskList->setStyleSheet("QListWidget { background: transparent; border: 0; }");
+    taskList->setUniformItemSizes(true);
+    taskList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    taskList->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    taskList->setContextMenuPolicy(Qt::CustomContextMenu);
+    taskList->setItemDelegate(new TaskCardDelegate(taskList));
+    contentLayout->addWidget(taskList, 1);
+
+    connect(navigation, &QListWidget::currentRowChanged, this, &TaskView::renderTasks);
+    connect(search, &QLineEdit::textChanged, this, &TaskView::renderTasks);
+    connect(taskList, &QListWidget::itemActivated, this, [this](const QListWidgetItem *item) {
+        showTaskEditDialog(this, apiClient, taskById(item->data(Qt::UserRole).toInt()), contexts);
+    });
+    connect(taskList, &QListWidget::customContextMenuRequested, this, &TaskView::showTaskMenu);
     connect(&apiClient, &ApiClient::taskReceived, this,
-            [this](const std::vector<Task> &receivedTasks) {
-                tasks = receivedTasks;
-                pushBoardData();
+            [this](const std::vector<Task> &received) {
+                tasks = received;
+                renderTasks();
             });
-    connect(&apiClient, &ApiClient::domainTreeReceived, this,
-            [this](const std::vector<MetadataItem> &,
-                   const std::vector<DomainNode> &receivedNodes) {
-                domainNodes = receivedNodes;
-                pushBoardData();
+    connect(&apiClient, &ApiClient::contextsReceived, this,
+            [this](const std::vector<Context> &received) {
+                contexts = received;
+                renderNavigation();
+                renderTasks();
             });
-    connect(&apiClient, &ApiClient::domainNodeCreated, this,
-            [this](const DomainNode &node) {
-                domainNodes.push_back(node);
-                pushBoardData();
-            });
-    connect(&apiClient, &ApiClient::domainNodeFieldUpdated, this,
-            [this](const int nodeId, const DomainNodeField field,
-                   const QJsonValue &value) {
-                if (field != DomainNodeField::Name) {
-                    return;
-                }
-                const auto existing = std::find_if(
-                    domainNodes.begin(), domainNodes.end(),
-                    [nodeId](const DomainNode &item) { return item.id == nodeId; }
-                );
-                if (existing != domainNodes.end()) {
-                    existing->name = value.toString();
-                    pushBoardData();
-                }
-            });
-    connect(&apiClient, &ApiClient::domainNodeDeleted, this,
-            [this](const int nodeId) {
-                std::erase_if(domainNodes, [nodeId](const DomainNode &node) {
-                    return node.id == nodeId;
-                });
-                pushBoardData();
-            });
+    connect(&apiClient, &ApiClient::metadataReceived, this, &TaskView::renderTasks);
 
-    webView->setUrl(QUrl(QStringLiteral("qrc:/kanban/index.html")));
+    renderNavigation();
+    apiClient.getContexts();
 }
 
-void TaskView::resizeEvent(QResizeEvent *event) {
-    QWidget::resizeEvent(event);
-    webView->setGeometry(rect());
+int TaskView::selectedContextId() const {
+    const auto *item = navigation->currentItem();
+    return item ? item->data(Qt::UserRole).toInt() : ALL_TASKS;
 }
 
-void TaskView::refreshTasks() {
-    apiClient.getTasks();
-}
+void TaskView::renderNavigation() {
+    const QSignalBlocker blocker(navigation);
+    const int selectedId = selectedContextId();
+    navigation->clear();
 
-void TaskView::refreshMetadata() {
-    pushBoardData();
-}
-
-void TaskView::pushBoardData() {
-    if (!kanbanReady) {
-        return;
-    }
-
-    QJsonArray taskItems;
-    for (const Task &task : tasks) {
-        taskItems.append(QJsonObject{
-            {"id", task.id},
-            {"label", task.name},
-            {"column", task.stateId},
-            {"groupId", task.groupId.has_value()
-                ? QJsonValue(*task.groupId) : QJsonValue(QJsonValue::Null)},
-            {"domainNodeId", task.domainNodeId.has_value()
-                ? QJsonValue(*task.domainNodeId) : QJsonValue(QJsonValue::Null)},
-            {"priorityColor", taskPriorityColor(apiClient.metadata(), task.priorityId)},
-            {"commentCount", static_cast<int>(task.comments.size())},
-            {"assignment", taskAssignment(task, apiClient.metadata(), domainNodes)}
-        });
-    }
-
-    QJsonArray states;
-    for (const MetadataItem &state : apiClient.metadata().systemTaskStates) {
-        states.append(QJsonObject{
-            {"id", state.id},
-            {"label", metadataName(state)}
-        });
-    }
-
-    QJsonArray groups;
-    for (const MetadataItem &group : apiClient.metadata().systemTaskGroups) {
-        groups.append(QJsonObject{
-            {"id", group.id},
-            {"name", metadataName(group)}
-        });
-    }
-
-    QJsonArray nodes;
-    for (const DomainNode &node : domainNodes) {
-        const bool hasTask = std::any_of(
-            tasks.begin(), tasks.end(),
-            [&node](const Task &task) {
-                return task.domainNodeId == node.id;
-            }
-        );
-        if (hasTask) {
-            nodes.append(QJsonObject{{"id", node.id}, {"name", node.name}});
+    const auto addEntry = [&](const QString &title, const int id) {
+        auto *item = new QListWidgetItem(title, navigation);
+        item->setSizeHint(QSize(0, 56));
+        item->setData(Qt::UserRole, id);
+        if (id == selectedId) {
+            navigation->setCurrentItem(item);
         }
-    }
-
-    const QJsonObject board{
-        {"tasks", taskItems},
-        {"states", states},
-        {"groups", groups},
-        {"domainNodes", nodes}
     };
-    emit bridge->boardChanged(QString::fromUtf8(
-        QJsonDocument(board).toJson(QJsonDocument::Compact)
-    ));
+    addEntry("Alle Aufgaben", ALL_TASKS);
+    addEntry("Ohne Kontext", WITHOUT_CONTEXT);
+    for (const Context &context : contexts) {
+        addEntry(context.title, context.id);
+    }
+    if (!navigation->currentItem()) {
+        navigation->setCurrentRow(0);
+    }
 }
 
-Task *TaskView::taskById(const int id) {
-    const auto task = std::find_if(tasks.begin(), tasks.end(),
-                                   [id](const Task &item) { return item.id == id; });
-    return task == tasks.end() ? nullptr : &*task;
+void TaskView::renderTasks() {
+    const QString query = search->text().trimmed();
+    const int contextId = selectedContextId();
+    const auto &metadata = apiClient.metadata();
+    taskList->clear();
+    for (const Task &task : tasks) {
+        const bool matchesContext = contextId == ALL_TASKS
+            || (contextId == WITHOUT_CONTEXT && task.contextIds.empty())
+            || std::ranges::contains(task.contextIds, contextId);
+        if (!matchesContext || !task.name.contains(query, Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        QStringList details;
+        const QString state = metadataName(metadata.systemTaskStates, task.stateId);
+        const QString priority = metadataName(metadata.systemTaskPriorities, task.priorityId);
+        if (!state.isEmpty()) {
+            details.append(state);
+        }
+        if (!priority.isEmpty()) {
+            details.append("Priorität: " + priority);
+        }
+        for (const Context &context : contexts) {
+            if (std::ranges::contains(task.contextIds, context.id)) {
+                details.append(context.title);
+            }
+        }
+        if (!task.comments.empty()) {
+            details.append(task.comments.size() == 1 ? "1 Kommentar"
+                : QString("%1 Kommentare").arg(task.comments.size()));
+        }
+
+        auto *item = new QListWidgetItem(task.name, taskList);
+        item->setData(Qt::UserRole, task.id);
+        item->setData(Qt::AccessibleDescriptionRole, details.join("  ·  "));
+        item->setToolTip(task.name);
+    }
+}
+
+const Task &TaskView::taskById(const int id) const {
+    return *std::ranges::find(tasks, id, &Task::id);
 }
 
 void TaskView::openCreateDialog() {
-    QDialog dialog(this);
-    dialog.setWindowTitle("Aufgabe erstellen");
-    auto *layout = new QFormLayout(&dialog);
-
-    auto *nameEdit = new QLineEdit(&dialog);
-    layout->addRow("Name", nameEdit);
-
-    auto *groupEdit = new QComboBox(&dialog);
-    for (const MetadataItem &group : apiClient.metadata().systemTaskGroups) {
-        groupEdit->addItem(group.name, group.id);
-    }
-    layout->addRow("Gruppe", groupEdit);
-
-    auto *priorityEdit = new QComboBox(&dialog);
-    for (const MetadataItem &priority : apiClient.metadata().systemTaskPriorities) {
-        priorityEdit->addItem(metadataName(priority), priority.id);
-    }
-    layout->addRow("Priorität", priorityEdit);
-
-    auto *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog
-    );
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    buttons->button(QDialogButtonBox::Save)->setText("Erstellen");
-    buttons->button(QDialogButtonBox::Cancel)->setText("Abbrechen");
-    layout->addRow(buttons);
-    prepareDialog(dialog);
-
-    if (execDialog(dialog) != QDialog::Accepted || nameEdit->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    apiClient.createTask(CreateTask{
-        .name = nameEdit->text().trimmed(),
-        .groupId = groupEdit->currentData().toInt(),
-        .priorityId = priorityEdit->currentData().toInt(),
-        .domainNodeId = std::nullopt
-    });
-}
-
-void TaskView::openEditDialog(const Task &task) {
-    showTaskEditDialog(this, apiClient, task);
+    showTaskCreateDialog(this, apiClient, contexts, selectedContextId());
 }
 
 void TaskView::openScheduleDialog(const Task &task) {
@@ -306,61 +257,39 @@ void TaskView::openScheduleDialog(const Task &task) {
     }
 }
 
-void TaskView::showTaskContextMenu(const int id, const int x, const int y) {
-    const Task *task = taskById(id);
-    if (!task) {
+void TaskView::showTaskMenu(const QPoint &position) {
+    const auto *item = taskList->itemAt(position);
+    if (!item) {
         return;
     }
+    Task task = taskById(item->data(Qt::UserRole).toInt());
 
-    QMenu menu(webView);
-    QAction *editAction = menu.addAction(
-        QIcon(":/assets/icons/edit.png"),
-        "Bearbeiten"
-    );
-    QAction *scheduleAction = menu.addAction(
-        QIcon(":/assets/icons/clock.png"),
-        "Einplanen"
-    );
-    QAction *commentsAction = menu.addAction(
+    QMenu menu(this);
+    const auto *edit = menu.addAction(QIcon(":/assets/icons/edit.png"), "Bearbeiten");
+    const auto *schedule = menu.addAction(QIcon(":/assets/icons/clock.png"), "Einplanen");
+    const auto *comments = menu.addAction(
         QIcon(":/assets/icons/speech-bubble.png"),
-        task->comments.empty()
-            ? "Kommentare anzeigen"
-            : "Kommentare anzeigen (" + QString::number(task->comments.size()) + ")"
+        task.comments.empty() ? "Kommentare anzeigen"
+            : QString("Kommentare anzeigen (%1)").arg(task.comments.size())
     );
     menu.addSeparator();
-    QAction *historyAction = menu.addAction(
-        QIcon(":/assets/icons/version_history.png"),
-        "Versionshistorie"
+    const auto *history = menu.addAction(
+        QIcon(":/assets/icons/version_history.png"), "Versionshistorie"
     );
     menu.addSeparator();
-    QAction *deleteAction = menu.addAction(
-        QIcon(":/assets/icons/delete.png"),
-        "Löschen"
-    );
+    const auto *remove = menu.addAction(QIcon(":/assets/icons/delete.png"), "Löschen");
 
-    QAction *selectedAction = menu.exec(webView->mapToGlobal(QPoint(x, y)));
-    if (selectedAction == editAction) {
-        openEditDialog(*task);
-    } else if (selectedAction == scheduleAction) {
-        openScheduleDialog(*task);
-    } else if (selectedAction == commentsAction) {
-        Task *editableTask = taskById(id);
-        showCommentsDialog(
-            webView,
-            apiClient,
-            editableTask->id,
-            "Kommentare – " + editableTask->name,
-            editableTask->comments
-        );
-        pushBoardData();
-    } else if (selectedAction == historyAction) {
-        showVersionHistoryDialog(
-            webView,
-            apiClient,
-            task->id,
-            "Versionshistorie – " + task->name
-        );
-    } else if (selectedAction == deleteAction) {
-        apiClient.deleteTask(task->id);
+    const auto *selected = menu.exec(taskList->viewport()->mapToGlobal(position));
+    if (selected == edit) {
+        showTaskEditDialog(this, apiClient, task, contexts);
+    } else if (selected == schedule) {
+        openScheduleDialog(task);
+    } else if (selected == comments) {
+        showCommentsDialog(this, apiClient, task.id, "Kommentare – " + task.name, task.comments);
+        apiClient.getTasks();
+    } else if (selected == history) {
+        showVersionHistoryDialog(this, apiClient, task.id, "Versionshistorie – " + task.name);
+    } else if (selected == remove) {
+        apiClient.deleteTask(task.id);
     }
 }
